@@ -1,7 +1,7 @@
 # Architecture — Writer App
 
 > **Project root:** `/Users/sukhjot/Desktop/untitled folder 2/writer-app` — Next.js (App Router, TypeScript, Tailwind v4) writer/practice app per `docs/writer_app_requirements.md` (v1.4, FR-1…FR-50) and `docs/Plan.md`.
-> **Status:** Milestone M1 (Skeleton + Offline Loop) **in progress** — data layer done; rendering/routes/UI following. This file is updated after every change; it is the latest and current state of the app.
+> **Status:** Milestone M1 (Skeleton + Offline Loop) **in progress** — data layer + rendering + API routes done (smoke-tested); editor UI + library page following. This file is updated after every change; it is the latest and current state of the app.
 
 **Locked decisions (never revisit):** PDF engine = `@react-pdf/renderer` only (no Puppeteer/Chrome anywhere) · design tokens parsed at runtime from the instructions file `TOKENS` block (changing colors = editing `docs/html_instructions.md` only) · storage pluggable (filesystem now, MongoDB + Vercel Blob later) · no auth in v1, `ownerId` seams kept (FR-45) · one-change-one-file (AI → `lib/ai.ts`, PDF → `lib/pdf.ts`, storage → `lib/storage.ts`, design → instructions file, FR-48) · preview before PDF is mandatory (FR-46).
 
@@ -64,6 +64,33 @@ data/                          # gitignored runtime storage
     - `readInstructions()` — `data/instructions/active.md` else repo copy.
     - `writeInstructions(content)` — writes `active.md`.
     - `snapshotInstructions(version)` — copies current instructions to `history/<version>.md` (sanitized).
+
+### `lib/html-template.ts` — Template-mode HTML generator (FR-9, Plan §8.1)
+- **Purpose:** Deterministic, self-contained styled HTML from block data + shared tokens — the offline converter (no AI). Follows `docs/html_instructions.md`: A4 `@page`, Georgia/Times, token colors, `.qa-block` cards, `break-inside: avoid` in print. Renders title/heading/paragraph/separator + minimal QA fallback card (full Q&A in M2).
+- **Functions:**
+  - `escapeHtml(text)` — HTML-escapes user content (XSS defense; preview iframe is also sandboxed).
+  - `renderInlineMarkdown(text)` — light inline markdown: `code`, `**bold**`, `*italic*` (applied after escaping).
+  - `generateTemplateHTML(doc, tokens)` — builds the full HTML document (doctype, `<style>` from tokens, `<main class="document">` with block sections).
+  - `tagClass(tag)` (private) — sanitizes user tags into CSS classes (`#past-tense` → `tag-past-tense`).
+
+### `lib/pdf.tsx` — @react-pdf/renderer PDF generation (FR-14/15, Plan §8.2)
+- **Purpose:** The ONLY PDF engine. Generates A4 PDFs from block data (never from HTML) — no Chrome/Puppeteer anywhere. Styles come from the shared tokens (FR-43): Times-Roman, token colors, print margins (~14mm). `.tsx` because it contains JSX.
+- **Functions:**
+  - `lengthToPt(value)` — converts token lengths ("14mm", "11.5px", "0.8rem") to points for react-pdf.
+  - `BlockToPDF({ block, tokens })` — maps a block to react-pdf elements (title → h1-style Text, heading → h2/h3, paragraph → Text, separator → bordered View, qa → minimal card; full Q&A in M2).
+  - `generatePDFBuffer(doc, tokens, opts?)` — renders `<PDFDocument>` via `renderToBuffer`; `opts.practice` accepted now, used in M2 (FR-16/36/49).
+
+### `lib/save.ts` — Save flow (FR-17/20, FR-46)
+- **Purpose:** Shared by POST/PUT document routes: always writes `document.json`; when a preview exists, also writes `document.html` + regenerates `document.pdf` (PDF always reflects what was previewed).
+- **Functions:**
+  - `persistDocument(storage, doc, html?)` — saves JSON, then (if html) writes html file + renders and writes the PDF file.
+
+### API routes (`app/api/…`)
+- `api/convert/template/route.ts` — **POST** `{ doc }` → `{ html }` (template-mode conversion, FR-9). Zod-validated; reads tokens via `getTokens()`.
+- `api/documents/route.ts` — **GET** list (optional `?owner=` filter, FR-45) → `{ documents }`; **POST** `{ doc, html? }` → creates + persists artifacts (201).
+- `api/documents/[id]/route.ts` — **GET** → `{ doc }` (404 if missing); **PUT** `{ doc, html? }` (id must match route; persists artifacts); **DELETE** → 204. `params` typed as `Promise<{ id }>` (Next 15+ convention).
+- `api/documents/[id]/html/route.ts` — **GET** download HTML (saved file, else freshly generated from block data — regenerate, FR-20); attachment filename from doc title.
+- `api/documents/[id]/pdf/route.ts` — **GET** download PDF, always generated from block data via `generatePDFBuffer` (FR-15); accepts `?practice=true` (used in M2).
 
 ### `next.config.ts`
 - **Purpose:** `serverExternalPackages: ["@react-pdf/renderer"]` so the PDF engine works in route handlers (FR-14/15).
