@@ -16,7 +16,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = documentSchema.safeParse(body?.doc ?? body);
+  const payload = (body ?? {}) as { doc?: unknown };
+  const parsed = documentSchema.safeParse(payload.doc ?? body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid document payload", details: parsed.error.flatten() },

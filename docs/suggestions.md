@@ -5,6 +5,9 @@
 - **2026-08-09 — Unify page margins:** `html2pdf/server.js` forces 20px margins, while `html_instructions.md` specifies `@page { margin: 14mm }`. The print CSS should be the single source of truth (the writer app already does this via the instructions file).
 - **2026-08-09 — Validate HTML size server-side:** `server.js` limits JSON to 10MB but doesn't cap HTML length; add a sane length cap and strip `<script>` tags from user-pasted HTML in the preview iframe (currently `sandbox="allow-scripts"` permits scripts).
 - **2026-08-09 — Golden-file check between HTML preview and PDF:** since HTML and PDF are now two renderers over the same block data + shared design tokens (FR-43 in the writer app), add a visual regression test comparing the template-rendered HTML against the react-pdf output for a sample document, so token drift is caught automatically instead of by eye.
+- **2026-08-09 — Testable block markers in generated HTML:** the M1 e2e "library shows block count" check failed as a grep artifact (React SSR inserts `<!-- -->` comment nodes between text children). Give the template generator stable `data-*` hooks (e.g. `data-block-type="paragraph"` per section) so tests and future HTML→blocks parse-back (FR-41) can locate blocks structurally instead of string-matching rendered text.
+- **2026-08-09 — "Draft restored" indicator:** the editor silently restores a localStorage draft on load (FR-24). Surface a small toast/chip ("Restored draft from <time>") so the user knows stale content was recovered, with an explicit "discard draft" affordance.
+- **2026-08-09 — Embed a print-matched serif font in the PDF:** PDF uses Times-Roman while HTML print uses Georgia (per tokens). Intended for M1, but embedding Georgia (or a metric-compatible open serif) into the react-pdf bundle would make PDF and print preview pixel-identical — a natural M5 polish candidate.
 
 ## 🟡 New Features
 

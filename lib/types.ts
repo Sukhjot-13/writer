@@ -60,6 +60,54 @@ export function createBlock(type: BlockType, id?: string): Block {
   }
 }
 
+/**
+ * Return a copy of `block` with new content, preserving id/tags.
+ * (Spreading a discriminated union loses the discriminant — build per variant.)
+ */
+export function setBlockContent(block: Block, content: Block["content"]): Block {
+  switch (block.type) {
+    case "title":
+      return { id: block.id, type: "title", tags: block.tags, content: content as { text: string } };
+    case "heading":
+      return {
+        id: block.id,
+        type: "heading",
+        tags: block.tags,
+        content: content as { text: string; level?: 2 | 3 },
+      };
+    case "paragraph":
+      return {
+        id: block.id,
+        type: "paragraph",
+        tags: block.tags,
+        content: content as { text: string; format?: "plain" | "markdown" },
+      };
+    case "qa":
+      return { id: block.id, type: "qa", tags: block.tags, content: content as QaContent };
+    case "separator":
+      return { id: block.id, type: "separator", tags: block.tags, content: {} };
+  }
+}
+
+/**
+ * Return a copy of `block` converted to another type (slash-command, FR-2),
+ * keeping id/tags and resetting content to the new type's empty shape.
+ */
+export function replaceBlockType(block: Block, type: BlockType): Block {
+  switch (type) {
+    case "title":
+      return { id: block.id, type: "title", tags: block.tags, content: { text: "" } };
+    case "heading":
+      return { id: block.id, type: "heading", tags: block.tags, content: { text: "", level: 2 } };
+    case "paragraph":
+      return { id: block.id, type: "paragraph", tags: block.tags, content: { text: "", format: "plain" } };
+    case "qa":
+      return { id: block.id, type: "qa", tags: block.tags, content: { question: "", responseLabel: "RÉPONSE" } };
+    case "separator":
+      return { id: block.id, type: "separator", tags: block.tags, content: {} };
+  }
+}
+
 /** Convenience factory: a fresh unsaved document (id generated at creation). */
 export function createDocument(title = ""): Document {
   const now = new Date().toISOString();
