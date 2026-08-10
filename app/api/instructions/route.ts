@@ -23,7 +23,7 @@ const payloadSchema = z.object({ content: z.string().min(1) });
 export async function GET(request: Request) {
   // 2026-08-10: Copy → "For AI" resolves instructions the SAME way a
   // conversion does (?docId + ?useSnapshot=true, FR-23) so the copied payload
-  // and Convert with AI can never disagree on which rules apply. Without
+  // and Rethink with AI can never disagree on which rules apply. Without
   // params this is the plain instructions-editor state (content + history).
   const { searchParams } = new URL(request.url);
   const docId = searchParams.get("docId") || undefined;

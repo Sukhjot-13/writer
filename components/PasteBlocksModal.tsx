@@ -18,8 +18,14 @@ import { parseStructuredBlocksResponse } from "@/lib/structuring";
 // your raw material into the other AI, then paste its response below.
 // 2026-08-10 #5: essay shape now carries an optional "heading" (only when the
 // passage has a natural title — never invented, never forced).
-const BLOCKS_INSTRUCTION =
-  'Convert the French practice material below into structured document blocks. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes: {"type":"title","text":"…"} {"type":"heading","text":"…","level":2} {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]} {"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[…],"expressions":[…] } {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[…],"expressions":[…] } {"type":"separator"} Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.';
+// 2026-08-10 M7 round 9 (user: "if i ask ai to convert it will it give me
+// suggested synonyms or not?"): BLOCKS_INSTRUCTION is now COMPOSED from the
+// shared BLOCK_FORMAT_SPEC (lib/prompt.ts) instead of a hand-copied string —
+// the shapes/rules for synonyms + suggestions (CORRECTIONS) were missing here
+// and would have drifted from the in-app conversion every time the spec grew.
+import { BLOCK_FORMAT_SPEC } from "@/lib/prompt";
+
+const BLOCKS_INSTRUCTION = `Convert the French practice material below into structured document blocks. ${BLOCK_FORMAT_SPEC} Keep every provided answer verbatim.`;
 
 interface PasteBlocksModalProps {
   onClose: () => void;

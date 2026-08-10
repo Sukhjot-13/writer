@@ -9,7 +9,7 @@
 //   checked      — practice: model answers revealed side-by-side
 //   previewOpen  — the full-screen on-demand preview sheet (stateless render)
 //
-// Flow (M6): Convert with AI → the doc's blocks are REPLACED by editable
+// Flow (M6): Rethink with AI → the doc's blocks are REPLACED by editable
 // structured blocks (one conversion, then local edits re-render instantly).
 // Preview and PDF render on demand from the CURRENT document — no convert
 // gating, no stale-preview state. Save persists blocks + the instructions

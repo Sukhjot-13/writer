@@ -75,14 +75,17 @@ export interface AIPrompt {
 }
 
 /**
- * The response-format directive shared by BOTH conversion paths — in-app
- * "Convert with AI" (buildAIPrompt) and the external-AI payload from
- * Copy → "For AI" (buildAICopyText). ONE constant so the two instructions can
- * never drift apart (2026-08-10: user asked whether the copy instruction is
- * the same as Convert with AI — now it is, by construction): same JSON block
+ * The response-format directive shared by ALL the AI paths — in-app
+ * "Rethink with AI" (buildAIPrompt, renamed 2026-08-10 — user: "change the
+ * text convert with ai to something else it dosent suit it"), the external-AI
+ * payload from Copy → "For AI" (buildAICopyText) and the Paste-blocks (AI)
+ * modal's BLOCKS_INSTRUCTION (PasteBlocksModal composes it). ONE constant so
+ * the instructions can never drift apart (2026-08-10: user asked whether the
+ * copy instruction is the same as Rethink with AI — now it is, by
+ * construction): same JSON block
  * shapes, same essay rule, same CORRECTIONS (suggestions) rules.
  */
-const BLOCK_FORMAT_SPEC = `Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
+export const BLOCK_FORMAT_SPEC = `Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}]}
@@ -110,7 +113,7 @@ Convert the content above into structured document blocks following the system i
 
 /**
  * "Copy AI instructions" (2026-08-10, user request): ONE clipboard payload —
- * the SAME instructions Convert with AI uses (active file, or the document's
+ * the SAME instructions Rethink with AI uses (active file, or the document's
  * snapshot when the toggle is on — resolved server-side like a conversion)
  * followed by the BLOCK_FORMAT_SPEC and the document content in the
  * type-marker serialization. The user pastes this into any external AI; the

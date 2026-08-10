@@ -6,7 +6,7 @@
 //      Translations and model answers are OFF by default. Q&A numbering is
 //      preserved (1., 2., …). The last-used selection is remembered.
 //   2. "For AI" — copy AI instructions (lib/prompt.ts buildAICopyText): one
-//      clipboard payload = the SAME instructions Convert with AI uses (active
+//      clipboard payload = the SAME instructions Rethink with AI uses (active
 //      file, or the document snapshot when the toggle is on — resolved like a
 //      conversion via GET /api/instructions?docId&useSnapshot) + the exact
 //      JSON block format this app parses + the document content. The other AI
@@ -160,7 +160,7 @@ export function buildCopyText(doc: Document, sel: CopySelection): string {
 
 interface CopyDialogProps {
   doc: Document;
-  useSnapshot: boolean; // FR-23: resolve instructions like Convert with AI does (2026-08-10)
+  useSnapshot: boolean; // FR-23: resolve instructions like Rethink with AI does (2026-08-10)
   onClose: () => void;
 }
 
@@ -170,7 +170,7 @@ export default function CopyDialog({ doc, useSnapshot, onClose }: CopyDialogProp
     typeof window === "undefined" ? { ...DEFAULT_SELECTION } : loadSelection(),
   );
   const [copied, setCopied] = useState(false);
-  // 2026-08-10: the "For AI" payload embeds the same instructions Convert with
+  // 2026-08-10: the "For AI" payload embeds the same instructions Rethink with
   // AI uses. null = still loading; fetch once when the dialog opens.
   const [instructions, setInstructions] = useState<string | null>(null);
   const [instructionsError, setInstructionsError] = useState(false);
@@ -320,7 +320,7 @@ export default function CopyDialog({ doc, useSnapshot, onClose }: CopyDialogProp
           ) : (
             <>
               <p className="mb-2 text-sm text-zinc-500">
-                One payload: your worksheet instructions (the same ones Convert with AI uses) +
+                One payload: your worksheet instructions (the same ones Rethink with AI uses) +
                 the JSON block format + your questions, answers and paragraphs. Give the whole
                 thing to any external AI — it returns a JSON block array, which you paste back via{" "}
                 <strong>Paste blocks (AI)…</strong>. No AI call here.

@@ -1,7 +1,7 @@
 // components/Toolbar.tsx — primary actions (M6 redesign, FR-29/30/35/37/38/39/46/50).
 //
 // Layout: a title row (brand · title · tags) and an actions row —
-// Convert with AI ▾ (primary split) · Save · Preview · Autosave (M7 round 7) ·
+// Rethink with AI ▾ (primary split) · Save · Preview · Autosave (M7 round 7) ·
 // Practice + Detailed + Check/Hide answers · Copy… · Paste ▾.
 //
 // M6 changes: single AI convert (template mode dropped); on-demand Preview;
@@ -264,8 +264,10 @@ export default function Toolbar({
       {/* Actions row: three visual groups separated by soft dividers —
           document actions · practice · copy/paste. */}
       <div className="flex flex-wrap items-center gap-2 px-4 pb-2.5 pt-1.5">
-        {/* Convert with AI split button: primary converts, caret opens the
-            goal input + snapshot-rules toggle (M6: AI only — template dropped) */}
+        {/* Rethink with AI split button (2026-08-10 rename — user: "change the
+            text convert with ai to something else it dosent suit it"): primary
+            rethinks, caret opens the goal input + snapshot-rules toggle (M6:
+            AI only — template dropped) */}
         <div className="relative">
           <div className="flex overflow-hidden rounded-lg shadow-sm">
             <button
@@ -274,7 +276,7 @@ export default function Toolbar({
               disabled={busy !== null}
               className="bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy === "converting" ? "Converting…" : "Convert with AI"}
+              {busy === "converting" ? "Rethinking…" : "Rethink with AI"}
             </button>
             <button
               type="button"
@@ -313,7 +315,7 @@ export default function Toolbar({
                         className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
                       />
                       <span>
-                        Convert with this document&apos;s snapshot rules (v{snapshotInfo.version})
+                        Rethink with this document&apos;s snapshot rules (v{snapshotInfo.version})
                         {snapshotInfo.differs ? " — differs from active" : ""}
                         <span className="block text-xs text-zinc-400">
                           Uses the instructions this document was made with
