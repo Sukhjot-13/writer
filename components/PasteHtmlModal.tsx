@@ -52,7 +52,7 @@ export default function PasteHtmlModal({ onClose, onImported }: PasteHtmlModalPr
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
       {/* 2026-08-10 #6 (user feedback): the whole card scrolls when it outgrows
           the viewport — the textarea cap alone wasn't enough (instruction box +
           textarea + buttons could still push the modal off-screen). */}
@@ -112,7 +112,7 @@ export default function PasteHtmlModal({ onClose, onImported }: PasteHtmlModalPr
             type="button"
             onClick={() => void importHtml()}
             disabled={busy || !html.trim()}
-            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700 disabled:opacity-40"
           >
             {busy ? "Importing…" : "Import document"}
           </button>

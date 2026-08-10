@@ -293,7 +293,7 @@ export default function LibraryList({
         <p className="max-w-sm text-sm leading-relaxed text-zinc-500">
           Documents you save appear here. Open the editor, write some blocks, convert, and save.
         </p>
-        <NewDocumentButton className="mt-1 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" />
+        <NewDocumentButton className="mt-1 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700" />
       </div>
     );
   }
@@ -329,7 +329,7 @@ export default function LibraryList({
                 title="Filter the library by this tag"
                 className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   filterTag === tag
-                    ? "bg-blue-600 text-white"
+                    ? "bg-blue-600 text-[#fff]"
                     : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100 hover:ring-zinc-300"
                 }`}
               >
@@ -370,7 +370,7 @@ export default function LibraryList({
             title="Show every document"
             className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               filterFolder === null
-                ? "bg-zinc-900 text-white"
+                ? "bg-zinc-900 text-[#fff]"
                 : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100 hover:ring-zinc-300"
             }`}
           >
@@ -419,7 +419,7 @@ export default function LibraryList({
                   <button
                     type="button"
                     onClick={() => void deleteFolder(folder.id)}
-                    className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
+                    className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-[#fff] hover:bg-red-700"
                   >
                     Delete
                   </button>
@@ -438,7 +438,7 @@ export default function LibraryList({
                 key={folder.id}
                 className={`flex items-center gap-0.5 rounded-full pr-1.5 transition-colors ${
                   filterFolder === folder.id
-                    ? "bg-blue-600 text-white"
+                    ? "bg-blue-600 text-[#fff]"
                     : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-zinc-300"
                 }`}
               >
@@ -446,7 +446,7 @@ export default function LibraryList({
                   type="button"
                   onClick={() => setFilterFolder(filterFolder === folder.id ? null : folder.id)}
                   className={`rounded-full py-1 pl-3 text-xs font-medium ${
-                    filterFolder === folder.id ? "text-white" : "text-zinc-600"
+                    filterFolder === folder.id ? "text-[#fff]" : "text-zinc-600"
                   }`}
                   title={`Show only documents in "${folder.name}"`}
                 >
@@ -460,7 +460,7 @@ export default function LibraryList({
                   }}
                   title="Rename folder"
                   className={`rounded-full px-1 text-[10px] ${
-                    filterFolder === folder.id ? "text-blue-200 hover:text-white" : "text-zinc-300 hover:text-zinc-700"
+                    filterFolder === folder.id ? "text-blue-200 hover:text-[#fff]" : "text-zinc-300 hover:text-zinc-700"
                   }`}
                 >
                   ✎
@@ -470,7 +470,7 @@ export default function LibraryList({
                   onClick={() => setConfirmingFolderDelete(folder.id)}
                   title="Delete folder (documents stay)"
                   className={`rounded-full px-1 text-[10px] ${
-                    filterFolder === folder.id ? "text-blue-200 hover:text-white" : "text-zinc-300 hover:text-red-500"
+                    filterFolder === folder.id ? "text-blue-200 hover:text-[#fff]" : "text-zinc-300 hover:text-red-500"
                   }`}
                 >
                   🗑
@@ -486,7 +486,7 @@ export default function LibraryList({
               title="Show documents that aren't in any folder"
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 filterFolder === "none"
-                  ? "bg-zinc-900 text-white"
+                  ? "bg-zinc-900 text-[#fff]"
                   : "border border-dashed border-zinc-300 bg-white text-zinc-500 hover:bg-zinc-100"
               }`}
             >
@@ -513,7 +513,7 @@ export default function LibraryList({
               <button
                 type="button"
                 onClick={() => void createFolder()}
-                className="rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700"
+                className="rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-[#fff] transition-colors hover:bg-blue-700"
               >
                 Add
               </button>
@@ -546,7 +546,7 @@ export default function LibraryList({
             <NewDocumentButton
               folderId={filterFolder}
               label={`+ New document in “${folders.find((f) => f.id === filterFolder)?.name ?? "folder"}”`}
-              className="ml-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              className="ml-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-[#fff] transition-colors hover:bg-emerald-700"
             />
           )}
         </div>
@@ -633,7 +633,7 @@ export default function LibraryList({
                     <button
                       type="button"
                       onClick={() => void remove(doc)}
-                      className="shrink-0 rounded-md bg-red-600 px-2 py-1 font-semibold text-white transition-colors hover:bg-red-700"
+                      className="shrink-0 rounded-md bg-red-600 px-2 py-1 font-semibold text-[#fff] transition-colors hover:bg-red-700"
                     >
                       Delete
                     </button>

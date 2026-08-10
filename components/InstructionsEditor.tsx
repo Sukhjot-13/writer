@@ -170,7 +170,7 @@ export default function InstructionsEditor() {
           type="button"
           onClick={() => void save()}
           disabled={busy || loading || !dirty}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-40"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-[#fff] shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-40"
         >
           {busy ? "Saving…" : dirty ? "Save instructions" : "Saved ✓"}
         </button>

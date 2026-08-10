@@ -10,6 +10,7 @@ import Link from "next/link";
 
 import { getStorage } from "@/lib/storage";
 import NewDocumentButton from "@/components/NewDocumentButton";
+import ThemeToggle from "@/components/ThemeToggle";
 import LibraryList from "@/components/LibraryList";
 
 export const metadata: Metadata = {
@@ -53,7 +54,9 @@ export default async function LibraryPage() {
           >
             Instructions
           </Link>
-          <NewDocumentButton className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700" />
+          <NewDocumentButton className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] shadow-sm transition-colors hover:bg-blue-700" />
+          {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
+          <ThemeToggle />
         </div>
       </header>
 

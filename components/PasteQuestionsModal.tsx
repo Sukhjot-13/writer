@@ -54,7 +54,7 @@ export default function PasteQuestionsModal({ onClose, onResult }: PasteQuestion
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div
         className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -123,7 +123,7 @@ export default function PasteQuestionsModal({ onClose, onResult }: PasteQuestion
             type="button"
             onClick={() => void structureWithAI()}
             disabled={busy !== null || questions.length === 0}
-            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700 disabled:opacity-40"
           >
             {busy === "ai" ? "Structuring…" : "Structure with AI"}
           </button>

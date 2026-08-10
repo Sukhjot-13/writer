@@ -302,7 +302,10 @@ export default function Block({
         : "text-[15px] text-zinc-800";
 
   return (
-    <div className="group relative rounded-xl p-1.5 transition-colors hover:bg-zinc-50 focus-within:bg-zinc-50">
+    /* M7 round 7: data-block-id marks the block row — the editor's
+       toggleDetailed scroll-anchor targets it (elementFromPoint + closest)
+       so toggling Detailed keeps the user's place when content heights change. */
+    <div data-block-id={block.id} className="group relative rounded-xl p-1.5 transition-colors hover:bg-zinc-50 focus-within:bg-zinc-50">
       <div className="flex items-center gap-2">
         <div className="flex-1">
           {/* Header row: label · heading level · tags · controls (on hover).

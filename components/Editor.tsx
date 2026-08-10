@@ -108,6 +108,29 @@ export default function Editor({ docId }: { docId: string | null }) {
       return next;
     });
   };
+  // M7 round 7 (user: "when it toggle detailed on the writer page it shifts my
+  // question as new data is added… then it again shift me on another part"):
+  // toggling Detailed adds/removes enrichment ABOVE and INSIDE the visible
+  // blocks, so the browser keeps scrollY fixed and the view shifts. Fix: before
+  // flipping the state, remember the block row currently near the top of the
+  // viewport (elementFromPoint at the column's horizontal center), then after
+  // the re-render (rAF — React has committed by then) scroll back so that row
+  // sits at the exact viewport position it had. Content added below the anchor
+  // never moves it; content above changes height → delta correction. No-op
+  // when the anchor is gone or nothing moved.
+  const toggleDetailed = () => {
+    const anchor = document
+      .elementFromPoint(window.innerWidth / 2, 100)
+      ?.closest("[data-block-id]") as HTMLElement | null;
+    const anchorTopBefore = anchor?.getBoundingClientRect().top ?? null;
+    setDetailed((v) => !v);
+    requestAnimationFrame(() => {
+      if (anchor && anchor.isConnected && anchorTopBefore !== null) {
+        const delta = anchor.getBoundingClientRect().top - anchorTopBefore;
+        if (delta !== 0) window.scrollTo(0, window.scrollY + delta);
+      }
+    });
+  };
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   // 2026-08-10: preview display options — field toggles (omitted enrichment
@@ -706,7 +729,7 @@ function essayAnswerFromParagraphs(
         onToggleChecked={() => setChecked((v) => !v)}
         onResetPractice={() => setConfirmingReset(true)}
         detailed={detailed}
-        onToggleDetailed={() => setDetailed((v) => !v)}
+        onToggleDetailed={toggleDetailed}
         autosave={autosave}
         onToggleAutosave={toggleAutosave}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
@@ -726,7 +749,7 @@ function essayAnswerFromParagraphs(
             type="button"
             onClick={() => void parseToBlocks()}
             disabled={busy !== null}
-            className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+            className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-[#fff] transition-colors hover:bg-amber-700 disabled:opacity-50"
           >
             {busy === "parse" ? "Parsing…" : "Parse to blocks"}
           </button>
@@ -753,7 +776,7 @@ function essayAnswerFromParagraphs(
               resetPractice();
               setConfirmingReset(false);
             }}
-            className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+            className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-[#fff] transition-colors hover:bg-red-700"
           >
             Clear answers
           </button>
@@ -817,7 +840,7 @@ function essayAnswerFromParagraphs(
           and drives the SAME state (no divergence). */}
       <FloatingDetailedToggle
         detailed={detailed}
-        onToggleDetailed={() => setDetailed((v) => !v)}
+        onToggleDetailed={toggleDetailed}
         containerRef={scrollRef}
       />
 

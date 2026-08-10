@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { parseTags } from "@/lib/tags";
+import ThemeToggle from "./ThemeToggle";
 
 interface ToolbarProps {
   title: string;
@@ -77,7 +78,7 @@ function ActionButton({
   const base =
     "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
   const styles = primary
-    ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+    ? "bg-blue-600 text-[#fff] shadow-sm hover:bg-blue-700"
     : "border border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50";
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${base} ${styles}`}>
@@ -219,7 +220,7 @@ export default function Toolbar({
           title="Writer — go to the home page"
           className="flex shrink-0 items-center gap-2 rounded-lg transition-colors hover:bg-zinc-100"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-sm text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-sm text-[#fff]">
             ✎
           </span>
           <span className="hidden text-sm font-semibold text-zinc-800 sm:inline">Writer</span>
@@ -234,6 +235,9 @@ export default function Toolbar({
         >
           Library
         </Link>
+
+        {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
+        <ThemeToggle />
 
         <input
           value={title}
@@ -268,7 +272,7 @@ export default function Toolbar({
               type="button"
               onClick={() => onConvert(goal || null)}
               disabled={busy !== null}
-              className="bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy === "converting" ? "Converting…" : "Convert with AI"}
             </button>
@@ -277,7 +281,7 @@ export default function Toolbar({
               onClick={() => setConvertOpen((o) => !o)}
               disabled={busy !== null}
               title="Optional goal and conversion options"
-              className="border-l border-blue-700/60 bg-blue-600 px-2 text-xs text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+              className="border-l border-blue-700/60 bg-blue-600 px-2 text-xs text-[#fff] transition-colors hover:bg-blue-700 disabled:opacity-40"
             >
               ▾
             </button>
@@ -373,7 +377,7 @@ export default function Toolbar({
                 title={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question"}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                   checked
-                    ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                    ? "bg-emerald-600 text-[#fff] shadow-sm hover:bg-emerald-700"
                     : "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100"
                 }`}
               >

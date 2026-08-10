@@ -1,13 +1,23 @@
 @import "tailwindcss";
 
-/* UI theme — light-only by design (every component hardcodes light surfaces;
-   the old dark-mode block painted body near-black while components stayed
-   light, so it was removed). The document preview/print styles live in the
-   instructions file, not here (FR-47). */
+/* UI theme — light by default; the `.dark` class on <html> switches every
+   component (M7 round 7: user asked for a dark-mode toggle). The palette
+   below is indirected through runtime CSS variables (--zinc-*, --blue-*,
+   --emerald-*, --white, --bg/--fg): each @theme token is `var(--x, <light>)`,
+   and the `.dark` block at the bottom overrides only the runtime vars — so
+   EVERY existing class (bg-white, text-zinc-700, border-zinc-200, …) flips
+   without touching components. The old dark-mode block was removed in the
+   design pass because it painted the body dark while components stayed light;
+   the var-swap makes components follow too. The document preview/print styles
+   live in the instructions file, not here (FR-47) — the preview sheet is a
+   sandboxed iframe WITHOUT .dark, so it always stays light (the print spec is
+   light-only by design). */
 
 :root {
-  --background: #f7f9fb; /* spec lightBg — app canvas */
-  --foreground: #1a1a1a; /* spec mainText */
+  --background: var(--bg, #f7f9fb); /* spec lightBg — app canvas */
+  --foreground: var(--fg, #1a1a1a); /* spec mainText */
+  --focus-ring: var(--ring, #1e3a5f);
+  --selection: var(--sel, #b9c9de);
 }
 
 /*
@@ -15,41 +25,44 @@
  * design scheme (docs/html_instructions.md Part 2) — zinc → the spec neutral
  * ramp, blue → the dark "badge/heading" navy #1e3a5f, emerald → the accent
  * green #2c5f2d. Everything below is derived from the spec's colors so the
- * editor and the printed worksheet share one family.
+ * editor and the printed worksheet share one family. Every value is a var
+ * reference (fallback = the light spec value); .dark re-defines the vars.
  */
 @theme {
   /* neutrals: lightBg #f7f9fb → mainText #1a1a1a (spec) */
-  --color-zinc-50: #f7f9fb;
-  --color-zinc-100: #eef2f7;
-  --color-zinc-200: #d0d5dc;
-  --color-zinc-300: #b6bfca;
-  --color-zinc-400: #8a97a8;
-  --color-zinc-500: #5c6b80;
-  --color-zinc-600: #43536b;
-  --color-zinc-700: #33445c;
-  --color-zinc-800: #24344c;
-  --color-zinc-900: #1a2738;
+  --color-zinc-50: var(--zinc-50, #f7f9fb);
+  --color-zinc-100: var(--zinc-100, #eef2f7);
+  --color-zinc-200: var(--zinc-200, #d0d5dc);
+  --color-zinc-300: var(--zinc-300, #b6bfca);
+  --color-zinc-400: var(--zinc-400, #8a97a8);
+  --color-zinc-500: var(--zinc-500, #5c6b80);
+  --color-zinc-600: var(--zinc-600, #43536b);
+  --color-zinc-700: var(--zinc-700, #33445c);
+  --color-zinc-800: var(--zinc-800, #24344c);
+  --color-zinc-900: var(--zinc-900, #1a2738);
   /* primary → navy #1e3a5f (spec headings/badges) */
-  --color-blue-50: #eef2f7;
-  --color-blue-100: #dbe4f0;
-  --color-blue-200: #b9c9de;
-  --color-blue-300: #8fa8c9;
-  --color-blue-400: #5f7fae;
-  --color-blue-500: #3d5d8c;
-  --color-blue-600: #1e3a5f;
-  --color-blue-700: #172e4c;
-  --color-blue-800: #12243c;
-  --color-blue-900: #0d1a2e;
+  --color-blue-50: var(--blue-50, #eef2f7);
+  --color-blue-100: var(--blue-100, #dbe4f0);
+  --color-blue-200: var(--blue-200, #b9c9de);
+  --color-blue-300: var(--blue-300, #8fa8c9);
+  --color-blue-400: var(--blue-400, #5f7fae);
+  --color-blue-500: var(--blue-500, #3d5d8c);
+  --color-blue-600: var(--blue-600, #1e3a5f);
+  --color-blue-700: var(--blue-700, #172e4c);
+  --color-blue-800: var(--blue-800, #12243c);
+  --color-blue-900: var(--blue-900, #0d1a2e);
   /* success/check → accent green #2c5f2d (spec) */
-  --color-emerald-50: #e8f0e9;
-  --color-emerald-100: #cfe0d1;
-  --color-emerald-200: #a8c4ab;
-  --color-emerald-300: #7da682;
-  --color-emerald-400: #4f8556;
-  --color-emerald-500: #36703d;
-  --color-emerald-600: #2c5f2d;
-  --color-emerald-700: #224a24;
-  --color-emerald-800: #1a3a1c;
+  --color-emerald-50: var(--emerald-50, #e8f0e9);
+  --color-emerald-100: var(--emerald-100, #cfe0d1);
+  --color-emerald-200: var(--emerald-200, #a8c4ab);
+  --color-emerald-300: var(--emerald-300, #7da682);
+  --color-emerald-400: var(--emerald-400, #4f8556);
+  --color-emerald-500: var(--emerald-500, #36703d);
+  --color-emerald-600: var(--emerald-600, #2c5f2d);
+  --color-emerald-700: var(--emerald-700, #224a24);
+  --color-emerald-800: var(--emerald-800, #1a3a1c);
+  /* surfaces: bg-white is the dominant surface color — remapped by .dark */
+  --color-white: var(--white, #ffffff);
 }
 
 @theme inline {
@@ -70,10 +83,58 @@ body {
 /* Calmer default focus ring for keyboard users (accessibility) — navy to
    match the PDF design scheme. */
 :focus-visible {
-  outline: 2px solid #1e3a5f;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #b9c9de; /* blue-200 (navy ramp) */
+  background: var(--selection); /* blue-200 (navy ramp) */
+}
+
+/*
+ * Dark mode (M7 round 7): the runtime vars behind every UI token. Dark is a
+ * navy-tinted inversion of the spec ramps — canvas #0d141f, surfaces #141d2b,
+ * text #e6ebf2; the primary blue and accent green shift LIGHTER so they read
+ * on dark surfaces. Text that must stay light on colored buttons is a literal
+ * (#fff via text-[#fff] — swept 2026-08-10) so the surface remap of --white
+ * never breaks button labels. Semantic ramps (red/amber/rose/orange, used for
+ * banners, confirms, suggestion badges) keep their Tailwind defaults — they
+ * read fine on dark. Placed AFTER :root so the overrides win (equal
+ * specificity, later source order).
+ */
+.dark {
+  --bg: #0d141f;
+  --fg: #e6ebf2;
+  --ring: #5b8ac9;
+  --sel: #2a3e63;
+  --white: #141d2b;
+  --zinc-50: #141d2b;
+  --zinc-100: #1a2433;
+  --zinc-200: #223043;
+  --zinc-300: #31445e;
+  --zinc-400: #4a5d7e;
+  --zinc-500: #64779a;
+  --zinc-600: #8fa3c0;
+  --zinc-700: #b4c3d8;
+  --zinc-800: #d3deea;
+  --zinc-900: #eef2f7;
+  --blue-50: #16233a;
+  --blue-100: #1d2c47;
+  --blue-200: #2a3e63;
+  --blue-300: #3b567f;
+  --blue-400: #4f709f;
+  --blue-500: #33598f;
+  --blue-600: #3d6da8;
+  --blue-700: #4a7dbf;
+  --blue-800: #5b8ac9;
+  --blue-900: #7ba4d6;
+  --emerald-50: #152c1a;
+  --emerald-100: #1d3a23;
+  --emerald-200: #2a4f31;
+  --emerald-300: #3c6b45;
+  --emerald-400: #4d8356;
+  --emerald-500: #5f9c68;
+  --emerald-600: #3d8a46;
+  --emerald-700: #4aa055;
+  --emerald-800: #6ec479;
 }

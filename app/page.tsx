@@ -10,6 +10,7 @@ import Link from "next/link";
 
 import { getStorage } from "@/lib/storage";
 import NewDocumentButton from "@/components/NewDocumentButton";
+import ThemeToggle from "@/components/ThemeToggle";
 import LibraryList from "@/components/LibraryList";
 
 export const metadata: Metadata = {
@@ -37,7 +38,7 @@ export default async function HomePage() {
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-lg text-white">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-lg text-[#fff]">
             ✎
           </span>
           <div>
@@ -60,7 +61,9 @@ export default async function HomePage() {
           >
             Instructions
           </Link>
-          <NewDocumentButton className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700" />
+          {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
+          <ThemeToggle />
+          <NewDocumentButton className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] shadow-sm transition-colors hover:bg-blue-700" />
         </div>
       </header>
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,6 +27,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* M7 round 7: apply the saved dark-mode preference BEFORE first paint
+            (the palette vars in globals.css do the rest — no flash of light). */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`try{if(localStorage.getItem("writer-app:theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`}
+        </Script>
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
