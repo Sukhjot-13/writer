@@ -9,7 +9,7 @@
 // ignores (always null). Adding auth later = middleware + setting ownerId —
 // never a restructuring.
 
-import type { Document } from "./types";
+import type { Document, Folder } from "./types";
 import { createFSStorage } from "./storage-fs";
 import { createMongoBlobStorage } from "./storage-mongo";
 
@@ -19,6 +19,14 @@ export interface StorageBackend {
   getDocument(id: string, ownerId?: string | null): Promise<Document | null>;
   saveDocument(doc: Document): Promise<void>;
   deleteDocument(id: string): Promise<void>;
+
+  // Library folders (2026-08-10 M7 round 6, user: "option for making folder
+  // too"). Deleting a folder UNFILES its documents (clears their folderId) —
+  // it never deletes them. Folders are sorted by name in listFolders.
+  listFolders(): Promise<Folder[]>;
+  createFolder(name: string): Promise<Folder>;
+  renameFolder(id: string, name: string): Promise<Folder | null>;
+  deleteFolder(id: string): Promise<void>;
 
   // File attachments (html/pdf/snapshots per document folder)
   readFile(docId: string, filename: string): Promise<Buffer | null>;

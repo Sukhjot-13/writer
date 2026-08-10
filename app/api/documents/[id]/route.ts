@@ -1,11 +1,14 @@
-// /api/documents/[id] — get (GET), update/save (PUT), delete (DELETE).
+// /api/documents/[id] — get (GET), update/save (PUT), delete (DELETE),
+// move to folder (PATCH, 2026-08-10 M7 round 6).
 // PUT accepts { doc, html? } — when a preview is present, document.html and
 // document.pdf are persisted alongside document.json (FR-17, FR-46).
+// PATCH accepts { folderId: string | null } — moves the document between
+// library folders without touching its content.
 
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
-import { saveDocumentPayloadSchema } from "@/lib/schemas";
+import { saveDocumentPayloadSchema, moveDocumentPayloadSchema } from "@/lib/schemas";
 import { persistDocument } from "@/lib/save";
 import { readDocumentSnapshot, hashVersion } from "@/lib/instructions";
 
@@ -63,4 +66,35 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   const { id } = await params;
   await getStorage().deleteDocument(id);
   return new NextResponse(null, { status: 204 });
+}
+
+/** Move the document into (or out of) a library folder — content untouched. */
+export async function PATCH(request: Request, { params }: RouteParams) {
+  const { id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = moveDocumentPayloadSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid move payload", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const storage = getStorage();
+  const doc = await storage.getDocument(id);
+  if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+
+  // folderId null = unfiled. updatedAt is intentionally untouched — moving
+  // between folders is organization, not content editing (it would otherwise
+  // reshuffle the home "recent" list for no reason).
+  const next = { ...doc, folderId: parsed.data.folderId ?? undefined };
+  await storage.saveDocument(next);
+  return NextResponse.json({ doc: next });
 }

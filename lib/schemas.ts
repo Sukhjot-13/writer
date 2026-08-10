@@ -111,11 +111,31 @@ export const documentSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   tags: z.array(z.string()),
+  /** Library folder (2026-08-10 M7 round 6) — optional so older documents
+   *  validate unchanged; undefined = unfiled. */
+  folderId: z.string().optional(),
   blocks: z.array(blockSchema),
   practice: z
     .object({ hideTranslations: z.boolean(), hideModelAnswers: z.boolean() })
     .optional(),
 });
+
+/** Library folder payloads (2026-08-10 M7 round 6). */
+export const folderSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+/** Create-folder body: just the name (id/timestamps are server-generated). */
+export const createFolderPayloadSchema = z.object({ name: z.string().trim().min(1).max(80) });
+
+/** Rename-folder body. */
+export const renameFolderPayloadSchema = z.object({ name: z.string().trim().min(1).max(80) });
+
+/** Move-document body (PATCH /api/documents/[id]): folderId null clears it. */
+export const moveDocumentPayloadSchema = z.object({ folderId: z.string().nullable() });
 
 /** Payload accepted by document create/update routes: { doc, html?, instructionsVersion? }. */
 export const saveDocumentPayloadSchema = z.object({

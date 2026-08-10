@@ -8,6 +8,7 @@
 //   collection documents     — { _id: docId, ...Document }
 //   collection files         — { _id: "<docId>/<filename>", url, contentType }  (blob handle map)
 //   collection instructions  — { _id: "active" | "history:<version>", content, savedAt }
+//   collection folders       — { _id: folderId, name, createdAt, updatedAt }  (2026-08-10 M7 round 6)
 //
 // Lazy Mongo connection keeps the getStorage() factory synchronous — the
 // first storage call pays the connect. Blob read/write uses the public URL
@@ -17,13 +18,14 @@ import { MongoClient, type Db } from "mongodb";
 import { put, del } from "@vercel/blob";
 import { promises as fs } from "node:fs";
 
-import type { Document } from "./types";
+import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
 import { REPO_INSTRUCTIONS_PATH } from "./tokens";
 
 const DOCS = "documents";
 const FILES = "files";
 const INSTR = "instructions";
+const FOLDERS = "folders";
 const ACTIVE_KEY = "active";
 
 let cachedDb: Promise<Db> | null = null;
@@ -97,6 +99,40 @@ export function createMongoBlobStorage(): StorageBackend {
       }
       await db.collection<FileRow>(FILES).deleteMany({ _id: { $regex: `^${id}/` } });
       await db.collection<DocRow>(DOCS).deleteOne({ _id: id });
+    },
+
+    // ---- library folders (2026-08-10 M7 round 6) — mirror of the FS backend.
+    // Deleting a folder UNFILES its documents (unset folderId) — never deletes them.
+    async listFolders() {
+      const db = await getDb();
+      const rows = await db.collection<DocRow>(FOLDERS).find({}).toArray();
+      return rows
+        .map((r) => stripId(r) as unknown as Folder)
+        .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+    },
+
+    async createFolder(name) {
+      const db = await getDb();
+      const now = new Date().toISOString();
+      const folder: Folder = { id: crypto.randomUUID(), name, createdAt: now, updatedAt: now };
+      await db.collection<DocRow>(FOLDERS).insertOne({ _id: folder.id, ...folder });
+      return folder;
+    },
+
+    async renameFolder(id, name) {
+      const db = await getDb();
+      const res = await db
+        .collection<DocRow>(FOLDERS)
+        .findOneAndUpdate({ _id: id }, { $set: { name, updatedAt: new Date().toISOString() } });
+      if (!res) return null;
+      return stripId(res) as unknown as Folder;
+    },
+
+    async deleteFolder(id) {
+      const db = await getDb();
+      await db.collection<DocRow>(FOLDERS).deleteOne({ _id: id });
+      // Unfile the folder's documents — the documents themselves are kept.
+      await db.collection<DocRow>(DOCS).updateMany({ folderId: id }, { $unset: { folderId: "" } });
     },
 
     async readFile(docId, filename) {

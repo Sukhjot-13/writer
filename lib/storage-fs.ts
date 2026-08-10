@@ -1,12 +1,13 @@
 // lib/storage-fs.ts — filesystem storage implementation (FR-44, v1).
 //
-// Layout per FR-17:
+// Layout per FR-17 (folders.json added 2026-08-10 M7 round 6):
 //   data/
-//     documents/<id>/document.json        # source blocks (the single editable truth)
-//     documents/<id>/document.html        # generated HTML
-//     documents/<id>/document.pdf         # generated PDF
+//     folders.json                     # library folders [{id,name,createdAt,updatedAt}]
+//     documents/<id>/document.json     # source blocks (the single editable truth)
+//     documents/<id>/document.html     # generated HTML
+//     documents/<id>/document.pdf      # generated PDF
 //     documents/<id>/instructions.snapshot.md  # instructions version at last conversion
-//     instructions/active.md              # editable copy (seeded in M4)
+//     instructions/active.md           # editable copy (seeded in M4)
 //     instructions/history/<timestamp>.md # versioned history (M4)
 //
 // The repo copy docs/html_instructions.md is the read-only fallback for
@@ -15,7 +16,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { Document } from "./types";
+import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
 import { seedInstructionsIfMissing } from "./instructions";
 
@@ -38,6 +39,7 @@ export function createFSStorage(dataDir: string): StorageBackend {
   const docsDir = path.join(root, "documents");
   const instructionsDir = path.join(root, "instructions");
   const historyDir = path.join(instructionsDir, "history");
+  const foldersFile = path.join(root, "folders.json");
 
   async function ensureDirs(): Promise<void> {
     await fs.mkdir(docsDir, { recursive: true });
@@ -61,6 +63,33 @@ export function createFSStorage(dataDir: string): StorageBackend {
   async function readInstructions(): Promise<string> {
     await seedInstructionsIfMissing(path.join(instructionsDir, "active.md"));
     return fs.readFile(path.join(instructionsDir, "active.md"), "utf8");
+  }
+
+  // ---- library folders (2026-08-10 M7 round 6) ----
+  // Folders live in data/folders.json (a single list; the docs keep a
+  // folderId reference). Deleting a folder clears folderId on its documents —
+  // documents are NEVER deleted by folder operations.
+
+  async function readFolders(): Promise<Folder[]> {
+    return (await readJson<Folder[]>(foldersFile)) ?? [];
+  }
+
+  async function writeFolders(folders: Folder[]): Promise<void> {
+    await ensureDirs();
+    await fs.writeFile(foldersFile, JSON.stringify(folders, null, 2), "utf8");
+  }
+
+  /** Clear folderId on every document that references the folder. */
+  async function unfileDocuments(folderId: string): Promise<void> {
+    const entries = await fs.readdir(docsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const file = path.join(docDir(entry.name), "document.json");
+      const doc = await readJson<Document>(file);
+      if (!doc || doc.folderId !== folderId) continue;
+      delete doc.folderId;
+      await fs.writeFile(file, JSON.stringify(doc, null, 2), "utf8");
+    }
   }
 
   return {
@@ -93,6 +122,40 @@ export function createFSStorage(dataDir: string): StorageBackend {
 
     async deleteDocument(id) {
       await fs.rm(docDir(id), { recursive: true, force: true });
+    },
+
+    async listFolders() {
+      const folders = await readFolders();
+      return folders.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+    },
+
+    async createFolder(name) {
+      const folders = await readFolders();
+      const now = new Date().toISOString();
+      const folder: Folder = { id: crypto.randomUUID(), name, createdAt: now, updatedAt: now };
+      folders.push(folder);
+      await writeFolders(folders);
+      return folder;
+    },
+
+    async renameFolder(id, name) {
+      const folders = await readFolders();
+      const folder = folders.find((f) => f.id === id);
+      if (!folder) return null;
+      folder.name = name;
+      folder.updatedAt = new Date().toISOString();
+      await writeFolders(folders);
+      return folder;
+    },
+
+    async deleteFolder(id) {
+      const folders = await readFolders();
+      const next = folders.filter((f) => f.id !== id);
+      if (next.length !== folders.length) {
+        await writeFolders(next);
+        // Unfile the folder's documents — the documents themselves are kept.
+        await unfileDocuments(id);
+      }
     },
 
     async readFile(docId, filename) {

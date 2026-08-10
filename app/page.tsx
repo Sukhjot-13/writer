@@ -1,6 +1,9 @@
 // app/page.tsx — home dashboard (M6 redesign).
-// Server component: offers "new document" and the list of saved ones. The
-// editor moved to /doc/[id] — "/" no longer throws you straight into an editor.
+// Server component: offers "new document" and the 10 most recent saved ones.
+// The full archive (every document + folders) lives at /library (2026-08-10
+// M7 round 6, user: "only show 10 there and a link to library… make a
+// library page"). The editor moved to /doc/[id] — "/" no longer throws you
+// straight into an editor.
 
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -17,8 +20,17 @@ export const metadata: Metadata = {
 // at build time (Next would freeze it to an empty build-time snapshot).
 export const dynamic = "force-dynamic";
 
+// M7 round 6: how many recent documents the home page shows before pointing
+// at the full library.
+const RECENT_LIMIT = 10;
+
 export default async function HomePage() {
-  const documents = await getStorage().listDocuments(null);
+  // listDocuments already sorts by updatedAt desc — recents are the first 10.
+  const [documents, folders] = await Promise.all([
+    getStorage().listDocuments(null),
+    getStorage().listFolders(), // card folder names on the home list too
+  ]);
+  const recent = documents.slice(0, RECENT_LIMIT);
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
@@ -52,8 +64,10 @@ export default async function HomePage() {
       </header>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">Documents</h2>
-        <LibraryList documents={documents} />
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+          Recent documents
+        </h2>
+        <LibraryList documents={recent} folders={folders} recent total={documents.length} />
       </section>
     </div>
   );

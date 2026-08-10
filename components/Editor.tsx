@@ -78,6 +78,8 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [status, setStatus] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState(false); // M6 master key
   const [checked, setChecked] = useState(false); // M6: practice "Check"
+  // M7 round 6: in-app two-step confirm for "Reset practice" (no browser popup).
+  const [confirmingReset, setConfirmingReset] = useState(false);
   // 2026-08-10 M7 round 4 (user: "focus… it should show the other way around
   // like the detailed"): the toolbar toggle is "Detailed", UNCHECKED by
   // default — focus mode (main content only) IS the default state, and
@@ -628,9 +630,10 @@ function essayAnswerFromParagraphs(
   }
 
   // ---- practice (M6): clear every "My answer" (qa + paragraph + essay) so the
-  // doc can be re-practiced ----
+  // doc can be re-practiced. 2026-08-10 M7 round 6 (user: "it gives a browser
+  // pop up i dont want that"): the confirm is an IN-APP banner (confirmingReset
+  // state), never window.confirm. ----
   function resetPractice() {
-    if (!window.confirm("Clear every 'My answer' so you can practice this document again?")) return;
     mutateDoc((d) => ({
       ...d,
       blocks: d.blocks.map((b) =>
@@ -670,10 +673,11 @@ function essayAnswerFromParagraphs(
         onTogglePractice={() => {
           setPracticeMode((v) => !v);
           setChecked(false);
+          setConfirmingReset(false);
         }}
         checked={checked}
         onToggleChecked={() => setChecked((v) => !v)}
-        onResetPractice={() => resetPractice()}
+        onResetPractice={() => setConfirmingReset(true)}
         detailed={detailed}
         onToggleDetailed={() => setDetailed((v) => !v)}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
@@ -707,6 +711,33 @@ function essayAnswerFromParagraphs(
         </div>
       )}
 
+      {/* M7 round 6: in-app confirm for Reset practice (no browser popup) */}
+      {confirmingReset && practiceMode && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <span className="min-w-0 flex-1">
+            Clear every “My answer” so you can practice this document again? Your written answers are
+            removed from every block — reference answers stay untouched.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              resetPractice();
+              setConfirmingReset(false);
+            }}
+            className="rounded-lg bg-red-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+          >
+            Clear answers
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingReset(false)}
+            className="rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {showPasteQuestions && (
         <PasteQuestionsModal
           onClose={() => setShowPasteQuestions(false)}
@@ -725,9 +756,11 @@ function essayAnswerFromParagraphs(
         <div className="flex-1 overflow-y-auto bg-white">
           {/* 2026-08-10 M7 round 4 (user: "a lot of blank space around the text
               fields on laptop… on phone it is fine"): the fixed max-w-2xl
-              column left huge gutters on desktop — widened to max-w-4xl. Phone
-              (full-width) is untouched. */}
-          <div className="mx-auto max-w-4xl px-6 py-8">
+              column left huge gutters on desktop — widened to max-w-4xl.
+              2026-08-10 M7 round 6 (user: "there is still a lot of empty space
+              around the paragraph and questions"): widened again to max-w-6xl.
+              Phone (full-width) is untouched. */}
+          <div className="mx-auto max-w-6xl px-6 py-8">
             <BlockList
               blocks={doc.blocks}
               pendingFocusId={pendingFocusId}

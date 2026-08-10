@@ -77,6 +77,16 @@ export type Block =
   | { id: string; type: "qa"; tags: string[]; content: QaContent }
   | { id: string; type: "separator"; tags: string[]; content: {} };
 
+/** A library folder (2026-08-10 M7 round 6, user: "make a library page…
+ *  option for making folder too"). Folders organize documents; deleting a
+ *  folder UNFILES its documents — it never deletes them. */
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Document {
   id: string;
   title: string;
@@ -85,6 +95,10 @@ export interface Document {
   createdAt: string;
   updatedAt: string;
   tags: string[];
+  /** Library folder this document lives in (2026-08-10 M7 round 6). Optional —
+   *  undefined = unfiled ("All documents"). Storage clears it when the folder
+   *  is deleted, so it never dangles. */
+  folderId?: string;
   blocks: Block[]; // may be empty for external-html docs — HTML is the source
   practice?: {
     // document-level practice defaults (FR-35)
