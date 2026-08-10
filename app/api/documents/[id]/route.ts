@@ -47,7 +47,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     );
   }
 
-  const { doc, html } = parsed.data;
+  const { doc, html, instructionsVersion } = parsed.data;
   if (doc.id !== id) {
     return NextResponse.json(
       { error: "Document id in payload does not match route id" },
@@ -55,7 +55,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     );
   }
 
-  await persistDocument(getStorage(), doc, html);
+  await persistDocument(getStorage(), doc, html, instructionsVersion);
   return NextResponse.json({ doc });
 }
 

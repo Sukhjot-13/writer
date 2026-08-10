@@ -23,6 +23,9 @@ interface BlockListProps {
   onSplitBelow: (id: string, rest: string) => void; // M5: Enter splits (FR-3)
   onRemoveFocusUp: (id: string) => void; // M5: backspace merge-up (FR-3)
   onUpdateTags: (id: string, tags: string[]) => void; // M5: FR-5
+  // M6 redesign: Practice master key — the list shows questions (+ title) only.
+  practiceMode: boolean;
+  checked: boolean;
 }
 
 export default function BlockList({
@@ -38,13 +41,21 @@ export default function BlockList({
   onSplitBelow,
   onRemoveFocusUp,
   onUpdateTags,
+  practiceMode,
+  checked,
 }: BlockListProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
+  // Practice shows questions only — paragraphs/headings/separators stay in the
+  // document but are hidden from the practice view.
+  const visible = practiceMode
+    ? blocks.filter((b) => b.type === "qa" || b.type === "title")
+    : blocks;
+
   return (
     <div className="flex flex-col gap-1">
-      {blocks.map((block, index) => (
+      {visible.map((block, index) => (
         <div
           key={block.id}
           draggable={dragId === null || dragId === block.id}
@@ -82,7 +93,7 @@ export default function BlockList({
           <Block
             block={block}
             index={index}
-            total={blocks.length}
+            total={visible.length}
             autoFocus={block.id === pendingFocusId}
             onUpdate={(content) => onUpdateBlock(block.id, content)}
             onConvert={(type) => onConvertBlock(block.id, type)}
@@ -93,12 +104,16 @@ export default function BlockList({
             onSplitBelow={(rest) => onSplitBelow(block.id, rest)}
             onRemoveFocusUp={() => onRemoveFocusUp(block.id)}
             onUpdateTags={(tags) => onUpdateTags(block.id, tags)}
+            practiceMode={practiceMode}
+            checked={checked}
           />
         </div>
       ))}
-      <div className="flex justify-center py-2">
-        <AddBlockMenu onAdd={onAppend} />
-      </div>
+      {!practiceMode && (
+        <div className="flex justify-center py-2">
+          <AddBlockMenu onAdd={onAppend} />
+        </div>
+      )}
     </div>
   );
 }

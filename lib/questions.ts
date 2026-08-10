@@ -6,12 +6,12 @@
 // AI mode: the same list is sent to DeepSeek (instructions file as system
 // prompt) which returns structured Q&A content — per question: translation,
 // grammar note, model answer, answer translation, analysis, vocab/expressions.
-// The response is a JSON array; parsing is tolerant (fences stripped, JSON
-// located by first "[" … matching "]").
+// The response is a JSON array; parsing is tolerant and reuses the canonical
+// extractJsonArray from lib/structuring.ts (single JSON-extraction impl).
 
 import type { Block, QaContent } from "./types";
 import { createBlock } from "./types";
-import { stripMarkdownFences } from "./ai";
+import { extractJsonArray } from "./structuring";
 import { z } from "zod";
 
 /**
@@ -108,17 +108,7 @@ const structuredEntrySchema = z
 
 /** Parse the AI's JSON array of structured Q&A entries, tolerantly. */
 export function parseStructuredQaResponse(raw: string): QaContent[] {
-  const cleaned = stripMarkdownFences(raw).trim();
-  const start = cleaned.indexOf("[");
-  const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return [];
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned.slice(start, end + 1));
-  } catch {
-    return [];
-  }
+  const parsed = extractJsonArray(raw);
   if (!Array.isArray(parsed)) return [];
 
   const results: QaContent[] = [];

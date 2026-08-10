@@ -1,8 +1,9 @@
-// POST /api/convert/ai — AI-mode conversion via DeepSeek (FR-8).
-// Receives { doc, goal? }, reads the active instructions from storage as the
-// system prompt (FR-12/21), calls the DeepSeek client (lib/ai.ts), validates
-// the output (FR-10) and returns { html }. Same frontend flow as template
-// mode: Convert → preview → then PDF (FR-46).
+// POST /api/convert/ai — AI conversion via DeepSeek (FR-8, M6 redesign).
+// Receives { doc, goal?, useSnapshot? }, reads the instructions from storage
+// as the system prompt (FR-12/21), calls the DeepSeek client (lib/ai.ts), and
+// returns EDITABLE STRUCTURED BLOCKS: { blocks, instructionsVersion } parsed
+// by lib/structuring.ts — NOT a one-shot HTML document. The editor replaces
+// its blocks with the response and re-renders locally; no repeat conversions.
 //
 // Missing API key → 400 with an actionable message (FR-30).
 
@@ -12,8 +13,8 @@ import { documentSchema } from "@/lib/schemas";
 import { getStorage } from "@/lib/storage";
 import { convertWithAI, hasAIKey, AIError } from "@/lib/ai";
 import { buildAIPrompt } from "@/lib/prompt";
-import { validateAndWrapHtml } from "@/lib/validate";
-import { resolveConversionInstructions } from "@/lib/instructions";
+import { parseStructuredBlocksResponse } from "@/lib/structuring";
+import { resolveConversionInstructions, hashVersion } from "@/lib/instructions";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -34,10 +35,7 @@ export async function POST(request: Request) {
 
   if (!hasAIKey()) {
     return NextResponse.json(
-      {
-        error:
-          "DeepSeek API key missing — add DEEPSEEK_API_KEY to .env.local, or use Template (offline) mode.",
-      },
+      { error: "DeepSeek API key missing — add DEEPSEEK_API_KEY to .env.local." },
       { status: 400 },
     );
   }
@@ -52,8 +50,19 @@ export async function POST(request: Request) {
     const instructions = await resolveConversionInstructions(storage, parsed.data.id, useSnapshot);
     const { system, user } = buildAIPrompt(parsed.data, instructions, goal);
     const raw = await convertWithAI(system, user);
-    const html = validateAndWrapHtml(raw);
-    return NextResponse.json({ html });
+    const blocks = parseStructuredBlocksResponse(raw);
+    if (blocks.length === 0) {
+      // Old HTML-era instructions snapshots make the AI return HTML instead of
+      // the JSON block array — surface that as an actionable 502 (no data loss).
+      return NextResponse.json(
+        {
+          error:
+            "The AI response could not be parsed as structured blocks. If the snapshot-rules toggle is on, try disabling it (this document's saved rules may be from before block conversion).",
+        },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ blocks, instructionsVersion: hashVersion(instructions) });
   } catch (e) {
     if (e instanceof AIError) {
       return NextResponse.json({ error: e.message }, { status: e.status ?? 502 });

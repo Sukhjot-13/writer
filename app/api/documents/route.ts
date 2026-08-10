@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { doc, html } = parsed.data;
-  await persistDocument(getStorage(), doc, html);
+  const { doc, html, instructionsVersion } = parsed.data;
+  await persistDocument(getStorage(), doc, html, instructionsVersion);
   return NextResponse.json({ doc }, { status: 201 });
 }

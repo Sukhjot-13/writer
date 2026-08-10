@@ -43,7 +43,14 @@ export const blockSchema = z.discriminatedUnion("type", [
     type: z.literal("paragraph"),
     tags: tagSchema,
     content: z
-      .object({ text: z.string(), format: z.enum(["plain", "markdown"]).optional() })
+      .object({
+        text: z.string(),
+        format: z.enum(["plain", "markdown"]).optional(),
+        translation: z.string().optional(),
+        analysis: z.string().optional(),
+        vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+        expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+      })
       .loose(),
   }),
   z.object({ id: z.string(), type: z.literal("qa"), tags: tagSchema, content: qaContentSchema }),
@@ -69,8 +76,9 @@ export const documentSchema = z.object({
     .optional(),
 });
 
-/** Payload accepted by document create/update routes: { doc, html? }. */
+/** Payload accepted by document create/update routes: { doc, html?, instructionsVersion? }. */
 export const saveDocumentPayloadSchema = z.object({
   doc: documentSchema,
   html: z.string().optional(),
+  instructionsVersion: z.string().optional(),
 });

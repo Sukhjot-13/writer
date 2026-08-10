@@ -13,10 +13,14 @@
 // left border), model answer, answer translation, analysis, vocab grid.
 // Omission rules (FR-36) match the HTML template exactly.
 //
-// Practice mode (FR-16/36/49): translations and model answers are always
-// omitted; a filled userAnswer renders as the answer box, otherwise an empty
-// dashed ruled area (~4 lines) is drawn for pen practice. The blank area never
-// leaks the model answer or the translation.
+// PDF variants (M6 redesign) — the Download menu offers three renderings:
+//   "full"        — everything: questions + answers + all enrichment (per flags).
+//   "questions"   — shareable practice sheet: questions only + blank ruled
+//                   areas; translations, answers, analysis, vocab all omitted.
+//   "my-answers"  — after practice: questions + the user's own answers, for
+//                   sending to somebody for checking; reference answers and
+//                   enrichment omitted.
+// Non-full variants render title + qa blocks only.
 //
 // Note: react-pdf v4.6 has no `breakInside: "avoid"` equivalent — the closest
 // is the `minPresenceAhead` hint (keeps following siblings on the same page
@@ -33,9 +37,11 @@ import {
 import type { Block, Document, QaContent } from "./types";
 import type { DesignTokens } from "./design-tokens";
 
+export type PDFVariant = "full" | "questions" | "my-answers";
+
 export interface PDFOptions {
-  /** Practice mode: translations + model answers omitted, blank answer areas (FR-16/36/49). */
-  practice?: boolean;
+  /** Which rendering to produce — see header comment (default "full"). */
+  variant?: PDFVariant;
 }
 
 const MM_TO_PT = 72 / 25.4; // 1mm = 2.8346pt
@@ -70,7 +76,7 @@ function qaVisible(doc: Document, content: QaContent, kind: "translation" | "mod
   return !(content.hideModelAnswer || doc.practice?.hideModelAnswers);
 }
 
-/** Empty ruled answer area for practice mode (FR-49) — dashed box, ~4 lines. */
+/** Empty ruled answer area for practice sheets (FR-49) — dashed box, ~4 lines. */
 function BlankAnswerArea({ basePt, color }: { basePt: number; color: string }) {
   const lineSpacing = basePt * 1.7;
   const rules = [0, 1, 2, 3].map((i) => (
@@ -100,23 +106,94 @@ function BlankAnswerArea({ basePt, color }: { basePt: number; color: string }) {
   );
 }
 
+/** Shared vocab/expressions grid — used by QA cards and enriched paragraphs. */
+function VocabGridPDF({
+  tokens,
+  vocab,
+  expressions,
+}: {
+  tokens: DesignTokens;
+  vocab?: { term: string; def: string }[];
+  expressions?: { term: string; def: string }[];
+}) {
+  const t = tokens;
+  const basePt = lengthToPt(t.sizes.base);
+  const styles = StyleSheet.create({
+    grid: { marginTop: 8, borderWidth: 1, borderColor: t.colors.border, borderRadius: 3, flexDirection: "row" },
+    gridCol: { flex: 1 },
+    gridColRight: { flex: 1, borderLeftWidth: 1, borderLeftColor: t.colors.border },
+    gridHeader: {
+      backgroundColor: t.colors.lightBg,
+      textTransform: "uppercase",
+      color: t.colors.heading,
+      fontSize: basePt * 0.78,
+      fontWeight: "bold",
+      padding: 4,
+      paddingLeft: 8,
+    },
+    gridRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      backgroundColor: t.colors.tableStripe,
+      padding: 3,
+      paddingLeft: 8,
+      paddingRight: 8,
+      borderTopWidth: 1,
+      borderTopColor: t.colors.border,
+    },
+    gridTerm: { fontWeight: "bold", color: t.colors.accentGreen },
+    gridDef: { textAlign: "right" },
+  });
+
+  const col = (title: string, rows: { term: string; def: string }[], right?: boolean) =>
+    rows.length > 0 ? (
+      <View style={right ? styles.gridColRight : styles.gridCol}>
+        <View style={styles.gridHeader}>
+          <Text>{title}</Text>
+        </View>
+        {rows.map((r, i) => (
+          <View key={i} style={styles.gridRow}>
+            <Text style={styles.gridTerm}>{r.term}</Text>
+            <Text style={styles.gridDef}>{r.def}</Text>
+          </View>
+        ))}
+      </View>
+    ) : null;
+
+  const vocabCol = col("Vocabulaire Clé", vocab ?? []);
+  const exprCol = col("Expressions Avancées", expressions ?? [], Boolean(vocabCol));
+  if (!vocabCol && !exprCol) return null;
+  return (
+    <View style={styles.grid}>
+      {vocabCol}
+      {exprCol}
+    </View>
+  );
+}
+
 interface QABlockProps {
   block: Extract<Block, { type: "qa" }>;
   doc: Document;
   tokens: DesignTokens;
   number: number;
-  practice: boolean;
+  variant: PDFVariant;
 }
 
-function QABlockPDF({ block, doc, tokens, number, practice }: QABlockProps) {
+function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
   const t = tokens;
   const content = block.content;
   const basePt = lengthToPt(t.sizes.base);
 
-  // Omission rules: practice mode always hides translations + model answers;
-  // otherwise honor per-block flags and document-level defaults (FR-36).
-  const showTranslation = !practice && qaVisible(doc, content, "translation");
-  const showModelAnswer = !practice && qaVisible(doc, content, "modelAnswer");
+  // Omission matrix (M6):
+  //  - hideAnswers: questions + my-answers never show reference answers/translations.
+  //  - showUser: questions-only never shows even the user's own answers.
+  //  - showExtras: analysis + vocab grids only in the full document.
+  // Per-block flags and document-level defaults (FR-36) only apply to "full".
+  const hideAnswers = variant !== "full";
+  const showUser = variant !== "questions";
+  const showTranslation = !hideAnswers && qaVisible(doc, content, "translation");
+  const showModelAnswer = !hideAnswers && qaVisible(doc, content, "modelAnswer");
+  const showExtras = variant === "full";
 
   const styles = StyleSheet.create({
     card: {
@@ -166,50 +243,7 @@ function QABlockPDF({ block, doc, tokens, number, practice }: QABlockProps) {
     },
     answerTranslation: { marginTop: 5, fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.8 },
     analysis: { marginTop: 5, fontSize: basePt * 0.88, opacity: 0.9 },
-    grid: { marginTop: 8, borderWidth: 1, borderColor: t.colors.border, borderRadius: 3, flexDirection: "row" },
-    gridCol: { flex: 1 },
-    gridColRight: { flex: 1, borderLeftWidth: 1, borderLeftColor: t.colors.border },
-    gridHeader: {
-      backgroundColor: t.colors.lightBg,
-      textTransform: "uppercase",
-      color: t.colors.heading,
-      fontSize: basePt * 0.78,
-      fontWeight: "bold",
-      padding: 4,
-      paddingLeft: 8,
-    },
-    gridRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      backgroundColor: t.colors.tableStripe,
-      padding: 3,
-      paddingLeft: 8,
-      paddingRight: 8,
-      borderTopWidth: 1,
-      borderTopColor: t.colors.border,
-    },
-    gridTerm: { fontWeight: "bold", color: t.colors.accentGreen },
-    gridDef: { textAlign: "right" },
   });
-
-  const grid = (title: string, rows: { term: string; def: string }[], right?: boolean) =>
-    rows.length > 0 ? (
-      <View style={right ? styles.gridColRight : styles.gridCol}>
-        <View style={styles.gridHeader}>
-          <Text>{title}</Text>
-        </View>
-        {rows.map((r, i) => (
-          <View key={i} style={styles.gridRow}>
-            <Text style={styles.gridTerm}>{r.term}</Text>
-            <Text style={styles.gridDef}>{r.def}</Text>
-          </View>
-        ))}
-      </View>
-    ) : null;
-
-  const vocabCol = grid("Vocabulaire Clé", content.vocab ?? []);
-  const exprCol = grid("Expressions Avancées", content.expressions ?? [], !!vocabCol);
-  const hasGrid = Boolean(vocabCol || exprCol);
 
   return (
     <View style={styles.card}>
@@ -225,10 +259,14 @@ function QABlockPDF({ block, doc, tokens, number, practice }: QABlockProps) {
         </Text>
       </View>
 
-      {content.grammarNote ? <Text style={styles.grammarNote}>{content.grammarNote}</Text> : null}
-      {content.responseLabel ? <Text style={styles.responseLabel}>{content.responseLabel}</Text> : null}
+      {variant !== "my-answers" && content.grammarNote ? (
+        <Text style={styles.grammarNote}>{content.grammarNote}</Text>
+      ) : null}
+      {variant !== "my-answers" && content.responseLabel ? (
+        <Text style={styles.responseLabel}>{content.responseLabel}</Text>
+      ) : null}
 
-      {content.userAnswer ? (
+      {showUser && content.userAnswer ? (
         <View style={styles.userAnswer}>
           <Text>{content.userAnswer}</Text>
         </View>
@@ -240,24 +278,23 @@ function QABlockPDF({ block, doc, tokens, number, practice }: QABlockProps) {
         </View>
       ) : null}
 
-      {practice && !content.userAnswer ? <BlankAnswerArea basePt={basePt} color={t.colors.border} /> : null}
+      {hideAnswers && !(showUser && content.userAnswer) ? (
+        <BlankAnswerArea basePt={basePt} color={t.colors.border} />
+      ) : null}
 
       {showTranslation && content.answerTranslation ? (
         <Text style={styles.answerTranslation}>{content.answerTranslation}</Text>
       ) : null}
 
-      {content.analysis ? (
+      {showExtras && content.analysis ? (
         <Text style={styles.analysis}>
           <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
           {content.analysis}
         </Text>
       ) : null}
 
-      {hasGrid ? (
-        <View style={styles.grid}>
-          {vocabCol}
-          {exprCol}
-        </View>
+      {showExtras ? (
+        <VocabGridPDF tokens={tokens} vocab={content.vocab} expressions={content.expressions} />
       ) : null}
     </View>
   );
@@ -268,13 +305,13 @@ function BlockToPDF({
   doc,
   tokens,
   qaNumber,
-  practice,
+  variant,
 }: {
   block: Block;
   doc: Document;
   tokens: DesignTokens;
   qaNumber: { n: number };
-  practice: boolean;
+  variant: PDFVariant;
 }) {
   const t = tokens;
   const basePt = lengthToPt(t.sizes.base);
@@ -284,6 +321,8 @@ function BlockToPDF({
     h2: { fontSize: basePt * 1.45, fontWeight: "bold", color: t.colors.heading, marginTop: 10, marginBottom: 6 },
     h3: { fontSize: basePt * 1.2, fontWeight: "bold", color: t.colors.heading, marginTop: 8, marginBottom: 4 },
     p: { fontSize: basePt, marginBottom: 8 },
+    pTranslation: { fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.8, marginBottom: 8 },
+    pAnalysis: { fontSize: basePt * 0.88, opacity: 0.9, marginBottom: 8 },
     separator: { borderBottomWidth: 1, borderBottomColor: t.colors.border, marginVertical: 10 },
   });
 
@@ -296,14 +335,29 @@ function BlockToPDF({
           {block.content.text}
         </Text>
       );
-    case "paragraph":
-      return <Text style={styles.p}>{block.content.text}</Text>;
+    case "paragraph": {
+      // M6: paragraphs carry AI enrichment (translation, analysis, vocab grid).
+      const c = block.content;
+      return (
+        <View>
+          <Text style={styles.p}>{c.text}</Text>
+          {c.translation ? <Text style={styles.pTranslation}>{c.translation}</Text> : null}
+          {c.analysis ? (
+            <Text style={styles.pAnalysis}>
+              <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
+              {c.analysis}
+            </Text>
+          ) : null}
+          <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+        </View>
+      );
+    }
     case "separator":
       return <View style={styles.separator} />;
     case "qa": {
       qaNumber.n += 1;
       return (
-        <QABlockPDF block={block} doc={doc} tokens={tokens} number={qaNumber.n} practice={practice} />
+        <QABlockPDF block={block} doc={doc} tokens={tokens} number={qaNumber.n} variant={variant} />
       );
     }
   }
@@ -315,6 +369,7 @@ export async function generatePDFBuffer(
   tokens: DesignTokens,
   opts: PDFOptions = {},
 ): Promise<Buffer> {
+  const variant = opts.variant ?? "full";
   const basePt = lengthToPt(tokens.sizes.base);
   const pageStyles = StyleSheet.create({
     page: {
@@ -326,18 +381,22 @@ export async function generatePDFBuffer(
     },
   });
 
+  // Practice variants are worksheet sheets: title + questions only.
+  const blocks =
+    variant === "full" ? doc.blocks : doc.blocks.filter((b) => b.type === "title" || b.type === "qa");
+
   const qaNumber = { n: 0 };
   const element = (
     <PDFDocument title={doc.title || "Document"} author="Writer App">
       <Page size="A4" style={pageStyles.page}>
-        {doc.blocks.map((b) => (
+        {blocks.map((b) => (
           <BlockToPDF
             key={b.id}
             block={b}
             doc={doc}
             tokens={tokens}
             qaNumber={qaNumber}
-            practice={Boolean(opts.practice)}
+            variant={variant}
           />
         ))}
       </Page>

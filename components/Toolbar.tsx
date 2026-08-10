@@ -1,19 +1,21 @@
-// components/Toolbar.tsx — primary actions (FR-29/30/35/37/38/39/46/50).
+// components/Toolbar.tsx — primary actions (M6 redesign, FR-29/30/35/37/38/39/46/50).
 //
-// Layout (M5 UI polish): a title row (brand · title · tags · nav links) and
-// an actions row with the controls grouped — Convert ▾ (primary split) ·
-// Save · Practice toggle · Download ▾ · View ▾ · Copy ▾ · Paste ▾. Stateful
-// toggles (hide/show answers, preview pane, practice mode) live inside the
-// dropdowns as checkmarked items so the row stays uncluttered.
+// Layout: a title row (brand · title · tags · nav links) and an actions row —
+// Convert with AI ▾ (primary split) · Save · Preview · Practice + Check · Download ▾ ·
+// View ▾ · Copy ▾ · Paste ▾. Stateful toggles live inside the dropdowns as
+// checkmarked items so the row stays uncluttered.
+//
+// M6 changes: single AI convert (template mode dropped); on-demand Preview;
+// Practice as the master key with a Check/Hide-answers button; three PDF
+// variants (full · questions-only · questions + my answers).
 
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import type { PDFVariant } from "@/lib/pdf";
 import { parseTags } from "@/lib/tags";
-
-export type ConvertMode = "ai" | "template";
 
 export interface VisibilityCounts {
   translationsHidden: number;
@@ -29,14 +31,15 @@ interface ToolbarProps {
   onTagsChange: (tags: string[]) => void;
   busy: string | null;
   error: string | null;
-  convertMode: ConvertMode;
-  onConvertModeChange: (mode: ConvertMode) => void;
-  onConvert: (mode: ConvertMode, goal: string | null) => void;
+  onConvert: (goal: string | null) => void;
   onSave: () => void;
-  canDownloadPdf: boolean;
+  onPreview: () => void; // M6: open the full-screen preview sheet
   practiceMode: boolean;
   onTogglePractice: () => void;
-  onDownloadPdf: () => void;
+  checked: boolean; // M6: practice "Check" — reveals model answers
+  onToggleChecked: () => void;
+  onResetPractice: () => void;
+  onDownloadPdf: (variant: PDFVariant) => void;
   onDownloadHtml: () => void;
   counts: VisibilityCounts;
   onHideAllTranslations: () => void;
@@ -46,12 +49,11 @@ interface ToolbarProps {
   onCopyPrompt: (part: "user" | "system" | "plainText") => void;
   onOpenCopyDialog: () => void;
   onPasteQuestions: () => void;
+  onPasteBlocks: () => void; // M6: paste the JSON block array from Copy for AI
   onPasteHtml: () => void;
   snapshotInfo: { version: string; differs: boolean } | null; // FR-23
   useSnapshot: boolean;
   onToggleSnapshot: () => void;
-  showPreview: boolean;
-  onTogglePreview: () => void;
 }
 
 function ActionButton({
@@ -141,13 +143,14 @@ export default function Toolbar({
   onTagsChange,
   busy,
   error,
-  convertMode,
-  onConvertModeChange,
   onConvert,
   onSave,
-  canDownloadPdf,
+  onPreview,
   practiceMode,
   onTogglePractice,
+  checked,
+  onToggleChecked,
+  onResetPractice,
   onDownloadPdf,
   onDownloadHtml,
   counts,
@@ -158,12 +161,11 @@ export default function Toolbar({
   onCopyPrompt,
   onOpenCopyDialog,
   onPasteQuestions,
+  onPasteBlocks,
   onPasteHtml,
   snapshotInfo,
   useSnapshot,
   onToggleSnapshot,
-  showPreview,
-  onTogglePreview,
 }: ToolbarProps) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [goal, setGoal] = useState("");
@@ -212,34 +214,30 @@ export default function Toolbar({
             Library
           </Link>
           <Link href="/" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-            New
+            Home
           </Link>
         </nav>
       </div>
 
       {/* Actions row: grouped controls */}
       <div className="flex flex-wrap items-center gap-2 px-4 pb-2.5 pt-1.5">
-        {/* Convert split button: primary converts in the current mode, caret
-            opens the mode menu (FR-29: "Convert" (AI) + "Template (offline)") */}
+        {/* Convert with AI split button: primary converts, caret opens the
+            goal input + snapshot-rules toggle (M6: AI only — template dropped) */}
         <div className="relative">
           <div className="flex overflow-hidden rounded-lg shadow-sm">
             <button
               type="button"
-              onClick={() => onConvert(convertMode, goal || null)}
+              onClick={() => onConvert(goal || null)}
               disabled={busy !== null}
               className="bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {busy === "converting"
-                ? "Converting…"
-                : convertMode === "ai"
-                  ? "Convert with AI"
-                  : "Convert (template)"}
+              {busy === "converting" ? "Converting…" : "Convert with AI"}
             </button>
             <button
               type="button"
               onClick={() => setConvertOpen((o) => !o)}
               disabled={busy !== null}
-              title="Choose conversion mode and optional goal"
+              title="Optional goal and conversion options"
               className="border-l border-blue-700/60 bg-blue-600 px-2 text-xs text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
             >
               ▾
@@ -249,29 +247,6 @@ export default function Toolbar({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setConvertOpen(false)} />
               <div className="absolute left-0 z-20 mt-1 w-80 rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConvertOpen(false);
-                    onConvertModeChange("ai");
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-                >
-                  <span className="w-4 text-emerald-600">{convertMode === "ai" ? "✓" : ""}</span>
-                  Convert with AI — DeepSeek
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConvertOpen(false);
-                    onConvertModeChange("template");
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-                >
-                  <span className="w-4 text-emerald-600">{convertMode === "template" ? "✓" : ""}</span>
-                  Convert with template (offline)
-                </button>
-                <div className="my-1 border-t border-zinc-100" />
                 <div className="px-3 py-1.5">
                   <label className="text-xs font-medium text-zinc-500" htmlFor="convert-goal">
                     Goal (optional)
@@ -313,9 +288,15 @@ export default function Toolbar({
           {busy === "saving" ? "Saving…" : "Save"}
         </ActionButton>
 
+        <ActionButton onClick={onPreview} disabled={busy !== null} title="Preview the current document — unsaved edits included">
+          {busy === "preview" ? "Rendering…" : "Preview"}
+        </ActionButton>
+
+        {/* Practice master key: toggles the questions-only view. Check reveals
+            the model answers side-by-side (M6: Answer → check → save). */}
         <label
           className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
-          title="Practice mode: translations and model answers are omitted and unanswered questions get blank answer areas"
+          title="Practice mode: show questions only, with a 'My answer' box under each"
         >
           <input
             type="checkbox"
@@ -326,24 +307,50 @@ export default function Toolbar({
           Practice
         </label>
 
+        {practiceMode && (
+          <button
+            type="button"
+            onClick={onToggleChecked}
+            disabled={busy !== null}
+            title={checked ? "Hide the model answers again" : "Reveal the model answer for every question"}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              checked
+                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                : "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100"
+            }`}
+          >
+            {checked ? "Hide answers" : "Check answers"}
+          </button>
+        )}
+
         <Dropdown
           label="Download"
           disabled={busy !== null}
-          title="PDF (needs a fresh preview) or HTML of the document"
+          title="PDF variants or HTML of the document — rendered instantly from the current content"
           items={[
             {
               label: "Download PDF",
-              onClick: onDownloadPdf,
-              disabled: !canDownloadPdf,
-              hint: canDownloadPdf ? "A4 PDF generated from your blocks" : "Convert first — the PDF reflects the preview",
+              onClick: () => onDownloadPdf("full"),
+              hint: "Full document — questions, answers and enrichment",
             },
-            { label: "Download HTML", onClick: onDownloadHtml },
+            {
+              label: "Questions only (share)",
+              onClick: () => onDownloadPdf("questions"),
+              hint: "Shareable practice sheet — questions + blank lines",
+            },
+            {
+              label: "Questions + my answers",
+              onClick: () => onDownloadPdf("my-answers"),
+              hint: "After practice — send your answers for checking",
+            },
+            { label: "—", onClick: () => {}, check: false },
+            { label: "Download HTML", onClick: onDownloadHtml, hint: "Legacy styled-HTML export" },
           ]}
         />
         <Dropdown
           label="View"
           disabled={busy !== null}
-          title="Visibility of translations, answers, and the preview pane"
+          title="Visibility of translations, answers, and practice data"
           items={[
             {
               label: allTranslationsHidden ? "Show all translations" : "Hide all translations",
@@ -357,8 +364,16 @@ export default function Toolbar({
               disabled: noQa,
               hint: noQa ? "No questions in this document" : "Hide or show every model answer in one click",
             },
-            { label: "—", onClick: () => {}, check: false },
-            { label: "Preview pane", check: showPreview, onClick: onTogglePreview },
+            ...(practiceMode
+              ? [
+                  { label: "—", onClick: () => {}, check: false },
+                  {
+                    label: "Reset practice answers…",
+                    onClick: onResetPractice,
+                    hint: "Clears every 'My answer' so you can practice again",
+                  },
+                ]
+              : []),
           ]}
         />
         <Dropdown
@@ -375,8 +390,9 @@ export default function Toolbar({
         <Dropdown
           label="Paste"
           disabled={busy !== null}
-          title="Paste questions or HTML from any external AI"
+          title="Paste blocks, questions, or HTML from any external AI"
           items={[
+            { label: "Paste blocks (AI)…", onClick: onPasteBlocks, hint: "JSON block array copied via Copy for AI" },
             { label: "Paste questions…", onClick: onPasteQuestions, hint: "Structure with AI or parse locally" },
             { label: "Paste HTML…", onClick: onPasteHtml, hint: "Import HTML from any external AI" },
           ]}

@@ -5,6 +5,11 @@
 // HIDE_TRANSLATION / HIDE_MODEL_ANSWER flags. This exact format is ALSO what
 // "Copy for AI" exposes to external AIs (FR-39), making the copy→AI→paste
 // round-trip reliable (FR-42).
+//
+// M6 redesign: "Convert with AI" now demands EDITABLE STRUCTURED BLOCKS — the
+// response must be a JSON array of block objects parsed by lib/structuring.ts.
+// The user's practice answers (USER_ANSWER) are never serialized: they are
+// private to the user and are never sent to the AI.
 
 import type { Block, Document, QaContent } from "./types";
 
@@ -14,7 +19,8 @@ function serializeQa(c: QaContent): string {
   if (c.questionTranslation) lines.push(`QUESTION_TRANSLATION: ${c.questionTranslation}`);
   if (c.grammarNote) lines.push(`GRAMMAR_NOTE: ${c.grammarNote}`);
   if (c.responseLabel) lines.push(`RESPONSE_LABEL: ${c.responseLabel}`);
-  if (c.userAnswer) lines.push(`USER_ANSWER: ${c.userAnswer}`);
+  // Note: USER_ANSWER is intentionally never serialized — practice answers
+  // are private to the user and must not be sent to the AI (M6).
   if (c.modelAnswer) lines.push(`MODEL_ANSWER: ${c.modelAnswer}`);
   if (c.answerTranslation) lines.push(`ANSWER_TRANSLATION: ${c.answerTranslation}`);
   if (c.analysis) lines.push(`ANALYSIS: ${c.analysis}`);
@@ -58,15 +64,22 @@ export interface AIPrompt {
 }
 
 /**
- * Build the AI prompt (FR-12): system = the active instructions verbatim;
+ * Build the AI prompt (FR-12, M6): system = the active instructions verbatim;
  * user = optional GOAL line + block serialization. The response instruction
- * demands a complete, valid, self-contained HTML document only.
+ * demands EDITABLE STRUCTURED BLOCKS: a JSON array of block objects (no HTML)
+ * that lib/structuring.ts parses back into document blocks.
  */
 export function buildAIPrompt(doc: Document, instructions: string, goal?: string): AIPrompt {
   const goalLine = goal?.trim() ? `GOAL: ${goal.trim()}\n\n` : "";
   const user = `${goalLine}${serializeBlocksForAI(doc)}
 
-Convert the content above into a single complete, valid, self-contained HTML document following the system instructions precisely. Return the HTML document only — no markdown fences, no explanations, no surrounding text.`;
+Convert the content above into structured document blocks following the system instructions precisely. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
+{"type":"title","text":"…"}
+{"type":"heading","text":"…","level":2}
+{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"separator"}
+Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.`;
   return { system: instructions, user };
 }
 

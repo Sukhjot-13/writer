@@ -95,7 +95,21 @@ async function run() {
   // ---------- persistDocument writes instructions.snapshot.md (FR-23) ----------
   const doc = createDocument("Snapshot smoke");
   doc.blocks = [setBlockContent(createBlock("paragraph"), { text: "Bonjour." })];
-  await persistDocument(storage, doc, "<!DOCTYPE html><html><body><p>Bonjour.</p></body></html>");
+  // M6: the snapshot is recorded only when the caller reports the instructions
+  // version the document was converted with (the editor sends it after a
+  // conversion) — plain saves no longer snapshot.
+  await persistDocument(
+    storage,
+    doc,
+    "<!DOCTYPE html><html><body><p>Bonjour.</p></body></html>",
+    hashVersion(repo),
+  );
+  // version-gated: a save WITHOUT the version must not snapshot
+  const docPlain = createDocument("Plain save");
+  docPlain.blocks = [setBlockContent(createBlock("paragraph"), { text: "Sans version." })];
+  await persistDocument(storage, docPlain);
+  const snapPlain = await readDocumentSnapshot(storage, docPlain.id);
+  check("persistDocument: no version → no snapshot (M6)", snapPlain === null);
   const snap = await readDocumentSnapshot(storage, doc.id);
   check("persistDocument: instructions.snapshot.md recorded", snap !== null && snap.version === hashVersion(repo));
   const snapFile = await storage.readFile(doc.id, "instructions.snapshot.md");

@@ -95,8 +95,8 @@ async function main() {
   check("normal PDF %PDF magic", pdf.subarray(0, 5).toString() === "%PDF-");
   check("normal PDF size reasonable", pdf.length > 5000);
 
-  // ---- PDF: practice mode ----
-  const practicePdf = await generatePDFBuffer(doc, tokens, { practice: true });
+  // ---- PDF: practice variant (M6: "questions" / "my-answers" replace practice=true) ----
+  const practicePdf = await generatePDFBuffer(doc, tokens, { variant: "questions" });
   check("practice PDF %PDF magic", practicePdf.subarray(0, 5).toString() === "%PDF-");
   // b4 has no user answer → practice replaces its model answer with a blank
   // ruled area (FR-49); translations/answers of b2/b3 omitted (FR-36).

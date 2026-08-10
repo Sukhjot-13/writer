@@ -1,5 +1,5 @@
 // components/LibraryList.tsx — document cards: title, date, block count, tags;
-// open (→ editor with ?id=), Regenerate (FR-20), delete (FR-19), and a
+// open (→ editor at /doc/<id>, M6), Regenerate (FR-20), delete (FR-19), and a
 // client-side sort control (updated / created / title).
 
 "use client";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { Document } from "@/lib/types";
+import NewDocumentButton from "./NewDocumentButton"; // M6: fresh doc + navigate
 
 function formatDate(iso: string): string {
   try {
@@ -113,12 +114,7 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
         <p className="max-w-sm text-sm leading-relaxed text-zinc-500">
           Documents you save appear here. Open the editor, write some blocks, convert, and save.
         </p>
-        <Link
-          href="/"
-          className="mt-1 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-        >
-          + New document
-        </Link>
+        <NewDocumentButton className="mt-1 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700" />
       </div>
     );
   }
@@ -187,7 +183,7 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
             className="group rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-px hover:border-zinc-300 hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-2">
-              <Link href={`/?id=${doc.id}`} className="min-w-0">
+              <Link href={`/doc/${doc.id}`} className="min-w-0">
                 <h2 className="truncate text-[15px] font-semibold text-zinc-900 group-hover:text-blue-700">
                   {doc.title || "Untitled"}
                 </h2>

@@ -88,7 +88,11 @@ check("buildAIPrompt: user has <QA> markers + HIDE flags",
 check("buildAIPrompt: no GOAL line by default", !user.startsWith("GOAL:"));
 const withGoal = buildAIPrompt(doc, "RULES", "Make it about Paris");
 check("buildAIPrompt: GOAL line when goal passed", withGoal.user.startsWith("GOAL: Make it about Paris"));
-check("buildAIPrompt: HTML-only instruction present", user.includes("valid, self-contained HTML document"));
+// M6: the user prompt now demands the JSON block array (editable structured
+// blocks), and practice answers are private — never serialized anywhere.
+check("buildAIPrompt: JSON blocks demand present",
+  user.includes("Return ONLY a JSON array of block objects") && user.includes("Never invent an answer"));
+check("buildAIPrompt: user answer never serialized (M6)", !user.includes("USER_ANSWER:"));
 check("serializeBlocksForAI: <PARAGRAPH> + <SEPARATOR> + <QA> order",
   serializeBlocksForAI(doc).includes("<PARAGRAPH>Raconte ta semaine.</PARAGRAPH>"));
 const plain = serializePlainText(doc);

@@ -1,15 +1,19 @@
-// components/Editor.tsx — main two-pane editor (FR-24/27/28/29/46).
+// components/Editor.tsx — main editor (M6 redesign, FR-24/27/28/29/46).
 //
 // State:
 //   doc          — the editable document (blocks + metadata)
-//   html         — latest generated preview (null until first conversion)
-//   previewStale — true after any edit since the last conversion (FR-46)
 //   persisted    — whether the server knows this doc id
 //   isDirty      — unsaved changes indicator (status bar)
+//   practiceMode — the Practice master key: questions-only view, "My answer"
+//                  boxes, and the Check/Hide-answers cycle
+//   checked      — practice: model answers revealed side-by-side
+//   previewOpen  — the full-screen on-demand preview sheet (stateless render)
 //
-// Flow (FR-46): Convert → preview exists → Download PDF enabled. Editing
-// marks the preview stale and re-disables PDF until a fresh conversion.
-// Autosave: debounced localStorage draft (FR-6) + explicit Save (FR-7 Cmd+S).
+// Flow (M6): Convert with AI → the doc's blocks are REPLACED by editable
+// structured blocks (one conversion, then local edits re-render instantly).
+// Preview and PDF render on demand from the CURRENT document — no convert
+// gating, no stale-preview state. Save persists blocks + the instructions
+// version that produced them (snapshot bookkeeping, FR-23).
 
 "use client";
 
@@ -17,34 +21,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Block as BlockModel, BlockType, Document } from "@/lib/types";
 import { createBlock, createDocument, replaceBlockType, setBlockContent } from "@/lib/types";
+import type { PDFVariant } from "@/lib/pdf";
 
-import Toolbar, { type ConvertMode } from "./Toolbar";
+import Toolbar from "./Toolbar";
 import BlockList from "./BlockList";
-import PreviewPane from "./PreviewPane";
+import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
+import PasteBlocksModal from "./PasteBlocksModal";
 import PasteHtmlModal from "./PasteHtmlModal";
 import CopyDialog from "./CopyDialog";
 import { parseHtmlToBlocks } from "@/lib/html-to-blocks"; // FR-41 (M5)
-
-const DRAFT_KEY = "writer-app:draft";
-const AUTOSAVE_MS = 800;
-
-interface DraftShape {
-  doc: Document;
-  savedAt: number;
-}
-
-function loadDraft(): DraftShape | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as DraftShape;
-    if (!parsed?.doc || !Array.isArray(parsed.doc.blocks)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -89,23 +75,23 @@ function blockHasContent(b: BlockModel): boolean {
 export default function Editor({ docId }: { docId: string | null }) {
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(docId !== null);
-  const [html, setHtml] = useState<string | null>(null);
-  const [previewStale, setPreviewStale] = useState(false);
   const [persisted, setPersisted] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [convertedAt, setConvertedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(true);
-  const [practiceMode, setPracticeMode] = useState(false); // FR-16: practice-mode PDF
+  const [practiceMode, setPracticeMode] = useState(false); // M6 master key
+  const [checked, setChecked] = useState(false); // M6: practice "Check"
+  const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
-  const [convertMode, setConvertMode] = useState<ConvertMode>("ai"); // FR-29: AI primary, template offline
   const [aiModel, setAiModel] = useState<string | null>(null); // FR-28: model name in status bar
   const [instructionsVersion, setInstructionsVersion] = useState<string | null>(null); // FR-28
   const [snapshotInfo, setSnapshotInfo] = useState<{ version: string; differs: boolean } | null>(null); // FR-23
   const [useSnapshot, setUseSnapshot] = useState(false); // FR-23: convert with the doc's own rules
+  const [lastConvertInstructionsVersion, setLastConvertInstructionsVersion] = useState<string | null>(null); // FR-23: sent on save
   const [showPasteQuestions, setShowPasteQuestions] = useState(false); // FR-38
+  const [showPasteBlocks, setShowPasteBlocks] = useState(false); // M6: JSON block paste
   const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
   const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
 
@@ -113,12 +99,24 @@ export default function Editor({ docId }: { docId: string | null }) {
   docRef.current = doc;
   const persistedRef = useRef(persisted);
   persistedRef.current = persisted;
-  const convertModeRef = useRef(convertMode);
-  convertModeRef.current = convertMode;
   const useSnapshotRef = useRef(useSnapshot);
   useSnapshotRef.current = useSnapshot;
+  const lastConvertRef = useRef<string | null>(null);
+  const busyRef = useRef<string | null>(null);
+  const convertRef = useRef<(goal: string | null) => Promise<void>>(async () => {});
+  const saveRef = useRef<() => Promise<boolean>>(async () => false);
 
-  // ---- init: load by id, else restore draft, else a fresh document ----
+  function beginBusy(label: string) {
+    busyRef.current = label;
+    setBusy(label);
+  }
+
+  function endBusy() {
+    busyRef.current = null;
+    setBusy(null);
+  }
+
+  // ---- init: load by id, else start a fresh document with the route's id ----
   useEffect(() => {
     let cancelled = false;
 
@@ -136,23 +134,17 @@ export default function Editor({ docId }: { docId: string | null }) {
             return;
           }
         } catch {
-          // fall through to draft/new
+          // fall through to a fresh document
         }
-        setError("Document not found — starting fresh.");
       }
-
-      const draft = loadDraft();
-      if (draft) {
-        setDoc(draft.doc);
-        setStatus(`Restored draft from ${new Date(draft.savedAt).toLocaleTimeString()}`);
-      } else {
-        // FR-24: a fresh document starts with one empty paragraph block —
-        // typing begins immediately.
-        const fresh = createDocument();
-        fresh.blocks = [createBlock("paragraph")];
+      // FR-24: a fresh document starts with one empty paragraph block — typing
+      // begins immediately. Keeping the route's id lets the first save create it.
+      const fresh = createDocument("", docId ?? undefined);
+      fresh.blocks = [createBlock("paragraph")];
+      if (!cancelled) {
         setDoc(fresh);
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     void init();
@@ -177,37 +169,23 @@ export default function Editor({ docId }: { docId: string | null }) {
       });
   }, []);
 
-  // ---- draft autosave (debounced, FR-6) ----
-  useEffect(() => {
-    if (!doc || loading) return;
-    const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ doc, savedAt: Date.now() } satisfies DraftShape));
-      } catch {
-        // storage full/unavailable — non-fatal
-      }
-    }, AUTOSAVE_MS);
-    return () => clearTimeout(timer);
-  }, [doc, loading]);
-
-  // ---- keyboard shortcuts (FR-7) ----
+  // ---- keyboard shortcuts (FR-7): Cmd+Enter converts, Cmd+S saves ----
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        void convert(convertModeRef.current, null);
+        void convertRef.current(null);
       } else if (e.key === "s") {
         e.preventDefault();
-        void save();
+        void saveRef.current();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- generic mutate: mark dirty + invalidate preview (FR-46) ----
+  // ---- generic mutate: mark dirty ----
   function mutateDoc(mutate: (d: Document) => Document) {
     setDoc((prev) => {
       if (!prev) return prev;
@@ -216,10 +194,6 @@ export default function Editor({ docId }: { docId: string | null }) {
       return next;
     });
     setIsDirty(true);
-    setHtml((h) => {
-      if (h !== null) setPreviewStale(true);
-      return h;
-    });
   }
 
   // ---- block operations ----
@@ -343,47 +317,97 @@ export default function Editor({ docId }: { docId: string | null }) {
     answersHidden: qaBlocks.filter((b) => b.content.hideModelAnswer || doc?.practice?.hideModelAnswers).length,
   };
 
-  // ---- conversion (FR-8/9/23/29): AI via DeepSeek, or local template ----
-  async function convert(mode: ConvertMode, goal: string | null) {
+  // ---- conversion (M6, FR-8/9/23/29): AI → editable structured blocks ----
+  // One conversion replaces the document's blocks; afterwards every edit
+  // re-renders locally — no repeat conversion, no HTML round-trip.
+  async function convert(goal: string | null) {
     const current = docRef.current;
-    if (!current || busy) return;
-    setBusy("converting");
+    if (!current || busyRef.current) return;
+    beginBusy("converting");
     setError(null);
     try {
-      const url = mode === "ai" ? "/api/convert/ai" : "/api/convert/template";
       const useSnap = useSnapshotRef.current;
-      const body =
-        mode === "ai"
-          ? { doc: current, goal, useSnapshot: useSnap }
-          : { doc: current, useSnapshot: useSnap };
-      const res = await fetch(url, {
+      const res = await fetch("/api/convert/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ doc: current, goal, useSnapshot: useSnap }),
       });
       if (!res.ok) {
         // FR-30: inline, actionable server errors (e.g. missing API key) pass through
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Conversion failed (${res.status})`);
       }
-      const { html: generated } = await res.json();
-      setHtml(generated);
-      setPreviewStale(false);
-      setConvertedAt(Date.now());
+      const body = (await res.json()) as { blocks: BlockModel[]; instructionsVersion?: string };
+      if (!Array.isArray(body.blocks) || body.blocks.length === 0) {
+        throw new Error("The AI returned no blocks — try again or check the instructions");
+      }
+      // M6: practice answers + visibility choices survive conversion by matching
+      // on question text — a re-run never discards them.
+      const prevQa = new Map<string, Extract<BlockModel, { type: "qa" }>["content"]>();
+      for (const b of current.blocks) {
+        if (b.type === "qa" && b.content.question.trim()) {
+          prevQa.set(b.content.question.trim(), b.content);
+        }
+      }
+      const blocks = body.blocks.map((b) => {
+        if (b.type !== "qa") return b;
+        const prevContent = prevQa.get(b.content.question.trim());
+        if (!prevContent) return b;
+        return setBlockContent(b, {
+          ...b.content,
+          userAnswer: prevContent.userAnswer,
+          hideTranslation: prevContent.hideTranslation ?? false,
+          hideModelAnswer: prevContent.hideModelAnswer ?? false,
+        });
+      });
+      setDoc((prev) => (prev ? { ...prev, blocks, updatedAt: new Date().toISOString() } : prev));
+      if (body.instructionsVersion) {
+        lastConvertRef.current = body.instructionsVersion;
+        setLastConvertInstructionsVersion(body.instructionsVersion);
+      }
+      setIsDirty(true);
       setStatus(
-        `${mode === "ai" ? "AI" : "template"} mode${useSnap ? " · snapshot rules v" + snapshotInfo?.version : ""} — preview generated`,
+        `Structured into ${blocks.length} editable block${blocks.length === 1 ? "" : "s"}${
+          useSnap ? ` · snapshot rules v${snapshotInfo?.version}` : ""
+        } — every edit re-renders instantly`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conversion failed");
     } finally {
-      setBusy(null);
+      endBusy();
+    }
+  }
+
+  // ---- on-demand preview (M6): POST the current doc, show the sheet ----
+  async function openPreview() {
+    const current = docRef.current;
+    if (!current || busyRef.current) return;
+    beginBusy("preview");
+    setError(null);
+    try {
+      const res = await fetch("/api/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc: current }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Preview failed");
+      }
+      const body = (await res.json()) as { html: string };
+      setPreviewHtml(body.html);
+      setPreviewOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Preview failed");
+    } finally {
+      endBusy();
     }
   }
 
   // ---- copy for external AI (FR-39): user markers / system / plain text ----
   async function copyPrompt(part: "user" | "system" | "plainText") {
-    if (busy) return;
-    setBusy("copy");
+    if (busyRef.current) return;
+    beginBusy("copy");
     setError(null);
     try {
       if (!(await ensureSaved())) return;
@@ -404,52 +428,45 @@ export default function Editor({ docId }: { docId: string | null }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Copy failed");
     } finally {
-      setBusy(null);
+      endBusy();
     }
   }
 
-  // ---- paste questions (FR-38): replace an empty document, else append ----
+  // ---- paste blocks/questions (FR-38, M6): replace an empty document, else append ----
   function applyImportedBlocks(blocks: BlockModel[]) {
     const current = docRef.current;
     if (!current || blocks.length === 0) return;
     const isEmpty = !current.blocks.some(blockHasContent);
     mutateDoc((d) => ({ ...d, blocks: isEmpty ? blocks : [...d.blocks, ...blocks] }));
     setShowPasteQuestions(false);
-    setStatus(`Imported ${blocks.length} question${blocks.length === 1 ? "" : "s"}`);
+    setShowPasteBlocks(false);
+    setStatus(`Imported ${blocks.length} block${blocks.length === 1 ? "" : "s"}`);
   }
 
-  // ---- paste HTML back (FR-40): new document previews immediately ----
+  // ---- paste HTML back (FR-40): imported as an opaque document ----
   function applyImportedHtml(doc: Document, html: string) {
     setDoc(doc);
-    setHtml(html);
-    setPreviewStale(false);
     setPersisted(true);
     setIsDirty(false);
-    setConvertedAt(Date.now());
-    setShowPreview(true);
     setShowPasteHtml(false);
     setSnapshotInfo(null); // fresh import has no recorded rules (FR-23)
     setUseSnapshot(false);
-    setStatus("Imported HTML document — preview ready");
+    setStatus("Imported HTML document — parse it to edit as blocks");
   }
 
   // ---- parse to blocks (FR-41, M5): imported HTML → editable blocks ----
   async function parseToBlocks() {
     const current = docRef.current;
-    if (!current || busy) return;
-    setBusy("parse");
+    if (!current || busyRef.current) return;
+    beginBusy("parse");
     setError(null);
     try {
-      let source = html;
-      if (!source || previewStale) {
-        const res = await fetch(`/api/documents/${current.id}/html`);
-        if (!res.ok) throw new Error("Could not load the saved HTML");
-        source = await res.text();
-      }
+      const res = await fetch(`/api/documents/${current.id}/html`);
+      if (!res.ok) throw new Error("Could not load the saved HTML — save the document first");
+      const source = await res.text();
       const { blocks: parsed, unparsedCount } = parseHtmlToBlocks(source);
       if (parsed.length === 0) throw new Error("No recognizable blocks found in the HTML");
-      // Replace blocks + flip the source; the existing preview stays valid
-      // until the user edits (mutateDoc would mark it stale, FR-46).
+      // Replace blocks + flip the source; the document becomes fully editable.
       setDoc((prev) =>
         prev ? { ...prev, blocks: parsed, source: "editor", updatedAt: new Date().toISOString() } : prev,
       );
@@ -462,22 +479,22 @@ export default function Editor({ docId }: { docId: string | null }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Parse failed");
     } finally {
-      setBusy(null);
+      endBusy();
     }
   }
 
-  // ---- save (FR-17) ----
+  // ---- save (FR-17, M6): blocks + the instructions version that structured them ----
   async function save(): Promise<boolean> {
     const current = docRef.current;
-    if (!current || busy) return false;
-    setBusy("saving");
+    if (!current || busyRef.current) return false;
+    beginBusy("saving");
     setError(null);
     try {
       const payload = {
         doc: current,
-        // Only persist a preview that isn't stale (FR-46) — the server then
-        // writes document.html + document.pdf alongside document.json.
-        html: html && !previewStale ? html : undefined,
+        // FR-23: recorded only when this session converted the doc — the server
+        // snapshots the active instructions at that version.
+        instructionsVersion: lastConvertRef.current ?? undefined,
       };
       const isNew = !persistedRef.current;
       const url = isNew ? "/api/documents" : `/api/documents/${current.id}`;
@@ -498,39 +515,44 @@ export default function Editor({ docId }: { docId: string | null }) {
       setError(e instanceof Error ? e.message : "Save failed");
       return false;
     } finally {
-      setBusy(null);
+      endBusy();
     }
   }
 
-  // ---- downloads ----
+  // ---- downloads (M6): instant, from the current doc — no save, no gating ----
   async function ensureSaved(): Promise<boolean> {
     if (persistedRef.current) return true;
     return save();
   }
 
-  async function downloadPdf() {
+  async function downloadPdf(variant: PDFVariant) {
     const current = docRef.current;
-    if (!current || html === null || previewStale) return; // FR-46 gate
-    setBusy("pdf");
+    if (!current || busyRef.current) return;
+    beginBusy("pdf");
     setError(null);
     try {
-      if (!(await ensureSaved())) return;
-      // ?practice=true → blank answer areas, answers/translations omitted (FR-16/49)
-      const qs = practiceMode ? "?practice=true" : "";
-      const res = await fetch(`/api/documents/${current.id}/pdf${qs}`);
-      if (!res.ok) throw new Error("PDF generation failed");
-      downloadBlob(await res.blob(), safeFilename(current.title, "pdf"));
+      const res = await fetch(`/api/documents/${current.id}/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doc: current, variant }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "PDF generation failed");
+      }
+      const suffix = variant === "full" ? "" : variant === "questions" ? "-questions" : "-my-answers";
+      downloadBlob(await res.blob(), safeFilename(current.title + suffix, "pdf"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "PDF download failed");
     } finally {
-      setBusy(null);
+      endBusy();
     }
   }
 
   async function downloadHtml() {
     const current = docRef.current;
-    if (!current) return;
-    setBusy("html");
+    if (!current || busyRef.current) return;
+    beginBusy("html");
     setError(null);
     try {
       if (!(await ensureSaved())) return;
@@ -540,9 +562,25 @@ export default function Editor({ docId }: { docId: string | null }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : "HTML download failed");
     } finally {
-      setBusy(null);
+      endBusy();
     }
   }
+
+  // ---- practice (M6): clear every "My answer" so the doc can be re-practiced ----
+  function resetPractice() {
+    if (!window.confirm("Clear every 'My answer' so you can practice this document again?")) return;
+    mutateDoc((d) => ({
+      ...d,
+      blocks: d.blocks.map((b) =>
+        b.type === "qa" && b.content.userAnswer ? setBlockContent(b, { ...b.content, userAnswer: undefined }) : b,
+      ),
+    }));
+    setChecked(false);
+    setStatus("Practice answers cleared");
+  }
+
+  convertRef.current = convert;
+  saveRef.current = save;
 
   if (loading) {
     return <div className="p-8 text-sm text-zinc-500">Loading document…</div>;
@@ -551,8 +589,6 @@ export default function Editor({ docId }: { docId: string | null }) {
   if (!doc) {
     return <div className="p-8 text-sm text-zinc-500">Creating document…</div>;
   }
-
-  const canDownloadPdf = html !== null && !previewStale;
 
   return (
     <div className="flex h-full flex-col">
@@ -563,14 +599,18 @@ export default function Editor({ docId }: { docId: string | null }) {
         onTagsChange={setDocTags}
         busy={busy}
         error={error}
-        convertMode={convertMode}
-        onConvertModeChange={setConvertMode}
-        onConvert={(mode, goal) => void convert(mode, goal)}
+        onConvert={(goal) => void convert(goal)}
         onSave={() => void save()}
-        canDownloadPdf={canDownloadPdf}
+        onPreview={() => void openPreview()}
         practiceMode={practiceMode}
-        onTogglePractice={() => setPracticeMode((v) => !v)}
-        onDownloadPdf={() => void downloadPdf()}
+        onTogglePractice={() => {
+          setPracticeMode((v) => !v);
+          setChecked(false);
+        }}
+        checked={checked}
+        onToggleChecked={() => setChecked((v) => !v)}
+        onResetPractice={() => resetPractice()}
+        onDownloadPdf={(variant) => void downloadPdf(variant)}
         onDownloadHtml={() => void downloadHtml()}
         counts={counts}
         onHideAllTranslations={() => setAllQaFlags("hideTranslation", true)}
@@ -580,12 +620,11 @@ export default function Editor({ docId }: { docId: string | null }) {
         onCopyPrompt={(part) => void copyPrompt(part)}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
         onPasteQuestions={() => setShowPasteQuestions(true)}
+        onPasteBlocks={() => setShowPasteBlocks(true)}
         onPasteHtml={() => setShowPasteHtml(true)}
         snapshotInfo={snapshotInfo}
         useSnapshot={useSnapshot}
         onToggleSnapshot={() => setUseSnapshot((v) => !v)}
-        showPreview={showPreview}
-        onTogglePreview={() => setShowPreview((v) => !v)}
       />
 
       {/* FR-41 (M5): imported HTML is editable only after a best-effort parse */}
@@ -603,11 +642,21 @@ export default function Editor({ docId }: { docId: string | null }) {
         </div>
       )}
 
+      {practiceMode && (
+        <div className="border-b border-blue-100 bg-blue-50/60 px-4 py-1.5 text-xs text-blue-800">
+          Practice mode — questions only, with a “My answer” box under each. Your answers are kept
+          separate from the reference answers; Check reveals them side-by-side.
+        </div>
+      )}
+
       {showPasteQuestions && (
         <PasteQuestionsModal
           onClose={() => setShowPasteQuestions(false)}
           onResult={applyImportedBlocks}
         />
+      )}
+      {showPasteBlocks && (
+        <PasteBlocksModal onClose={() => setShowPasteBlocks(false)} onResult={applyImportedBlocks} />
       )}
       {showPasteHtml && (
         <PasteHtmlModal onClose={() => setShowPasteHtml(false)} onImported={applyImportedHtml} />
@@ -630,16 +679,21 @@ export default function Editor({ docId }: { docId: string | null }) {
               onSplitBelow={splitBlock}
               onRemoveFocusUp={removeBlockFocusUp}
               onUpdateTags={updateBlockTags}
+              practiceMode={practiceMode}
+              checked={checked}
             />
           </div>
         </div>
-
-        {showPreview && (
-          <div className="w-1/2 border-l border-zinc-200 bg-zinc-100">
-            <PreviewPane html={html} stale={previewStale} convertedAt={convertedAt} />
-          </div>
-        )}
       </div>
+
+      {previewOpen && (
+        <PreviewSheet
+          html={previewHtml}
+          busy={busy === "preview"}
+          onRefresh={() => void openPreview()}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
 
       {/* Status bar (FR-28 partial) */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-200 bg-white px-4 py-1.5 text-xs text-zinc-500">
@@ -653,11 +707,8 @@ export default function Editor({ docId }: { docId: string | null }) {
           </span>
         )}
         <span>
-          <strong className="font-medium text-zinc-600">
-            {convertMode === "ai" ? `AI · ${aiModel ?? "DeepSeek"}` : "Template (offline)"}
-          </strong>
+          <strong className="font-medium text-zinc-600">AI · {aiModel ?? "DeepSeek"}</strong>
         </span>
-        {convertedAt && <span>Converted at {new Date(convertedAt).toLocaleTimeString()}</span>}
         {counts.translationsTotal > 0 && (
           <span className="rounded-full bg-zinc-100 px-2 py-0.5">
             {counts.translationsHidden}/{counts.translationsTotal} translations hidden ·{" "}
@@ -667,17 +718,16 @@ export default function Editor({ docId }: { docId: string | null }) {
         {practiceMode && (
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">Practice on</span>
         )}
+        {checked && (
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">Checked</span>
+        )}
         {status && <span className="text-zinc-400">{status}</span>}
         {useSnapshot && snapshotInfo && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
             Snapshot rules v{snapshotInfo.version}
           </span>
         )}
-        {instructionsVersion && (
-          <span className="ml-auto">
-            Instructions v{instructionsVersion}
-          </span>
-        )}
+        {instructionsVersion && <span className="ml-auto">Instructions v{instructionsVersion}</span>}
       </div>
     </div>
   );

@@ -20,10 +20,20 @@ export interface QaContent {
   hideModelAnswer?: boolean; // per-question: omit model answer in output (FR-34)
 }
 
+/** Paragraph block content — text plus AI enrichment (translation/analysis/vocab). */
+export interface ParagraphContent {
+  text: string;
+  format?: "plain" | "markdown";
+  translation?: string; // target-language translation (AI enrichment)
+  analysis?: string; // short explanation (AI enrichment)
+  vocab?: { term: string; def: string }[]; // vocabulary found in the text
+  expressions?: { term: string; def: string }[]; // expressions found in the text
+}
+
 export type Block =
   | { id: string; type: "title"; tags: string[]; content: { text: string } }
   | { id: string; type: "heading"; tags: string[]; content: { text: string; level?: 2 | 3 } }
-  | { id: string; type: "paragraph"; tags: string[]; content: { text: string; format?: "plain" | "markdown" } }
+  | { id: string; type: "paragraph"; tags: string[]; content: ParagraphContent }
   | { id: string; type: "qa"; tags: string[]; content: QaContent }
   | { id: string; type: "separator"; tags: string[]; content: {} };
 
@@ -80,7 +90,7 @@ export function setBlockContent(block: Block, content: Block["content"]): Block 
         id: block.id,
         type: "paragraph",
         tags: block.tags,
-        content: content as { text: string; format?: "plain" | "markdown" },
+        content: content as ParagraphContent,
       };
     case "qa":
       return { id: block.id, type: "qa", tags: block.tags, content: content as QaContent };
@@ -108,11 +118,11 @@ export function replaceBlockType(block: Block, type: BlockType): Block {
   }
 }
 
-/** Convenience factory: a fresh unsaved document (id generated at creation). */
-export function createDocument(title = ""): Document {
+/** Convenience factory: a fresh unsaved document (id generated unless given). */
+export function createDocument(title = "", id?: string): Document {
   const now = new Date().toISOString();
   return {
-    id: crypto.randomUUID(),
+    id: id ?? crypto.randomUUID(),
     title,
     ownerId: null,
     source: "editor",

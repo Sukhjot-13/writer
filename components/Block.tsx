@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Block as BlockModel, BlockType } from "@/lib/types";
 import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
+import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment for paragraphs
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   title: "Title",
@@ -43,6 +44,9 @@ interface BlockProps {
   onRemoveFocusUp: () => void;
   // M5 (FR-5): per-block tags become CSS classes in the output HTML.
   onUpdateTags: (tags: string[]) => void;
+  // M6 redesign: Practice master key — questions-only view, answers separated.
+  practiceMode: boolean;
+  checked: boolean;
 }
 
 export default function Block({
@@ -59,6 +63,8 @@ export default function Block({
   onSplitBelow,
   onRemoveFocusUp,
   onUpdateTags,
+  practiceMode,
+  checked,
 }: BlockProps) {
   const [tagsDraft, setTagsDraft] = useState(block.tags.join(", "));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -238,7 +244,13 @@ export default function Block({
               <hr className="border-t border-zinc-300" />
             </div>
           ) : block.type === "qa" ? (
-            <QaBlockForm content={block.content} autoFocus={autoFocus} onUpdate={onUpdate} />
+            <QaBlockForm
+              content={block.content}
+              autoFocus={autoFocus}
+              mode={practiceMode ? "practice" : "normal"}
+              checked={checked}
+              onUpdate={onUpdate}
+            />
           ) : (
             <div className="relative">
               <textarea
@@ -256,6 +268,10 @@ export default function Block({
                 }
                 className={`block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm ${textAreaCls}`}
               />
+              {/* M6: AI enrichment for paragraphs (translation/analysis/vocab) — hidden in practice */}
+              {block.type === "paragraph" && !practiceMode && (
+                <ParagraphFields content={block.content} onUpdate={onUpdate} />
+              )}
               {slashOpen && (
                 <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">
                   {SLASH_TYPES.map((item, i) => (

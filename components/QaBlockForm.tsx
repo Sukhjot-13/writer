@@ -1,43 +1,35 @@
-// components/QaBlockForm.tsx — Q&A block form (FR-4/26/33/34/37).
+// components/QaBlockForm.tsx — Q&A card editor (M6 redesign, FR-4/26/33/34/37).
 //
-// Required: question. Optional fields appear only once used (FR-4: "Empty
-// optional fields are hidden — never show a form field the user isn't using"):
-// a "＋" chip menu reveals each one; clearing a field hides it again (remove
-// button). Tab order follows FR-26 (question → translation → grammar note →
-// user answer → model answer → translation → analysis → vocab rows).
-//
-// userAnswer is the primary practice field (FR-33); modelAnswer + question
-// translation get 👁 toggles (FR-34) that set hideTranslation/hideModelAnswer —
-// hidden state is visually clear with a muted "hidden in output" chip (FR-37).
+// Two modes driven by the Practice master key:
+//   mode="normal"   — full editing. Question + ALWAYS-visible reference answer
+//                     ("Answer"), plus optional extras behind "＋ chips"
+//                     (question translation, grammar note, response label,
+//                     answer translation, analysis, vocab, expressions).
+//   mode="practice" — question shown read-only with a "My answer" box to write
+//                     into. Once the user checks answers, a green read-only
+//                     "Model answer" box appears alongside their own answer.
+// The two answers are separate fields (userAnswer = practice attempt,
+// modelAnswer = reference), so practice never touches the reference data.
 
 "use client";
 
 import { useEffect, useState } from "react";
 import type { QaContent } from "@/lib/types";
+import { inputCls, labelCls, RowEditor } from "./RowEditor";
 
-interface QaBlockFormProps {
-  content: QaContent;
-  autoFocus?: boolean;
-  onUpdate: (content: QaContent) => void;
-}
-
-type OptionalField =
+type QaField =
   | "questionTranslation"
   | "grammarNote"
   | "responseLabel"
-  | "userAnswer"
-  | "modelAnswer"
   | "answerTranslation"
   | "analysis"
   | "vocab"
   | "expressions";
 
-const OPTIONAL_FIELDS: { key: OptionalField; label: string }[] = [
-  { key: "questionTranslation", label: "Translation" },
+const OPTIONAL_FIELDS: { key: QaField; label: string }[] = [
+  { key: "questionTranslation", label: "Question translation" },
   { key: "grammarNote", label: "Grammar note" },
-  { key: "responseLabel", label: "Response label" },
-  { key: "userAnswer", label: "My answer" },
-  { key: "modelAnswer", label: "Model answer" },
+  { key: "responseLabel", label: "Answer label" },
   { key: "answerTranslation", label: "Answer translation" },
   { key: "analysis", label: "Analysis" },
   { key: "vocab", label: "Vocabulary" },
@@ -45,13 +37,11 @@ const OPTIONAL_FIELDS: { key: OptionalField; label: string }[] = [
 ];
 
 /** Which optional fields currently have content (auto-reveal on load). */
-function usedFields(c: QaContent): Set<OptionalField> {
-  const used = new Set<OptionalField>();
+function usedFields(c: QaContent): Set<QaField> {
+  const used = new Set<QaField>();
   if (c.questionTranslation) used.add("questionTranslation");
   if (c.grammarNote) used.add("grammarNote");
   if (c.responseLabel) used.add("responseLabel");
-  if (c.userAnswer) used.add("userAnswer");
-  if (c.modelAnswer) used.add("modelAnswer");
   if (c.answerTranslation) used.add("answerTranslation");
   if (c.analysis) used.add("analysis");
   if (c.vocab?.length) used.add("vocab");
@@ -59,98 +49,42 @@ function usedFields(c: QaContent): Set<OptionalField> {
   return used;
 }
 
-const inputCls =
-  "w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const labelCls = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500";
-
-function EyeToggle({ hidden, onToggle, label }: { hidden: boolean; onToggle: () => void; label: string }) {
+function EyeToggle({ on, onToggle, title }: { on: boolean; onToggle: () => void; title: string }) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      title={hidden ? `${label} — hidden in output (click to show)` : `${label} — shown in output (click to hide)`}
-      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
-        hidden ? "bg-zinc-100 text-zinc-500 hover:bg-zinc-200" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+      title={title}
+      className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+        on
+          ? "border-zinc-300 bg-white text-zinc-400 hover:text-zinc-600"
+          : "border-red-200 bg-red-50 text-red-500 hover:text-red-700"
       }`}
     >
-      <span>{hidden ? "🙈" : "👁"}</span>
-      {hidden ? "hidden" : "shown"}
+      {on ? "👁" : "🙈"}
     </button>
   );
 }
 
-function RowEditor({
-  rows,
-  onRows,
-  placeholderTerm,
-  placeholderDef,
-  termCls,
-}: {
-  rows: { term: string; def: string }[];
-  onRows: (rows: { term: string; def: string }[]) => void;
-  placeholderTerm: string;
-  placeholderDef: string;
-  termCls: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      {rows.map((row, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <input
-            className={`${inputCls} flex-1 ${termCls}`}
-            value={row.term}
-            placeholder={placeholderTerm}
-            onChange={(e) => {
-              const next = [...rows];
-              next[i] = { ...next[i], term: e.target.value };
-              onRows(next);
-            }}
-          />
-          <input
-            className={`${inputCls} flex-1`}
-            value={row.def}
-            placeholder={placeholderDef}
-            onChange={(e) => {
-              const next = [...rows];
-              next[i] = { ...next[i], def: e.target.value };
-              onRows(next);
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => onRows(rows.filter((_, j) => j !== i))}
-            className="rounded px-1.5 text-xs text-zinc-300 hover:text-red-500"
-            title="Remove row"
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() => onRows([...rows, { term: "", def: "" }])}
-        className="rounded border border-dashed border-zinc-300 px-2 py-1 text-xs text-zinc-400 hover:border-blue-400 hover:text-blue-500"
-      >
-        + Add row
-      </button>
-    </div>
-  );
+interface QaBlockFormProps {
+  content: QaContent;
+  autoFocus?: boolean;
+  mode: "normal" | "practice";
+  checked: boolean; // practice only: reveal the model answer
+  onUpdate: (content: QaContent) => void;
 }
 
-export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFormProps) {
-  const [revealed, setRevealed] = useState<Set<OptionalField>>(() => usedFields(content));
-  const questionRef = (el: HTMLInputElement | null) => {
-    if (el && autoFocus) el.focus();
-  };
+export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdate }: QaBlockFormProps) {
+  const [revealed, setRevealed] = useState<Set<QaField>>(() => usedFields(content));
 
   useEffect(() => {
     // A field that gained content externally (AI import) reveals itself.
     setRevealed((prev) => new Set([...prev, ...usedFields(content)]));
   }, [content]);
 
-  const reveal = (key: OptionalField) => setRevealed((prev) => new Set([...prev, key]));
+  const reveal = (key: QaField) => setRevealed((prev) => new Set([...prev, key]));
 
-  const hideField = (key: OptionalField) => {
+  const hideField = (key: QaField) => {
     setRevealed((prev) => {
       const next = new Set(prev);
       next.delete(key);
@@ -164,9 +98,54 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
     onUpdate(next);
   };
 
-  const set = <K extends keyof QaContent>(key: K, value: QaContent[K]) => onUpdate({ ...content, [key]: value });
+  const set = <K extends keyof QaContent>(key: K, value: QaContent[K]) =>
+    onUpdate({ ...content, [key]: value });
 
-  const is = (key: OptionalField) => revealed.has(key);
+  const is = (key: QaField) => revealed.has(key);
+
+  if (mode === "practice") {
+    return (
+      <div className="mt-1 space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+        <div>
+          <label className={labelCls}>Question</label>
+          <input
+            readOnly
+            tabIndex={-1}
+            className={`${inputCls} cursor-default font-medium text-zinc-900`}
+            value={content.question}
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>My answer</label>
+          <textarea
+            className={`${inputCls} resize-none border-dashed border-blue-200`}
+            rows={3}
+            value={content.userAnswer ?? ""}
+            placeholder="Write your own answer…"
+            onChange={(e) => set("userAnswer", e.target.value)}
+          />
+        </div>
+
+        {checked && (
+          <div>
+            <label className={labelCls}>
+              <span className="text-emerald-700">Model answer</span>
+            </label>
+            {content.modelAnswer ? (
+              <div className="rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800">
+                {content.modelAnswer}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-emerald-300 px-2.5 py-1.5 text-[13px] text-zinc-400">
+                No model answer saved for this question.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
@@ -174,12 +153,36 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
       <div>
         <label className={labelCls}>Question</label>
         <input
-          ref={questionRef}
+          autoFocus={autoFocus}
           className={`${inputCls} font-medium text-zinc-900`}
           value={content.question}
           placeholder="Type the question in the primary language…"
           onChange={(e) => set("question", e.target.value)}
         />
+      </div>
+
+      {/* Reference answer — always visible (M6: one answer field, clean cards) */}
+      <div>
+        <div className={labelCls}>
+          <span>Answer</span>
+          <EyeToggle
+            on={!content.hideModelAnswer}
+            onToggle={() => set("hideModelAnswer", !content.hideModelAnswer)}
+            title={content.hideModelAnswer ? "Show answer in output" : "Hide answer in output"}
+          />
+        </div>
+        <textarea
+          className={inputCls}
+          rows={2}
+          value={content.modelAnswer ?? ""}
+          placeholder="Reference answer… (leave empty for a question without a provided answer)"
+          onChange={(e) => set("modelAnswer", e.target.value)}
+        />
+        {content.userAnswer ? (
+          <p className="mt-1 text-[11px] text-zinc-400">
+            A practice answer is saved for this question — turn on Practice to view or edit it.
+          </p>
+        ) : null}
       </div>
 
       {/* Optional-field chip menu (FR-4/26: sections appear once used) */}
@@ -204,11 +207,16 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
           <div className={labelCls}>
             <span>Question translation</span>
             <EyeToggle
-              hidden={Boolean(content.hideTranslation)}
+              on={!content.hideTranslation}
               onToggle={() => set("hideTranslation", !content.hideTranslation)}
-              label="Translation"
+              title={content.hideTranslation ? "Show question translation in output" : "Hide question translation in output"}
             />
-            <button type="button" onClick={() => hideField("questionTranslation")} className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500" title="Remove field">
+            <button
+              type="button"
+              onClick={() => hideField("questionTranslation")}
+              className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500"
+              title="Remove field"
+            >
               ✕
             </button>
           </div>
@@ -225,7 +233,12 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
         <div>
           <div className={labelCls}>
             <span>Grammar note</span>
-            <button type="button" onClick={() => hideField("grammarNote")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <button
+              type="button"
+              onClick={() => hideField("grammarNote")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
               ✕
             </button>
           </div>
@@ -241,57 +254,21 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
       {is("responseLabel") && (
         <div>
           <div className={labelCls}>
-            <span>Response label</span>
-            <button type="button" onClick={() => hideField("responseLabel")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <span>Answer label</span>
+            <button
+              type="button"
+              onClick={() => hideField("responseLabel")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
               ✕
             </button>
           </div>
           <input
             className={`${inputCls} w-40`}
-            value={content.responseLabel ?? ""}
+            value={content.responseLabel ?? "RÉPONSE"}
             placeholder="RÉPONSE"
             onChange={(e) => set("responseLabel", e.target.value)}
-          />
-        </div>
-      )}
-
-      {is("userAnswer") && (
-        <div>
-          <div className={labelCls}>
-            <span>My answer (practice)</span>
-            <button type="button" onClick={() => hideField("userAnswer")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
-              ✕
-            </button>
-          </div>
-          <textarea
-            className={`${inputCls} resize-none border-dashed`}
-            rows={2}
-            value={content.userAnswer ?? ""}
-            placeholder="Write your own answer here (shown in practice output)…"
-            onChange={(e) => set("userAnswer", e.target.value)}
-          />
-        </div>
-      )}
-
-      {is("modelAnswer") && (
-        <div>
-          <div className={labelCls}>
-            <span>Model answer</span>
-            <EyeToggle
-              hidden={Boolean(content.hideModelAnswer)}
-              onToggle={() => set("hideModelAnswer", !content.hideModelAnswer)}
-              label="Model answer"
-            />
-            <button type="button" onClick={() => hideField("modelAnswer")} className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500" title="Remove field">
-              ✕
-            </button>
-          </div>
-          <textarea
-            className={inputCls}
-            rows={2}
-            value={content.modelAnswer ?? ""}
-            placeholder="The reference answer…"
-            onChange={(e) => set("modelAnswer", e.target.value)}
           />
         </div>
       )}
@@ -300,14 +277,19 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
         <div>
           <div className={labelCls}>
             <span>Answer translation</span>
-            <button type="button" onClick={() => hideField("answerTranslation")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <button
+              type="button"
+              onClick={() => hideField("answerTranslation")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
               ✕
             </button>
           </div>
           <input
             className={inputCls}
             value={content.answerTranslation ?? ""}
-            placeholder="Translation of the answer…"
+            placeholder="English translation of the answer…"
             onChange={(e) => set("answerTranslation", e.target.value)}
           />
         </div>
@@ -317,7 +299,12 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
         <div>
           <div className={labelCls}>
             <span>Analysis</span>
-            <button type="button" onClick={() => hideField("analysis")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <button
+              type="button"
+              onClick={() => hideField("analysis")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
               ✕
             </button>
           </div>
@@ -325,7 +312,7 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
             className={inputCls}
             rows={2}
             value={content.analysis ?? ""}
-            placeholder="Linguistic breakdown of the answer…"
+            placeholder="Why is this answer correct — grammar or vocabulary it uses…"
             onChange={(e) => set("analysis", e.target.value)}
           />
         </div>
@@ -335,7 +322,12 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
         <div>
           <div className={labelCls}>
             <span>Vocabulary</span>
-            <button type="button" onClick={() => hideField("vocab")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove list">
+            <button
+              type="button"
+              onClick={() => hideField("vocab")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove list"
+            >
               ✕
             </button>
           </div>
@@ -353,7 +345,12 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
         <div>
           <div className={labelCls}>
             <span>Expressions</span>
-            <button type="button" onClick={() => hideField("expressions")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove list">
+            <button
+              type="button"
+              onClick={() => hideField("expressions")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove list"
+            >
               ✕
             </button>
           </div>

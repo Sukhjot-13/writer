@@ -59,6 +59,9 @@ h1.block-title { color: ${t.colors.heading}; font-size: 1.9em; margin: 0 0 0.4em
 h2.block-heading { color: ${t.colors.heading}; font-size: 1.45em; border-bottom: 3px solid ${t.colors.heading}; padding-bottom: 4px; margin: 1em 0 0.5em; }
 h3.block-heading { color: ${t.colors.heading}; font-size: 1.2em; margin: 0.9em 0 0.4em; }
 p.block-paragraph { margin: 0 0 0.9em; }
+p.p-translation { font-style: italic; font-size: 0.9rem; color: ${t.colors.mainText}; opacity: 0.8; margin: -0.5em 0 0.5em; }
+.p-analyse { font-size: 0.88rem; color: ${t.colors.mainText}; opacity: 0.9; margin: 0 0 0.5em; }
+.p-analyse strong { color: ${t.colors.mainText}; opacity: 1; }
 hr.block-separator { border: none; border-top: 1px solid ${t.colors.border}; margin: 1.4em 0; }
 code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px; font-family: ${t.fonts.mono}; }
 /* ---- Q&A blocks (instructions: "REUSABLE COMPONENTS — Q&A BLOCKS") ---- */
@@ -168,11 +171,18 @@ function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber
       return `<${Tag} class="${wrapper}">${escapeHtml(block.content.text)}</${Tag}>`;
     }
     case "paragraph": {
+      const c = block.content;
       const text =
-        block.content.format === "markdown"
-          ? renderInlineMarkdown(block.content.text)
-          : escapeHtml(block.content.text).replace(/\n/g, "<br>");
-      return `<p class="${wrapper}">${text}</p>`;
+        c.format === "markdown"
+          ? renderInlineMarkdown(c.text)
+          : escapeHtml(c.text).replace(/\n/g, "<br>");
+      // M6: AI enrichment for all text — translation, analysis, vocab grid.
+      const translation = c.translation ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>` : "";
+      const analysis = c.analysis
+        ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
+        : "";
+      const grid = vocabGridHtml(c.vocab, c.expressions);
+      return `<p class="${wrapper}">${text}</p>${translation}${analysis}${grid}`;
     }
     case "separator":
       return `<hr class="${wrapper}">`;
