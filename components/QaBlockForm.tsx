@@ -185,11 +185,11 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
         ) : null}
       </div>
 
-      {/* Optional-field chip menu (FR-4/26: sections appear once used) — kept
-          deliberately subtle: enrichment is mostly AI-generated, so the chips
-          sit quietly under the card until the user wants to touch them. */}
+      {/* Optional-field chip menu (FR-4/26: sections appear once used) — SUPER
+          subtle (2026-08-10): 99% of enrichment comes from the AI, so the chips
+          are invisible until the card is hovered or focused, then faint. */}
       {OPTIONAL_FIELDS.filter((f) => !is(f.key)).length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
           <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-300">Add:</span>
           {OPTIONAL_FIELDS.filter((f) => !is(f.key)).map((f) => (
             <button

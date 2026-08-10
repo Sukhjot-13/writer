@@ -67,7 +67,12 @@ function blockHasContent(b: BlockModel): boolean {
   const c = b.content as Record<string, unknown>;
   return Object.entries(c).some(([key, value]) => {
     if (key === "hideTranslation" || key === "hideModelAnswer") return false;
-    if (Array.isArray(value)) return (value as { term?: string; def?: string }[]).some((x) => x.term || x.def);
+    if (Array.isArray(value)) {
+      // vocab/expressions rows ({ term, def }) OR essay paragraphs (strings)
+      return (value as unknown[]).some((x) =>
+        typeof x === "string" ? x.trim().length > 0 : Boolean((x as { term?: string }).term || (x as { def?: string }).def),
+      );
+    }
     return typeof value === "string" && value.trim().length > 0;
   });
 }
@@ -610,8 +615,8 @@ export default function Editor({ docId }: { docId: string | null }) {
     }
   }
 
-  // ---- practice (M6): clear every "My answer" (qa + paragraph) so the doc can
-  // be re-practiced ----
+  // ---- practice (M6): clear every "My answer" (qa + paragraph + essay) so the
+  // doc can be re-practiced ----
   function resetPractice() {
     if (!window.confirm("Clear every 'My answer' so you can practice this document again?")) return;
     mutateDoc((d) => ({

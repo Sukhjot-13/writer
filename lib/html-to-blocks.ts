@@ -14,7 +14,7 @@
 // re-conversion keeps inline formatting (FR-42); hide flags can't be detected
 // from rendered HTML and stay false.
 
-import { createBlock, type Block, type QaContent } from "./types";
+import { createBlock, type Block, type QaContent, type EssayContent } from "./types";
 
 export interface ParseResult {
   blocks: Block[];
@@ -258,6 +258,52 @@ function parseQa(inner: string): QaContent {
   return content;
 }
 
+/** Essay (2026-08-10): the .block-essay wrapper holds .block-paragraph <p>s
+ *  plus ONE shared enrichment set (p-translation / p-analyse / qa-vocab-grid /
+ *  qa-user-answer) — parsed back into a single essay block, never split. */
+function parseEssay(inner: string): EssayContent {
+  const content: EssayContent = { paragraphs: [] };
+
+  content.paragraphs = elementsByClass(inner, "block-paragraph")
+    .map((el) => innerToMarkdown(el.inner))
+    .filter((p) => p.trim().length > 0);
+
+  const userAnswer = byClass(inner, "qa-user-answer");
+  if (userAnswer) content.userAnswer = innerToMarkdown(userAnswer.inner);
+
+  const translation = byClass(inner, "p-translation");
+  if (translation) content.translation = innerToMarkdown(translation.inner);
+
+  const analysis = byClass(inner, "p-analyse");
+  if (analysis) {
+    const text = innerToMarkdown(analysis.inner.replace(/<strong[^>]*>Analyse\s*:<\/strong>/i, ""))
+      .replace(/^\*\*Analyse\s*:\s*\*\*/, "")
+      .trim();
+    if (text) content.analysis = text;
+  }
+
+  const grid = byClass(inner, "qa-vocab-grid");
+  if (grid) {
+    const vocab: { term: string; def: string }[] = [];
+    const expressions: { term: string; def: string }[] = [];
+    for (const col of elementsByClass(grid.inner, "qa-vocab-col")) {
+      const header = textOnly(byClass(col.inner, "qa-vocab-header")?.inner ?? "");
+      const target = /expression/i.test(header) ? expressions : vocab;
+      const rows = [
+        ...parseRows(col, "qa-vocab-row").map((r) => ({ ...r })),
+        ...parseRows(col, "qa-expr-row").map((r) => ({ ...r })),
+      ];
+      for (const row of rows) {
+        if (row.term || row.def) target.push(row);
+      }
+    }
+    if (vocab.length) content.vocab = vocab;
+    if (expressions.length) content.expressions = expressions;
+  }
+
+  return content;
+}
+
 /** Build a typed block from a factory + content (avoids spread-of-union widening). */
 function blockWithContent<T extends Block["type"]>(
   type: T,
@@ -299,6 +345,10 @@ export function parseHtmlToBlocks(html: string): ParseResult {
       );
     } else if (cls.includes("block-separator")) {
       blocks.push(createBlock("separator"));
+    } else if (cls.includes("block-essay")) {
+      // Essay wrapper: parse its paragraphs + shared enrichment back into ONE
+      // essay block (2026-08-10) — never per-paragraph blocks.
+      blocks.push(blockWithContent("essay", parseEssay(el.inner)));
     } else if (cls.includes("qa-block") || cls.includes("block-qa")) {
       const qa = parseQa(cls.includes("qa-block") ? el.inner : (byClass(el.inner, "qa-block")?.inner ?? el.inner));
       blocks.push(blockWithContent("qa", qa));

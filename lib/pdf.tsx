@@ -379,6 +379,42 @@ function BlockToPDF({
         </View>
       );
     }
+    case "essay": {
+      // Essay (2026-08-10): ONE continuous passage — paragraphs render as
+      // normal text, with a single shared enrichment set (translation, analysis,
+      // vocab grid, practice answer) exactly like the paragraph case.
+      const c = block.content;
+      const showUser = variant !== "questions";
+      return (
+        <View>
+          {c.paragraphs.map((p, i) => (
+            <Text key={i} style={styles.p}>
+              {p}
+            </Text>
+          ))}
+          {showUser && c.userAnswer ? (
+            <View style={styles.userAnswer}>
+              <Text>{c.userAnswer}</Text>
+            </View>
+          ) : null}
+          {variant !== "full" && !(showUser && c.userAnswer) ? (
+            <BlankAnswerArea basePt={basePt} color={t.colors.border} />
+          ) : null}
+          {variant === "full" && c.translation ? (
+            <Text style={styles.pTranslation}>{c.translation}</Text>
+          ) : null}
+          {variant === "full" && c.analysis ? (
+            <Text style={styles.pAnalysis}>
+              <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
+              {c.analysis}
+            </Text>
+          ) : null}
+          {variant === "full" ? (
+            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+          ) : null}
+        </View>
+      );
+    }
     case "separator":
       return <View style={styles.separator} />;
     case "qa": {
@@ -408,14 +444,20 @@ export async function generatePDFBuffer(
     },
   });
 
-  // Practice variants are worksheet sheets: title + questions always;
-  // "my-answers" also includes paragraphs (the user's written answers).
+  // Practice variants are worksheet sheets: title + questions always.
+  // Essays (a continuous passage = one reading + writing task) appear on BOTH
+  // non-full sheets — with the user's answer on "my-answers", blank rules on
+  // "questions". Standalone paragraphs join only "my-answers" (M6 + design
+  // pass 2026-08-10).
   const blocks =
     variant === "full"
       ? doc.blocks
       : doc.blocks.filter(
           (b) =>
-            b.type === "title" || b.type === "qa" || (variant === "my-answers" && b.type === "paragraph"),
+            b.type === "title" ||
+            b.type === "qa" ||
+            b.type === "essay" ||
+            (variant === "my-answers" && b.type === "paragraph"),
         );
 
   const qaNumber = { n: 0 };

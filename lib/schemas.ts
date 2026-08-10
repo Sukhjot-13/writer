@@ -54,6 +54,24 @@ export const blockSchema = z.discriminatedUnion("type", [
       })
       .loose(),
   }),
+  // Essay (design pass 2026-08-10): a continuous piece of writing (1..n
+  // paragraphs) with ONE shared enrichment set + ONE practice answer — the
+  // user writes the essay as a single thing, never per-paragraph.
+  z.object({
+    id: z.string(),
+    type: z.literal("essay"),
+    tags: tagSchema,
+    content: z
+      .object({
+        paragraphs: z.array(z.string()),
+        translation: z.string().optional(),
+        analysis: z.string().optional(),
+        vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+        expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+        userAnswer: z.string().optional(), // practice answer (single, whole essay)
+      })
+      .loose(),
+  }),
   z.object({ id: z.string(), type: z.literal("qa"), tags: tagSchema, content: qaContentSchema }),
   z.object({
     id: z.string(),

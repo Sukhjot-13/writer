@@ -1,14 +1,16 @@
-// components/ParagraphFields.tsx — AI enrichment editor for paragraphs (M6).
+// components/ParagraphFields.tsx — AI enrichment editor (M6 + design pass).
 //
-// "Convert with AI" now enriches ALL text, not just Q&A: paragraphs carry an
-// English translation, a short analysis, and vocab/expressions. This mirrors
-// QaBlockForm's "＋ chip" pattern — empty optional fields stay hidden, a chip
-// reveals each one, removing a field clears its data.
+// Shared by PARAGRAPHS and ESSAYS (2026-08-10): both carry the same optional
+// enrichment fields (translation / analysis / vocab / expressions). "Convert
+// with AI" fills them; manual entry is the fallback. Mirrors QaBlockForm's
+// "＋ chip" pattern — but the chips are deliberately SUPER subtle: they exist
+// only to let the user touch AI output, so they stay invisible until the block
+// is hovered or focused (99% of the time the AI has already filled these).
 
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ParagraphContent } from "@/lib/types";
+import type { EssayContent, ParagraphContent } from "@/lib/types";
 import { inputCls, labelCls, RowEditor } from "./RowEditor";
 
 type ParagraphField = "translation" | "analysis" | "vocab" | "expressions";
@@ -21,7 +23,7 @@ const FIELDS: { key: ParagraphField; label: string }[] = [
 ];
 
 /** Which optional fields currently have content (auto-reveal on load). */
-function usedFields(c: ParagraphContent): Set<ParagraphField> {
+function usedFields(c: ParagraphContent | EssayContent): Set<ParagraphField> {
   const used = new Set<ParagraphField>();
   if (c.translation) used.add("translation");
   if (c.analysis) used.add("analysis");
@@ -31,8 +33,8 @@ function usedFields(c: ParagraphContent): Set<ParagraphField> {
 }
 
 interface ParagraphFieldsProps {
-  content: ParagraphContent;
-  onUpdate: (content: ParagraphContent) => void;
+  content: ParagraphContent | EssayContent;
+  onUpdate: (content: ParagraphContent | EssayContent) => void;
 }
 
 export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsProps) {
@@ -67,7 +69,7 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
   return (
     <div className="mt-2 space-y-2.5 border-t border-dashed border-zinc-200 pt-2.5">
       {FIELDS.filter((f) => !is(f.key)).length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
           <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-300">
             AI details:
           </span>

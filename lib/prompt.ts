@@ -47,6 +47,14 @@ export function serializeBlocksForAI(doc: Document): string {
           `<PARAGRAPH${block.content.format === "markdown" ? ' FORMAT="markdown"' : ""}>${block.content.text}</PARAGRAPH>`,
         );
         break;
+      case "essay":
+        // Essay (2026-08-10): paragraphs serialized as <P> lines inside one
+        // <ESSAY>…</ESSAY> marker — the AI sees one continuous piece of
+        // writing, never per-paragraph parts. USER_ANSWER never serialized.
+        parts.push(
+          `<ESSAY>\n${block.content.paragraphs.map((p) => `<P>${p}</P>`).join("\n")}\n</ESSAY>`,
+        );
+        break;
       case "separator":
         parts.push("<SEPARATOR/>");
         break;
@@ -77,8 +85,10 @@ Convert the content above into structured document blocks following the system i
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"separator"}
+Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts.
 Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.`;
   return { system: instructions, user };
 }
@@ -96,6 +106,9 @@ export function serializePlainText(doc: Document): string {
         break;
       case "paragraph":
         parts.push(block.content.text);
+        break;
+      case "essay":
+        parts.push(block.content.paragraphs.join("\n\n"));
         break;
       case "separator":
         parts.push("─".repeat(20));

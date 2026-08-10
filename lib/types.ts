@@ -2,7 +2,7 @@
 // Single source of truth for Block / QaContent / Document shapes.
 // zod schemas in lib/schemas.ts mirror these (used for API payload validation).
 
-export type BlockType = "title" | "heading" | "paragraph" | "qa" | "separator";
+export type BlockType = "title" | "heading" | "paragraph" | "essay" | "qa" | "separator";
 
 /** Q&A block content (FR-4, FR-33, FR-34). Empty optional fields are hidden in the editor. */
 export interface QaContent {
@@ -31,10 +31,27 @@ export interface ParagraphContent {
   userAnswer?: string; // practice answer written by the user (M6, FR-33 parity with qa)
 }
 
+/**
+ * Essay block content — a CONTINUOUS piece of writing made of 1..n paragraphs
+ * (design pass 2026-08-10). Deliberately distinct from q/a: the whole essay
+ * carries ONE shared enrichment set (translation/analysis/vocab/expressions)
+ * and ONE practice answer — the user writes the essay as one thing, never
+ * per-paragraph. The AI groups consecutive prose paragraphs into an essay.
+ */
+export interface EssayContent {
+  paragraphs: string[];
+  translation?: string; // ONE target-language translation of the whole essay (AI)
+  analysis?: string; // ONE short explanation of the essay (AI)
+  vocab?: { term: string; def: string }[]; // vocabulary found in the essay (AI)
+  expressions?: { term: string; def: string }[]; // expressions found in the essay (AI)
+  userAnswer?: string; // practice: ONE answer field for the whole essay
+}
+
 export type Block =
   | { id: string; type: "title"; tags: string[]; content: { text: string } }
   | { id: string; type: "heading"; tags: string[]; content: { text: string; level?: 2 | 3 } }
   | { id: string; type: "paragraph"; tags: string[]; content: ParagraphContent }
+  | { id: string; type: "essay"; tags: string[]; content: EssayContent }
   | { id: string; type: "qa"; tags: string[]; content: QaContent }
   | { id: string; type: "separator"; tags: string[]; content: {} };
 
@@ -64,6 +81,8 @@ export function createBlock(type: BlockType, id?: string): Block {
       return { id: bid, type, tags: [], content: { text: "", level: 2 } };
     case "paragraph":
       return { id: bid, type, tags: [], content: { text: "", format: "plain" } };
+    case "essay":
+      return { id: bid, type, tags: [], content: { paragraphs: [""] } };
     case "qa":
       return { id: bid, type, tags: [], content: { question: "", responseLabel: "RÉPONSE" } };
     case "separator":
@@ -93,6 +112,13 @@ export function setBlockContent(block: Block, content: Block["content"]): Block 
         tags: block.tags,
         content: content as ParagraphContent,
       };
+    case "essay":
+      return {
+        id: block.id,
+        type: "essay",
+        tags: block.tags,
+        content: content as EssayContent,
+      };
     case "qa":
       return { id: block.id, type: "qa", tags: block.tags, content: content as QaContent };
     case "separator":
@@ -112,6 +138,8 @@ export function replaceBlockType(block: Block, type: BlockType): Block {
       return { id: block.id, type: "heading", tags: block.tags, content: { text: "", level: 2 } };
     case "paragraph":
       return { id: block.id, type: "paragraph", tags: block.tags, content: { text: "", format: "plain" } };
+    case "essay":
+      return { id: block.id, type: "essay", tags: block.tags, content: { paragraphs: [""] } };
     case "qa":
       return { id: block.id, type: "qa", tags: block.tags, content: { question: "", responseLabel: "RÉPONSE" } };
     case "separator":

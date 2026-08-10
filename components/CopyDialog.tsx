@@ -90,6 +90,22 @@ export function buildCopyText(doc: Document, sel: CopySelection): string {
         }
         break;
       }
+      case "essay": {
+        // Essay (2026-08-10): its paragraphs count as "paragraphs" text; the
+        // single practice answer follows the userAnswers selection.
+        const text = block.content.paragraphs.map((p) => p.trim()).filter(Boolean).join("\n\n");
+        if (sel.paragraphs && text) {
+          lines.push(text);
+          if (sel.userAnswers && block.content.userAnswer?.trim()) {
+            lines.push(`  Ma réponse : ${block.content.userAnswer.trim()}`);
+          }
+          lines.push("");
+        } else if (sel.userAnswers && block.content.userAnswer?.trim()) {
+          lines.push(`Ma réponse : ${block.content.userAnswer.trim()}`);
+          lines.push("");
+        }
+        break;
+      }
       case "qa": {
         if (!sel.questions && !sel.userAnswers && !sel.modelAnswers && !sel.translations &&
             !sel.grammarNotes && !sel.analysis && !sel.vocab) {

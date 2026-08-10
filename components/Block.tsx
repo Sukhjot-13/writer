@@ -1,15 +1,20 @@
 // components/Block.tsx — single block editor row (FR-1/3/25).
-// Handles title / heading / paragraph (shared text editing) and separator.
+// Handles title / heading / paragraph / essay (text editing) and separator.
 // Per-block controls: ↑ ↓ ✕ (reorder/delete) and ＋ (insert after) on hover.
 // Typing "/" opens the slash-command menu (FR-2) to convert the block type.
 
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Block as BlockModel, BlockType, ParagraphContent } from "@/lib/types";
+import type {
+  Block as BlockModel,
+  BlockType,
+  EssayContent,
+  ParagraphContent,
+} from "@/lib/types";
 import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
-import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment for paragraphs
+import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment (paragraphs + essays)
 
 // M6: practice view of a paragraph — the paragraph stays a continuous piece of
 // writing: its text in normal document typography with the "My answer" space
@@ -55,10 +60,58 @@ function PracticeParagraphCard({
   );
 }
 
+// Essay (2026-08-10): practice view of a continuous passage. ALL paragraphs
+// render as one piece of text and the user gets exactly ONE "My answer" field
+// — an essay is written as a single thing, never per-paragraph (unlike q/a,
+// there is nothing to answer separately).
+function PracticeEssayCard({
+  content,
+  checked,
+  onUpdate,
+}: {
+  content: EssayContent;
+  checked: boolean;
+  onUpdate: (content: EssayContent) => void;
+}) {
+  return (
+    <div className="mt-1">
+      <div className="space-y-3 py-1.5 text-[15px] leading-relaxed text-zinc-800">
+        {content.paragraphs.map((p, i) => (
+          <p key={i}>
+            {p || <span className="text-zinc-300">(empty paragraph)</span>}
+          </p>
+        ))}
+      </div>
+
+      <textarea
+        rows={4}
+        value={content.userAnswer ?? ""}
+        placeholder="Your answer — write the whole essay in French if you can…"
+        onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
+        className="block w-full resize-none rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[15px] leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+      />
+
+      {checked && (
+        <div className="mt-2 rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800">
+          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+            Reference
+          </span>
+          {content.translation || (
+            <span className="text-[13px] text-zinc-400">
+              No reference translation saved for this essay.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const BLOCK_LABELS: Record<BlockType, string> = {
   title: "Title",
   heading: "Heading",
   paragraph: "Paragraph",
+  essay: "Essay",
   qa: "Question & Answer",
   separator: "Separator",
 };
@@ -66,6 +119,7 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
 /** Block types the slash menu can convert to (FR-2: /para /h2 /qa /title). */
 export const SLASH_TYPES: { type: BlockType; label: string; hint: string }[] = [
   { type: "paragraph", label: "Paragraph", hint: "/para" },
+  { type: "essay", label: "Essay", hint: "/essay" },
   { type: "heading", label: "Heading", hint: "/h2" },
   { type: "qa", label: "Question & Answer", hint: "/qa" },
   { type: "title", label: "Title", hint: "/title" },
@@ -116,7 +170,15 @@ export default function Block({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashCursor, setSlashCursor] = useState(0);
 
-  // Auto-grow the textarea to its content (FR-25: blocks auto-grow).
+  // Auto-grow a textarea to its content (FR-25). Reused as a callback ref for
+  // the essay's per-paragraph textareas (each grows independently).
+  const autoGrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  // Auto-grow the primary textarea (title/heading/paragraph).
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -167,7 +229,9 @@ export default function Block({
     }
     // FR-3 (M5): Enter creates a new block below — splitting at the cursor
     // when the caret isn't at the end; Shift+Enter inserts a newline.
-    if (e.key === "Enter" && !e.shiftKey) {
+    // 2026-08-10: NOT for paragraphs — a paragraph is a continuous thing;
+    // Enter must just insert a newline inside it (user feedback).
+    if (e.key === "Enter" && !e.shiftKey && block.type !== "paragraph") {
       e.preventDefault();
       const pos = textareaRef.current?.selectionStart ?? text.length;
       if (pos < text.length) {
@@ -249,12 +313,14 @@ export default function Block({
     <div className="group relative rounded-xl p-1.5 transition-colors hover:bg-zinc-50 focus-within:bg-zinc-50">
       <div className="flex items-center gap-2">
         <div className="flex-1">
-          {/* Header row: label · heading level · tags · controls (on hover) */}
+          {/* Header row: label · heading level · tags · controls (on hover).
+              2026-08-10: practice is read-only structure — no heading level,
+              no tags, no ↑/↓/＋/✕ controls, no drag (see BlockList). */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               {BLOCK_LABELS[block.type]}
             </span>
-            {block.type === "heading" && (
+            {!practiceMode && block.type === "heading" && (
               <select
                 className="rounded border border-zinc-200 bg-white px-1 py-0.5 text-[10px] text-zinc-600 outline-none focus:border-blue-400"
                 value={block.content.level ?? 2}
@@ -265,23 +331,27 @@ export default function Block({
                 <option value={3}>H3</option>
               </select>
             )}
-            <input
-              value={tagsDraft}
-              onChange={(e) => setTagsDraft(e.target.value)}
-              onBlur={() => onUpdateTags(parseTags(tagsDraft))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              placeholder="tags"
-              title="Custom tags, comma-separated — become CSS classes in the output HTML"
-              className="ml-auto w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-400 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-600"
-            />
-            <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-              {controls}
-            </div>
+            {!practiceMode && (
+              <input
+                value={tagsDraft}
+                onChange={(e) => setTagsDraft(e.target.value)}
+                onBlur={() => onUpdateTags(parseTags(tagsDraft))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                placeholder="tags"
+                title="Custom tags, comma-separated — become CSS classes in the output HTML"
+                className="ml-auto w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-400 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-600"
+              />
+            )}
+            {!practiceMode && (
+              <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                {controls}
+              </div>
+            )}
           </div>
 
           {block.type === "separator" ? (
@@ -299,9 +369,43 @@ export default function Block({
           ) : practiceMode && block.type === "paragraph" ? (
             // M6: practice gives paragraphs the same answer flow as questions.
             <PracticeParagraphCard content={block.content} checked={checked} onUpdate={onUpdate} />
+          ) : practiceMode && block.type === "essay" ? (
+            // Essay (2026-08-10): the whole passage reads as one continuous
+            // text with exactly ONE answer field — never per-paragraph boxes.
+            <PracticeEssayCard content={block.content} checked={checked} onUpdate={onUpdate} />
           ) : practiceMode ? (
             // Title / heading — read-only context in practice.
             <div className={`py-1.5 leading-relaxed ${textAreaCls}`}>{text}</div>
+          ) : block.type === "essay" ? (
+            // Essay editor: one auto-grow textarea per paragraph (Enter just
+            // adds a newline inside it — essays are continuous), an "add
+            // paragraph" button, and the shared enrichment fields below.
+            <div>
+              {block.content.paragraphs.map((p, i) => (
+                <textarea
+                  key={i}
+                  ref={autoGrow}
+                  value={p}
+                  onChange={(e) => {
+                    const next = [...block.content.paragraphs];
+                    next[i] = e.target.value;
+                    onUpdate({ ...block.content, paragraphs: next });
+                  }}
+                  onInput={(e) => autoGrow(e.currentTarget)}
+                  rows={1}
+                  placeholder={`Paragraph ${i + 1}…`}
+                  className="block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm"
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => onUpdate({ ...block.content, paragraphs: [...block.content.paragraphs, ""] })}
+                className="rounded border border-dashed border-zinc-200 px-2 py-1 text-xs text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-600"
+              >
+                + Add paragraph
+              </button>
+              <ParagraphFields content={block.content} onUpdate={onUpdate} />
+            </div>
           ) : (
             <div className="relative">
               <textarea

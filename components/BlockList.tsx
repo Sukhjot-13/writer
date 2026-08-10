@@ -5,10 +5,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Block as BlockModel, BlockType } from "@/lib/types";
 import Block from "./Block";
 import AddBlockMenu from "./AddBlockMenu";
+
+// 2026-08-10: the add control remembers the last-chosen block type per session
+// — direct "+" clicks use it, the caret opens the full menu (AddBlockMenu).
+const LAST_TYPE_KEY = "writer-app:add-type";
 
 interface BlockListProps {
   blocks: BlockModel[];
@@ -47,10 +51,31 @@ export default function BlockList({
 }: BlockListProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  // 2026-08-10: default type for the "+" add control (persisted per session).
+  const [lastType, setLastType] = useState<BlockType>("paragraph");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LAST_TYPE_KEY);
+      if (saved && ["paragraph", "essay", "heading", "qa", "title", "separator"].includes(saved)) {
+        setLastType(saved as BlockType);
+      }
+    } catch {
+      /* storage unavailable — keep default */
+    }
+  }, []);
+  const pickType = (type: BlockType) => {
+    setLastType(type);
+    try {
+      localStorage.setItem(LAST_TYPE_KEY, type);
+    } catch {
+      /* ignore */
+    }
+  };
 
-  // Practice shows every block (M6): qa + paragraph blocks get a "My answer"
-  // box, title/heading read as context, separators render as dividers. The
-  // add-block affordance below is hidden so practice can't change structure.
+  // Practice shows every block (M6): qa + paragraph + essay blocks get "My
+  // answer" boxes, title/heading read as context, separators render as
+  // dividers. Structure is FROZEN in practice: no add menu, no per-block
+  // controls (Block), no drag — the document can't change mid-practice.
   const visible = blocks;
 
   return (
@@ -58,7 +83,7 @@ export default function BlockList({
       {visible.map((block, index) => (
         <div
           key={block.id}
-          draggable={dragId === null || dragId === block.id}
+          draggable={!practiceMode && (dragId === null || dragId === block.id)}
           onDragStart={(e) => {
             setDragId(block.id);
             e.dataTransfer.effectAllowed = "move";
@@ -100,7 +125,7 @@ export default function BlockList({
             onRemove={() => onRemoveBlock(block.id)}
             onMoveUp={() => onMoveBlock(block.id, -1)}
             onMoveDown={() => onMoveBlock(block.id, 1)}
-            onAddAfter={() => onInsertAfter(block.id, "paragraph")}
+            onAddAfter={() => onInsertAfter(block.id, lastType)}
             onSplitBelow={(rest) => onSplitBelow(block.id, rest)}
             onRemoveFocusUp={() => onRemoveFocusUp(block.id)}
             onUpdateTags={(tags) => onUpdateTags(block.id, tags)}
@@ -111,7 +136,7 @@ export default function BlockList({
       ))}
       {!practiceMode && (
         <div className="flex justify-center py-2">
-          <AddBlockMenu onAdd={onAppend} />
+          <AddBlockMenu lastType={lastType} onAdd={onAppend} onPickType={pickType} />
         </div>
       )}
     </div>

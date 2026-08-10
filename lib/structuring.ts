@@ -50,6 +50,19 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
       expressions: z.array(vocabItemSchema).optional(),
     })
     .loose(),
+  // Essay (design pass 2026-08-10): 1..n paragraphs of ONE continuous text,
+  // with ONE shared enrichment set — the AI must never split an essay into
+  // per-paragraph parts (that's the q/a antipattern the user flagged).
+  z
+    .object({
+      type: z.literal("essay"),
+      paragraphs: z.array(z.string()),
+      translation: z.string().optional(),
+      analysis: z.string().optional(),
+      vocab: z.array(vocabItemSchema).optional(),
+      expressions: z.array(vocabItemSchema).optional(),
+    })
+    .loose(),
   z
     .object({
       type: z.literal("qa"),
@@ -116,6 +129,22 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
           );
         }
         break;
+      case "essay": {
+        // Keep only non-empty paragraphs; a fully empty essay is dropped.
+        const paragraphs = d.paragraphs.map((p) => p.trim()).filter(Boolean);
+        if (paragraphs.length) {
+          blocks.push(
+            setBlockContent(createBlock("essay"), {
+              paragraphs,
+              translation: opt(d.translation),
+              analysis: opt(d.analysis),
+              vocab: optList(d.vocab),
+              expressions: optList(d.expressions),
+            }),
+          );
+        }
+        break;
+      }
       case "qa":
         if (d.question.trim()) {
           blocks.push(
