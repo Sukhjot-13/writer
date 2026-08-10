@@ -32,8 +32,10 @@ export async function POST(request: Request) {
   }
 
   const tokens = await getTokens();
-  // Print-accurate: the preview renders with the print rules forced on screen
-  // (A4 sheet, print font size, print margins) so it looks exactly like the PDF.
+  // A4-sheet preview (2026-08-10 #4): renders the spec's SCREEN design — base
+  // font (11.5px) and page margins (18mm) — with true print rules inside
+  // @media print, so the preview matches the spec and printing the sheet is
+  // still a clean A4 at print size (10.5px, 14mm).
   const html = generateTemplateHTML(parsed.data, tokens, { printMode: true });
   return NextResponse.json({ html });
 }

@@ -45,14 +45,15 @@ export function renderInlineMarkdown(text: string): string {
 
 function buildCss(tokens: DesignTokens, paper = false): string {
   const t = tokens;
-  // Paper mode (preview): the print rules apply on screen — the document is
-  // shown as an A4 sheet with the print font size and print margins, so the
-  // preview matches the PDF exactly. The backdrop stays transparent so the
-  // preview sheet's own background shows around the paper.
+  // Paper mode (preview, 2026-08-10 #4): the document is shown as an A4 sheet
+  // at the SPEC's SCREEN rendering — base font (11.5px) and page margins
+  // (18mm), matching "GLOBAL STYLE: A4 (210×297mm), margins 18mm, base 11.5px".
+  // True print behavior lives in the @media print rules: font 10.5px, @page
+  // margin 14mm, no shadow. The backdrop stays transparent so the preview
+  // sheet's own background shows around the paper.
   const paperRules = paper
     ? `
-body { font-size: ${t.sizes.print}; }
-.document { max-width: 210mm; margin: 0 auto; padding: ${t.spacing.printMargin}; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+.document { max-width: 210mm; margin: 0 auto; padding: ${t.spacing.pageMargin}; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
 @media print {
   .document { margin: 0; padding: 0; box-shadow: none; }
 }`
