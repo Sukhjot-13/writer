@@ -197,10 +197,14 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             )}
           </label>
           <AutoGrowTextarea
+            // 2026-08-10 M7 round 9 fix: Tailwind v4 sorts same-property
+            // utilities ALPHABETICALLY (amber < zinc, amber < white), so the
+            // inputCls zinc-200 border + white bg ALWAYS beat the state colors
+            // — the `!` (important) suffix is required for them to show at all.
             className={`${inputCls} border-dashed ${
               content.userAnswer
-                ? "border-blue-200"
-                : "border-amber-300 bg-amber-50/40"
+                ? "border-blue-200!"
+                : "border-amber-300! bg-amber-50/40!"
             }`}
             rows={3}
             value={content.userAnswer ?? ""}
@@ -248,12 +252,22 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
           />
         </div>
         <div>
-          <label className={labelCls}>Answer</label>
+          {/* 2026-08-10 M7 round 9 (user: "the fields where there is no answer
+              i cant see the amber… in both light and dark mode" + "remove the
+              line 'reference answer'"): the Answer field carries the same
+              subtle amber treatment as practice when NO answer is written —
+              dashed amber border + whisper tint + a small "Unanswered" label;
+              typing flips it back to a plain field. The `!` suffix is required:
+              Tailwind v4 sorts same-property utilities alphabetically, so
+              inputCls's zinc-200/white would otherwise win the cascade. */}
+          <label className={labelCls}>
+            Answer
+            {!content.modelAnswer && <span className="text-amber-600">Unanswered</span>}
+          </label>
           <AutoGrowTextarea
-            className={inputCls}
+            className={`${inputCls} ${content.modelAnswer ? "" : "border-dashed border-amber-300! bg-amber-50/40!"}`}
             rows={2}
             value={content.modelAnswer ?? ""}
-            placeholder="Reference answer… (leave empty for a question without a provided answer)"
             onChange={(e) => set("modelAnswer", e.target.value)}
           />
         </div>
@@ -328,14 +342,16 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
           2026-08-10 M7 round 5: the 👁/🙈 hide toggle is GONE — visibility is
           controlled in the preview sheet. */}
       <div>
+        {/* 2026-08-10 M7 round 9: amber "unanswered" treatment when no answer
+            is written — same classes + `!` as the focus-mode field above. */}
         <div className={labelCls}>
           <span>Answer</span>
+          {!content.modelAnswer && <span className="text-amber-600">Unanswered</span>}
         </div>
         <AutoGrowTextarea
-          className={inputCls}
+          className={`${inputCls} ${content.modelAnswer ? "" : "border-dashed border-amber-300! bg-amber-50/40!"}`}
           rows={2}
           value={content.modelAnswer ?? ""}
-          placeholder="Reference answer… (leave empty for a question without a provided answer)"
           onChange={(e) => set("modelAnswer", e.target.value)}
         />
         {content.userAnswer ? (

@@ -65,9 +65,12 @@
   --color-white: var(--white, #ffffff);
   /* amber (2026-08-10): the "unanswered" attention tint. Semantic ramps keep
      their Tailwind defaults per the dark-mode notes below (they read fine on
-     dark); registering them here (AFTER white, last in the block) also lets
-     amber utilities win the cascade against the remapped zinc/white tokens in
-     inputCls — same mechanism that lets blue/emerald override zinc. */
+     dark); registering them here makes the amber *utilities exist* at all.
+     IMPORTANT (2026-08-10 M7 round 9 fix): registration order does NOT change
+     the cascade — Tailwind v4 sorts same-property utilities ALPHABETICALLY by
+     name, so zinc-200/white (z > a, w > a) always beat amber-300/amber-50 on
+     the same element. State colors on inputCls-bearing fields therefore carry
+     the `!` (important) suffix (e.g. "border-amber-300! bg-amber-50/40!"). */
   --color-amber-50: var(--amber-50, #fffbeb);
   --color-amber-100: var(--amber-100, #fef3c7);
   --color-amber-200: var(--amber-200, #fde68a);
