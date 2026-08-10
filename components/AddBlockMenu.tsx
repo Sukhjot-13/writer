@@ -23,14 +23,14 @@ export default function AddBlockMenu({ onAdd }: { onAdd: (type: BlockType) => vo
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setOpen(false)}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-zinc-300 text-zinc-400 transition-colors hover:border-blue-400 hover:text-blue-500"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-zinc-300 bg-white text-lg leading-none text-zinc-400 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
         title="Add block"
       >
         +
       </button>
       {open && (
         <div
-          className="absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 overflow-hidden rounded-md border border-zinc-200 bg-white py-1 shadow-lg"
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-52 -translate-x-1/2 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-xl"
           onMouseDown={(e) => e.preventDefault()} // keep focus so onBlur doesn't close before click
         >
           {ITEMS.map((item) => (

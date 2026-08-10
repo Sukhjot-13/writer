@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
+/* UI theme — light-only by design (every component hardcodes light surfaces;
+   the old dark-mode block painted body near-black while components stayed
+   light, so it was removed). The document preview/print styles live in the
+   instructions file, not here (FR-47). */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa; /* zinc-50 */
+  --foreground: #18181b; /* zinc-900 */
 }
 
 @theme inline {
@@ -12,15 +17,20 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Geist was loaded via next/font but overridden by Arial — route it through
+     the CSS variable so the UI font actually applies. */
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Calmer default focus ring for keyboard users (accessibility). */
+:focus-visible {
+  outline: 2px solid #2563eb; /* blue-600 */
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #bfdbfe; /* blue-200 */
 }

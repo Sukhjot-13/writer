@@ -430,7 +430,7 @@ export default function Editor({ docId }: { docId: string | null }) {
     setShowPasteHtml(false);
     setSnapshotInfo(null); // fresh import has no recorded rules (FR-23)
     setUseSnapshot(false);
-    setStatus("Imported HTML document — preview ready (FR-40)");
+    setStatus("Imported HTML document — preview ready");
   }
 
   // ---- parse to blocks (FR-41, M5): imported HTML → editable blocks ----
@@ -457,7 +457,7 @@ export default function Editor({ docId }: { docId: string | null }) {
       setStatus(
         `Parsed to ${parsed.length} editable block${parsed.length === 1 ? "" : "s"}${
           unparsedCount ? ` — ${unparsedCount} kept as raw HTML` : ""
-        } (FR-41)`,
+        }`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Parse failed");
@@ -590,17 +590,16 @@ export default function Editor({ docId }: { docId: string | null }) {
 
       {/* FR-41 (M5): imported HTML is editable only after a best-effort parse */}
       {doc.source === "external-html" && (
-        <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-          <span>Imported HTML — blocks aren&apos;t editable yet.</span>
+        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <span>This document was imported as HTML — parse it to edit the content as blocks.</span>
           <button
             type="button"
             onClick={() => void parseToBlocks()}
             disabled={busy !== null}
-            className="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+            className="rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
           >
-            {busy === "parse" ? "Parsing…" : "Parse to blocks (best-effort)"}
+            {busy === "parse" ? "Parsing…" : "Parse to blocks"}
           </button>
-          <span className="text-xs text-amber-600">FR-41</span>
         </div>
       )}
 
@@ -643,7 +642,7 @@ export default function Editor({ docId }: { docId: string | null }) {
       </div>
 
       {/* Status bar (FR-28 partial) */}
-      <div className="flex items-center gap-4 border-t border-zinc-200 bg-white px-4 py-1.5 text-xs text-zinc-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-200 bg-white px-4 py-1.5 text-xs text-zinc-500">
         {isDirty ? (
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-amber-400" /> Unsaved changes
@@ -654,33 +653,31 @@ export default function Editor({ docId }: { docId: string | null }) {
           </span>
         )}
         <span>
-          Mode:{" "}
-          <strong>
-            {convertMode === "ai" ? `AI (${aiModel ?? "DeepSeek"})` : "Template (offline)"}
+          <strong className="font-medium text-zinc-600">
+            {convertMode === "ai" ? `AI · ${aiModel ?? "DeepSeek"}` : "Template (offline)"}
           </strong>
         </span>
-        {convertedAt && (
-          <span>Last converted: {new Date(convertedAt).toLocaleTimeString()}</span>
-        )}
+        {convertedAt && <span>Converted at {new Date(convertedAt).toLocaleTimeString()}</span>}
         {counts.translationsTotal > 0 && (
-          <span className="rounded bg-zinc-100 px-1.5 py-0.5">
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5">
             {counts.translationsHidden}/{counts.translationsTotal} translations hidden ·{" "}
             {counts.answersHidden}/{counts.answersTotal} answers hidden
           </span>
         )}
         {practiceMode && (
-          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">Practice PDF on</span>
+          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">Practice on</span>
         )}
         {status && <span className="text-zinc-400">{status}</span>}
         {useSnapshot && snapshotInfo && (
-          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
             Snapshot rules v{snapshotInfo.version}
           </span>
         )}
-        <span className="ml-auto">
-          {instructionsVersion ? <>Instructions v{instructionsVersion} · </> : ""}
-          Design tokens: instructions file (TOKENS block)
-        </span>
+        {instructionsVersion && (
+          <span className="ml-auto">
+            Instructions v{instructionsVersion}
+          </span>
+        )}
       </div>
     </div>
   );

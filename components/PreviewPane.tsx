@@ -17,26 +17,27 @@ export default function PreviewPane({ html, stale, convertedAt }: PreviewPanePro
   if (!html) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 bg-zinc-50 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-2xl">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-zinc-300 text-2xl">
           📄
         </div>
-        <p className="max-w-xs text-sm text-zinc-500">
-          No preview yet. Click <strong>Convert (Template)</strong> in the toolbar to generate
-          styled HTML from your blocks.
+        <p className="max-w-xs text-sm leading-relaxed text-zinc-500">
+          No preview yet. Click <strong className="font-semibold text-zinc-700">Convert with AI</strong> or{" "}
+          <strong className="font-semibold text-zinc-700">Convert (template)</strong> in the toolbar to
+          generate styled HTML from your blocks.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full bg-zinc-200/60">
+    <div className="relative h-full bg-zinc-200/50">
       {stale && (
-        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 shadow">
-          Stale — edits since preview. Convert again before downloading the PDF.
+        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 shadow-sm">
+          Edits since preview — convert again to refresh
         </div>
       )}
       {convertedAt && !stale && (
-        <div className="absolute right-3 top-3 z-10 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800 shadow">
+        <div className="absolute right-3 top-3 z-10 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
           Preview · {new Date(convertedAt).toLocaleTimeString()}
         </div>
       )}
@@ -45,7 +46,7 @@ export default function PreviewPane({ html, stale, convertedAt }: PreviewPanePro
           title="Document preview"
           srcDoc={html}
           sandbox=""
-          className="mx-auto block h-full min-h-[600px] w-full max-w-[210mm] bg-white shadow-xl"
+          className="mx-auto block h-full min-h-[600px] w-full max-w-[210mm] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08),0_12px_32px_rgba(0,0,0,0.14)]"
         />
       </div>
     </div>

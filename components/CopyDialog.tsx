@@ -176,46 +176,63 @@ export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-xl border border-zinc-200 bg-white p-5 shadow-xl"
+        className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-zinc-900">Copy for sharing</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Clean plain text — no HTML, no type markers. Translations and model answers are off by
-          default.
-        </p>
-
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5">
-          {SELECTION_ORDER.map(({ key, label }) => (
-            <label
-              key={key}
-              className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 hover:text-zinc-900"
-            >
-              <input
-                type="checkbox"
-                checked={selection[key]}
-                onChange={() => toggle(key)}
-                disabled={key === "questions" || key === "headings" || key === "paragraphs"}
-                className="h-3.5 w-3.5 accent-blue-600"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-
-        <div className="mt-3 max-h-48 overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-3">
-          <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-zinc-600">
-            {text || "Nothing to copy — the selected content is empty."}
-          </pre>
-        </div>
-
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="flex items-start justify-between border-b border-zinc-100 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-900">Copy for sharing</h2>
+            <p className="mt-0.5 text-sm text-zinc-500">
+              Clean plain text — no HTML, no type markers. Translations and model answers are off by
+              default.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
+            title="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+            {SELECTION_ORDER.map(({ key, label }) => (
+              <label
+                key={key}
+                className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 hover:text-zinc-900"
+              >
+                <input
+                  type="checkbox"
+                  checked={selection[key]}
+                  onChange={() => toggle(key)}
+                  disabled={key === "questions" || key === "headings" || key === "paragraphs"}
+                  className="h-3.5 w-3.5 accent-blue-600"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-3 max-h-48 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+            <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-zinc-600">
+              {text || "Nothing to copy — the selected content is empty."}
+            </pre>
+          </div>
+          {hasQa && (
+            <p className="mt-2 text-xs text-zinc-400">Q&A numbering is preserved (1., 2., …).</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
           >
             Cancel
           </button>
@@ -223,16 +240,11 @@ export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
             type="button"
             onClick={() => void copy()}
             disabled={!text}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
           >
             {copied ? "Copied ✓" : "Copy"}
           </button>
         </div>
-        {hasQa && (
-          <p className="mt-2 text-xs text-zinc-400">
-            Q&A numbering is preserved (1., 2., …).
-          </p>
-        )}
       </div>
     </div>
   );

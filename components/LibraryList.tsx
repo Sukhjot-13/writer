@@ -106,28 +106,36 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
 
   if (documents.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-300 p-12 text-center text-sm text-zinc-400">
-        Documents you save appear here — open the editor, write, convert, and save.
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-zinc-300 bg-white p-16 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-zinc-300 text-2xl">
+          📚
+        </div>
+        <p className="max-w-sm text-sm leading-relaxed text-zinc-500">
+          Documents you save appear here. Open the editor, write some blocks, convert, and save.
+        </p>
+        <Link
+          href="/"
+          className="mt-1 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+        >
+          + New document
+        </Link>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-        <span>Sort:</span>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
-          className="rounded border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-700"
+          className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         >
-          <option value="updated">Last updated</option>
-          <option value="created">Date created</option>
-          <option value="title">Title</option>
+          <option value="updated">Sort: last updated</option>
+          <option value="created">Sort: date created</option>
+          <option value="title">Sort: title</option>
         </select>
-        <span className="ml-2 text-zinc-300">|</span>
-        <span>Filter:</span>
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           {allTags.length === 0 && <span className="text-xs text-zinc-400">no tags yet</span>}
           {allTags.map((tag) => (
             <button
@@ -135,22 +143,22 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
               type="button"
               onClick={() => setFilterTag(filterTag === tag ? null : tag)}
               title="Filter the library by this tag"
-              className={`rounded px-2 py-0.5 text-xs transition-colors ${
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                 filterTag === tag
                   ? "bg-blue-600 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  : "bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100 hover:ring-zinc-300"
               }`}
             >
-              {tag}
+              #{tag}
             </button>
           ))}
           {filterTag && (
             <button
               type="button"
               onClick={() => setFilterTag(null)}
-              className="text-xs text-blue-600 hover:underline"
+              className="rounded-full px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
             >
-              clear
+              clear filter
             </button>
           )}
         </div>
@@ -159,32 +167,35 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
           onClick={() => void downloadBackup()}
           disabled={downloadingBackup}
           title="Download a zip of every document folder (JSON + HTML + PDF + snapshot)"
-          className="ml-auto rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          className="ml-auto rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-50"
         >
-          {downloadingBackup ? "Packaging…" : "⬇ Backup (zip)"}
+          {downloadingBackup ? "Packaging…" : "⬇ Backup zip"}
         </button>
       </div>
 
       {filterTag && (
         <p className="mb-3 text-xs text-zinc-500">
           Showing {sorted.length} document{sorted.length === 1 ? "" : "s"} tagged{" "}
-          <strong className="text-zinc-700">#{filterTag}</strong>
+          <strong className="font-semibold text-zinc-700">#{filterTag}</strong>
         </p>
       )}
 
       <ul className="grid gap-4 sm:grid-cols-2">
         {sorted.map((doc) => (
-          <li key={doc.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <li
+            key={doc.id}
+            className="group rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-px hover:border-zinc-300 hover:shadow-md"
+          >
             <div className="flex items-start justify-between gap-2">
               <Link href={`/?id=${doc.id}`} className="min-w-0">
-                <h2 className="truncate font-medium text-zinc-900 hover:text-blue-700">
+                <h2 className="truncate text-[15px] font-semibold text-zinc-900 group-hover:text-blue-700">
                   {doc.title || "Untitled"}
                 </h2>
               </Link>
               <button
                 type="button"
                 onClick={() => void remove(doc)}
-                className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                className="rounded-lg px-2 py-1 text-xs text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
                 title="Delete document"
               >
                 Delete
@@ -203,7 +214,7 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
                     {doc.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] uppercase text-zinc-600"
+                        className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase text-zinc-600"
                       >
                         {tag}
                       </span>
@@ -217,8 +228,8 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
                 type="button"
                 onClick={() => void regenerate(doc)}
                 disabled={regenerating === doc.id}
-                title="Re-convert from JSON and re-render the PDF (FR-20)"
-                className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                title="Re-convert from JSON and re-render the PDF"
+                className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-50"
               >
                 {regenerating === doc.id ? "Regenerating…" : "↻ Regenerate"}
               </button>

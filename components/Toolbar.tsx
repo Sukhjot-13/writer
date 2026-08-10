@@ -1,8 +1,10 @@
-// components/Toolbar.tsx — primary actions (FR-29/30/35/37/38/39/46/50):
-// Convert (AI) with a "Template (offline)" dropdown option + optional goal,
-// Save, Download PDF (gated by FR-46, with practice-mode checkbox FR-16),
-// Download HTML, global visibility buttons (FR-35), Copy for AI / sharing
-// (FR-39/50), Paste questions / HTML (FR-38/40), preview toggle, title input.
+// components/Toolbar.tsx — primary actions (FR-29/30/35/37/38/39/46/50).
+//
+// Layout (M5 UI polish): a title row (brand · title · tags · nav links) and
+// an actions row with the controls grouped — Convert ▾ (primary split) ·
+// Save · Practice toggle · Download ▾ · View ▾ · Copy ▾ · Paste ▾. Stateful
+// toggles (hide/show answers, preview pane, practice mode) live inside the
+// dropdowns as checkmarked items so the row stays uncluttered.
 
 "use client";
 
@@ -66,10 +68,10 @@ function ActionButton({
   title?: string;
 }) {
   const base =
-    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
   const styles = primary
-    ? "bg-blue-600 text-white hover:bg-blue-700 disabled:hover:bg-blue-600"
-    : "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50";
+    ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+    : "border border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50";
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${base} ${styles}`}>
       {children}
@@ -83,11 +85,13 @@ function Dropdown({
   disabled,
   items,
   title,
+  align = "right",
 }: {
   label: string;
   disabled?: boolean;
-  items: { label: string; onClick: () => void; check?: boolean; hint?: string }[];
+  items: { label: string; onClick: () => void; check?: boolean; hint?: string; disabled?: boolean }[];
   title?: string;
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -98,22 +102,31 @@ function Dropdown({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 min-w-56 rounded-md border border-zinc-200 bg-white py-1 shadow-lg">
-            {items.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  item.onClick();
-                }}
-                title={item.hint}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-              >
-                <span className="w-4 text-emerald-600">{item.check ? "✓" : ""}</span>
-                {item.label}
-              </button>
-            ))}
+          <div
+            className={`absolute z-20 mt-1 min-w-56 rounded-lg border border-zinc-200 bg-white py-1 shadow-xl ${
+              align === "right" ? "right-0" : "left-0"
+            }`}
+          >
+            {items.map((item, i) =>
+              item.label === "—" ? (
+                <div key={i} className="my-1 border-t border-zinc-100" />
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    item.onClick();
+                  }}
+                  disabled={item.disabled}
+                  title={item.hint}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <span className="w-4 shrink-0 text-emerald-600">{item.check ? "✓" : ""}</span>
+                  {item.label}
+                </button>
+              ),
+            )}
           </div>
         </>
       )}
@@ -162,14 +175,19 @@ export default function Toolbar({
   const allAnswersHidden = counts.answersTotal > 0 && counts.answersHidden === counts.answersTotal;
 
   return (
-    <div className="border-b border-zinc-200 bg-white px-4 py-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-sm font-semibold text-zinc-800">Writer</span>
+    <div className="border-b border-zinc-200 bg-white">
+      {/* Title row: brand · title · tags · nav */}
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm text-white">
+          ✎
+        </span>
+        <span className="hidden text-sm font-semibold text-zinc-800 sm:inline">Writer</span>
+
         <input
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder="Untitled document"
-          className="w-56 rounded-md border border-transparent bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white"
+          className="min-w-40 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-lg font-semibold text-zinc-900 outline-none placeholder:font-normal placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white"
         />
         <input
           value={tagsDraft}
@@ -181,183 +199,192 @@ export default function Toolbar({
               (e.target as HTMLInputElement).blur();
             }
           }}
-          placeholder="doc tags (french, past-tense)"
-          title="Document tags — shown in the library and used for filtering (FR-18, M5)"
-          className="w-48 rounded-md border border-transparent bg-zinc-50 px-2 py-1.5 text-xs text-zinc-500 outline-none placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white focus:text-zinc-700"
+          placeholder="add tags…"
+          title="Document tags, comma-separated — used for filtering in the library"
+          className="w-36 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-xs text-zinc-500 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-700"
         />
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {/* Convert split button: primary converts in the current mode, caret
-              opens the mode menu (FR-29: "Convert" (AI) + "Template (offline)") */}
-          <div className="relative">
-            <div className="flex">
-              <ActionButton primary onClick={() => onConvert(convertMode, goal || null)} disabled={busy !== null}>
-                {busy === "converting"
-                  ? "Converting…"
-                  : convertMode === "ai"
-                    ? "Convert (AI)"
-                    : "Convert (Template)"}
-              </ActionButton>
-              <button
-                type="button"
-                onClick={() => setConvertOpen((o) => !o)}
-                disabled={busy !== null}
-                title="Choose conversion mode and optional goal (FR-29)"
-                className="rounded-r-md border-l border-blue-700 bg-blue-600 px-2 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
-              >
-                ▾
-              </button>
-            </div>
-            {convertOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setConvertOpen(false)} />
-                <div className="absolute right-0 z-20 mt-1 w-80 rounded-md border border-zinc-200 bg-white py-1 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConvertOpen(false);
-                      onConvertModeChange("ai");
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-                  >
-                    <span className="w-4 text-emerald-600">{convertMode === "ai" ? "✓" : ""}</span>
-                    Convert (AI) — DeepSeek
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConvertOpen(false);
-                      onConvertModeChange("template");
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
-                  >
-                    <span className="w-4 text-emerald-600">{convertMode === "template" ? "✓" : ""}</span>
-                    Convert (Template, offline)
-                  </button>
-                  <div className="my-1 border-t border-zinc-100" />
-                  <div className="px-3 py-1.5">
-                    <label className="text-xs font-medium text-zinc-500" htmlFor="convert-goal">
-                      Goal (optional)
-                    </label>
-                    <input
-                      id="convert-goal"
-                      value={goal}
-                      onChange={(e) => setGoal(e.target.value)}
-                      placeholder="e.g. Make it about holidays in Paris"
-                      className="mt-1 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-300 focus:border-blue-400 focus:bg-white"
-                    />
-                  </div>
-                  {snapshotInfo && (
-                    <>
-                      <div className="my-1 border-t border-zinc-100" />
-                      <label className="flex cursor-pointer items-start gap-2 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50">
-                        <input
-                          type="checkbox"
-                          checked={useSnapshot}
-                          onChange={onToggleSnapshot}
-                          className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
-                        />
-                        <span>
-                          Convert with this document&apos;s snapshot rules (v{snapshotInfo.version})
-                          {snapshotInfo.differs ? " — differs from active" : ""}
-                          <span className="block text-xs text-zinc-400">
-                            FR-23: uses the instructions this document was made with
-                          </span>
-                        </span>
-                      </label>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          <ActionButton onClick={onSave} disabled={busy !== null} title="Cmd/Ctrl+S">
-            {busy === "saving" ? "Saving…" : "Save"}
-          </ActionButton>
-          <label
-            className="flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-            title="Practice mode: translations and model answers omitted, blank answer areas (FR-16/49)"
-          >
-            <input
-              type="checkbox"
-              checked={practiceMode}
-              onChange={onTogglePractice}
-              className="h-3.5 w-3.5 accent-blue-600"
-            />
-            Practice PDF
-          </label>
-          <ActionButton
-            onClick={onDownloadPdf}
-            disabled={!canDownloadPdf || busy !== null}
-            title={canDownloadPdf ? "Download A4 PDF" : "Convert first — the PDF reflects the preview (FR-46)"}
-          >
-            {busy === "pdf" ? "Preparing PDF…" : "Download PDF"}
-          </ActionButton>
-          <ActionButton onClick={onDownloadHtml} disabled={busy !== null}>
-            Download HTML
-          </ActionButton>
-          <ActionButton
-            onClick={allTranslationsHidden ? onShowAllTranslations : onHideAllTranslations}
-            disabled={noQa || busy !== null}
-            title="FR-35: hide or show every question translation in one click"
-          >
-            {allTranslationsHidden ? "Show all translations" : "Hide all translations"}
-          </ActionButton>
-          <ActionButton
-            onClick={allAnswersHidden ? onShowAllAnswers : onHideAllAnswers}
-            disabled={noQa || busy !== null}
-            title="FR-35: hide or show every model answer in one click"
-          >
-            {allAnswersHidden ? "Show all answers" : "Hide all answers"}
-          </ActionButton>
-          <Dropdown
-            label={busy === "copy" ? "Copying…" : "Copy"}
-            disabled={busy !== null}
-            title="Copy for external AI or for sharing"
-            items={[
-              { label: "Copy for AI (type markers)", onClick: () => onCopyPrompt("user"), hint: "FR-39 — the §9 prompt's user section, ready for any external AI" },
-              { label: "Copy instructions (system prompt)", onClick: () => onCopyPrompt("system"), hint: "FR-39 — the active instructions as a ready-made system prompt" },
-              { label: "Copy plain text", onClick: () => onCopyPrompt("plainText"), hint: "FR-39 — paragraphs + Q&A flattened" },
-              { label: "Copy for sharing…", onClick: onOpenCopyDialog, hint: "FR-50 — selective clean plain text with checkboxes" },
-            ]}
-          />
-          <Dropdown
-            label="Paste"
-            disabled={busy !== null}
-            title="Paste questions or HTML from any external AI"
-            items={[
-              { label: "Paste questions…", onClick: onPasteQuestions, hint: "FR-38/32 — structure with AI or parse locally" },
-              { label: "Paste HTML…", onClick: onPasteHtml, hint: "FR-40 — import HTML from any external AI" },
-            ]}
-          />
-          <ActionButton onClick={onTogglePreview}>
-            {showPreview ? "Hide preview" : "Show preview"}
-          </ActionButton>
-          <Link
-            href="/instructions"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+        <nav className="flex items-center gap-1">
+          <Link href="/instructions" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
             Instructions
           </Link>
-          <Link
-            href="/library"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+          <Link href="/library" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
             Library
           </Link>
-          <Link
-            href="/"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          >
+          <Link href="/" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
             New
           </Link>
-        </div>
+        </nav>
       </div>
-      {error && (
-        <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+
+      {/* Actions row: grouped controls */}
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-2.5 pt-1.5">
+        {/* Convert split button: primary converts in the current mode, caret
+            opens the mode menu (FR-29: "Convert" (AI) + "Template (offline)") */}
+        <div className="relative">
+          <div className="flex overflow-hidden rounded-lg shadow-sm">
+            <button
+              type="button"
+              onClick={() => onConvert(convertMode, goal || null)}
+              disabled={busy !== null}
+              className="bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy === "converting"
+                ? "Converting…"
+                : convertMode === "ai"
+                  ? "Convert with AI"
+                  : "Convert (template)"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConvertOpen((o) => !o)}
+              disabled={busy !== null}
+              title="Choose conversion mode and optional goal"
+              className="border-l border-blue-700/60 bg-blue-600 px-2 text-xs text-white transition-colors hover:bg-blue-700 disabled:opacity-40"
+            >
+              ▾
+            </button>
+          </div>
+          {convertOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setConvertOpen(false)} />
+              <div className="absolute left-0 z-20 mt-1 w-80 rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConvertOpen(false);
+                    onConvertModeChange("ai");
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                >
+                  <span className="w-4 text-emerald-600">{convertMode === "ai" ? "✓" : ""}</span>
+                  Convert with AI — DeepSeek
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConvertOpen(false);
+                    onConvertModeChange("template");
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                >
+                  <span className="w-4 text-emerald-600">{convertMode === "template" ? "✓" : ""}</span>
+                  Convert with template (offline)
+                </button>
+                <div className="my-1 border-t border-zinc-100" />
+                <div className="px-3 py-1.5">
+                  <label className="text-xs font-medium text-zinc-500" htmlFor="convert-goal">
+                    Goal (optional)
+                  </label>
+                  <input
+                    id="convert-goal"
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    placeholder="e.g. Make it about holidays in Paris"
+                    className="mt-1 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-300 focus:border-blue-400 focus:bg-white"
+                  />
+                </div>
+                {snapshotInfo && (
+                  <>
+                    <div className="my-1 border-t border-zinc-100" />
+                    <label className="flex cursor-pointer items-start gap-2 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <input
+                        type="checkbox"
+                        checked={useSnapshot}
+                        onChange={onToggleSnapshot}
+                        className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+                      />
+                      <span>
+                        Convert with this document&apos;s snapshot rules (v{snapshotInfo.version})
+                        {snapshotInfo.differs ? " — differs from active" : ""}
+                        <span className="block text-xs text-zinc-400">
+                          Uses the instructions this document was made with
+                        </span>
+                      </span>
+                    </label>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
+
+        <ActionButton onClick={onSave} disabled={busy !== null} title="Cmd/Ctrl+S">
+          {busy === "saving" ? "Saving…" : "Save"}
+        </ActionButton>
+
+        <label
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
+          title="Practice mode: translations and model answers are omitted and unanswered questions get blank answer areas"
+        >
+          <input
+            type="checkbox"
+            checked={practiceMode}
+            onChange={onTogglePractice}
+            className="h-3.5 w-3.5 accent-blue-600"
+          />
+          Practice
+        </label>
+
+        <Dropdown
+          label="Download"
+          disabled={busy !== null}
+          title="PDF (needs a fresh preview) or HTML of the document"
+          items={[
+            {
+              label: "Download PDF",
+              onClick: onDownloadPdf,
+              disabled: !canDownloadPdf,
+              hint: canDownloadPdf ? "A4 PDF generated from your blocks" : "Convert first — the PDF reflects the preview",
+            },
+            { label: "Download HTML", onClick: onDownloadHtml },
+          ]}
+        />
+        <Dropdown
+          label="View"
+          disabled={busy !== null}
+          title="Visibility of translations, answers, and the preview pane"
+          items={[
+            {
+              label: allTranslationsHidden ? "Show all translations" : "Hide all translations",
+              onClick: allTranslationsHidden ? onShowAllTranslations : onHideAllTranslations,
+              disabled: noQa,
+              hint: noQa ? "No questions in this document" : "Hide or show every question translation in one click",
+            },
+            {
+              label: allAnswersHidden ? "Show all answers" : "Hide all answers",
+              onClick: allAnswersHidden ? onShowAllAnswers : onHideAllAnswers,
+              disabled: noQa,
+              hint: noQa ? "No questions in this document" : "Hide or show every model answer in one click",
+            },
+            { label: "—", onClick: () => {}, check: false },
+            { label: "Preview pane", check: showPreview, onClick: onTogglePreview },
+          ]}
+        />
+        <Dropdown
+          label={busy === "copy" ? "Copying…" : "Copy"}
+          disabled={busy !== null}
+          title="Copy for an external AI or for sharing"
+          items={[
+            { label: "Copy for AI (type markers)", onClick: () => onCopyPrompt("user"), hint: "The document as type-marked text, ready for any external AI" },
+            { label: "Copy instructions (system prompt)", onClick: () => onCopyPrompt("system"), hint: "The active instructions as a ready-made system prompt" },
+            { label: "Copy plain text", onClick: () => onCopyPrompt("plainText"), hint: "Paragraphs and Q&A flattened to plain text" },
+            { label: "Copy for sharing…", onClick: onOpenCopyDialog, hint: "Select exactly what to copy as clean text" },
+          ]}
+        />
+        <Dropdown
+          label="Paste"
+          disabled={busy !== null}
+          title="Paste questions or HTML from any external AI"
+          items={[
+            { label: "Paste questions…", onClick: onPasteQuestions, hint: "Structure with AI or parse locally" },
+            { label: "Paste HTML…", onClick: onPasteHtml, hint: "Import HTML from any external AI" },
+          ]}
+        />
+      </div>
+
+      {error && (
+        <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
     </div>
   );

@@ -60,8 +60,8 @@ function usedFields(c: QaContent): Set<OptionalField> {
 }
 
 const inputCls =
-  "w-full rounded border border-zinc-200 bg-white px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-300 focus:border-blue-400 focus:shadow-sm";
-const labelCls = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400";
+  "w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+const labelCls = "mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500";
 
 function EyeToggle({ hidden, onToggle, label }: { hidden: boolean; onToggle: () => void; label: string }) {
   return (
@@ -69,8 +69,8 @@ function EyeToggle({ hidden, onToggle, label }: { hidden: boolean; onToggle: () 
       type="button"
       onClick={onToggle}
       title={hidden ? `${label} — hidden in output (click to show)` : `${label} — shown in output (click to hide)`}
-      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
-        hidden ? "bg-zinc-100 text-zinc-500" : "bg-emerald-50 text-emerald-700"
+      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+        hidden ? "bg-zinc-100 text-zinc-500 hover:bg-zinc-200" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
       }`}
     >
       <span>{hidden ? "🙈" : "👁"}</span>
@@ -169,7 +169,7 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
   const is = (key: OptionalField) => revealed.has(key);
 
   return (
-    <div className="space-y-2.5 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+    <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
       {/* Question — required (FR-4) */}
       <div>
         <label className={labelCls}>Question</label>
@@ -185,13 +185,13 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
       {/* Optional-field chip menu (FR-4/26: sections appear once used) */}
       {OPTIONAL_FIELDS.filter((f) => !is(f.key)).length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-          <span className="text-[11px] text-zinc-400">Add:</span>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Add:</span>
           {OPTIONAL_FIELDS.filter((f) => !is(f.key)).map((f) => (
             <button
               key={f.key}
               type="button"
               onClick={() => reveal(f.key)}
-              className="rounded-full border border-dashed border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-500 hover:border-blue-400 hover:text-blue-600"
+              className="rounded-full border border-dashed border-zinc-300 bg-white px-2.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:border-blue-400 hover:text-blue-600"
             >
               + {f.label}
             </button>
@@ -208,12 +208,7 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
               onToggle={() => set("hideTranslation", !content.hideTranslation)}
               label="Translation"
             />
-            {!content.hideTranslation && (
-              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                shown in output
-              </span>
-            )}
-            <button type="button" onClick={() => hideField("questionTranslation")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <button type="button" onClick={() => hideField("questionTranslation")} className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500" title="Remove field">
               ✕
             </button>
           </div>
@@ -287,12 +282,7 @@ export default function QaBlockForm({ content, autoFocus, onUpdate }: QaBlockFor
               onToggle={() => set("hideModelAnswer", !content.hideModelAnswer)}
               label="Model answer"
             />
-            {!content.hideModelAnswer && (
-              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                shown in output
-              </span>
-            )}
-            <button type="button" onClick={() => hideField("modelAnswer")} className="ml-auto text-zinc-300 hover:text-red-500" title="Remove field">
+            <button type="button" onClick={() => hideField("modelAnswer")} className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500" title="Remove field">
               ✕
             </button>
           </div>

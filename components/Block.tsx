@@ -148,13 +148,13 @@ export default function Block({
   }
 
   const controls = (
-    <div className="flex items-center gap-0.5 rounded border border-zinc-200 bg-white text-xs text-zinc-500 shadow-sm">
+    <div className="flex items-center overflow-hidden rounded-lg border border-zinc-200 bg-white text-xs text-zinc-400 shadow-sm">
       <button
         type="button"
         onClick={onMoveUp}
         disabled={index === 0}
         title="Move up"
-        className="px-1.5 py-1 hover:bg-zinc-100 disabled:opacity-30"
+        className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
       >
         ↑
       </button>
@@ -163,7 +163,7 @@ export default function Block({
         onClick={onMoveDown}
         disabled={index === total - 1}
         title="Move down"
-        className="px-1.5 py-1 hover:bg-zinc-100 disabled:opacity-30"
+        className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
       >
         ↓
       </button>
@@ -171,7 +171,7 @@ export default function Block({
         type="button"
         onClick={onAddAfter}
         title="Add block below"
-        className="px-1.5 py-1 hover:bg-zinc-100"
+        className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
       >
         ＋
       </button>
@@ -179,27 +179,33 @@ export default function Block({
         type="button"
         onClick={onRemove}
         title="Delete block"
-        className="px-1.5 py-1 text-red-500 hover:bg-red-50"
+        className="px-1.5 py-1 transition-colors hover:bg-red-50 hover:text-red-600"
       >
         ✕
       </button>
     </div>
   );
 
+  // Document-style typography per block type (UI polish).
+  const textAreaCls =
+    block.type === "title"
+      ? "text-2xl font-semibold text-zinc-900"
+      : block.type === "heading"
+        ? "text-lg font-semibold text-zinc-900"
+        : "text-[15px] text-zinc-800";
+
   return (
-    <div className="group relative rounded-lg p-1 transition-colors hover:bg-zinc-50 focus-within:bg-zinc-50">
-      <div className="flex items-start gap-2">
-        <div className="w-6 pt-2.5 text-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          {controls}
-        </div>
+    <div className="group relative rounded-xl p-1.5 transition-colors hover:bg-zinc-50 focus-within:bg-zinc-50">
+      <div className="flex items-center gap-2">
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          {/* Header row: label · heading level · tags · controls (on hover) */}
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               {BLOCK_LABELS[block.type]}
             </span>
             {block.type === "heading" && (
               <select
-                className="rounded border border-zinc-200 bg-white px-1 py-0.5 text-[10px] text-zinc-600"
+                className="rounded border border-zinc-200 bg-white px-1 py-0.5 text-[10px] text-zinc-600 outline-none focus:border-blue-400"
                 value={block.content.level ?? 2}
                 onChange={(e) => onUpdate({ ...block.content, level: Number(e.target.value) as 2 | 3 })}
                 title="Heading level"
@@ -219,9 +225,12 @@ export default function Block({
                 }
               }}
               placeholder="tags"
-              title="Custom tags (comma-separated) — become CSS classes in the output HTML (FR-5)"
-              className="ml-auto w-32 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-400 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-600"
+              title="Custom tags, comma-separated — become CSS classes in the output HTML"
+              className="ml-auto w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-400 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-600"
             />
+            <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              {controls}
+            </div>
           </div>
 
           {block.type === "separator" ? (
@@ -245,10 +254,10 @@ export default function Block({
                       ? "Heading…"
                       : "Start writing — or type / for commands…"
                 }
-                className="block w-full resize-none overflow-hidden rounded border border-transparent bg-transparent py-1.5 text-[15px] leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm"
+                className={`block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm ${textAreaCls}`}
               />
               {slashOpen && (
-                <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-md border border-zinc-200 bg-white py-1 shadow-lg">
+                <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">
                   {SLASH_TYPES.map((item, i) => (
                     <button
                       key={item.type}
