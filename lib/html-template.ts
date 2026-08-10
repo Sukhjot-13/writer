@@ -184,16 +184,19 @@ function qaBlockHtml(
   const responseLabel = content.responseLabel
     ? `<p class="qa-response-label">${escapeHtml(content.responseLabel)}</p>`
     : "";
-  const userAnswer = content.userAnswer
+  // 2026-08-10 M7 round 4: practice answers NEVER render in the preview by
+  // default (user request) — only the future practice-review option (or the
+  // smoke round-trip) turns them on via showUserAnswers.
+  const userAnswer = opts.showUserAnswers && content.userAnswer
     ? `<div class="qa-user-answer">${md(content.userAnswer)}</div>`
     : "";
   const modelAnswer = !hidden.modelAnswers && qaVisible(doc, content, "modelAnswer") && content.modelAnswer
     ? `<div class="qa-answer">${md(content.modelAnswer)}</div>`
     : "";
   // Empty lines (2026-08-10 #6): when the model answer is not shown (hidden via
-  // toggle/flag or simply absent) and the user has not written their own, the
+  // toggle/flag or simply absent) and no practice answer is displayed, the
   // answer slot becomes blank ruled writing lines — like the "questions" sheet.
-  const blank = !modelAnswer && opts.emptyLines && !content.userAnswer ? blankAnswerHtml() : "";
+  const blank = !modelAnswer && opts.emptyLines && !(opts.showUserAnswers && content.userAnswer) ? blankAnswerHtml() : "";
   const answerTranslation = !hidden.translations && qaVisible(doc, content, "translation") && content.answerTranslation
     ? `<div class="qa-translation">${md(content.answerTranslation)}</div>`
     : "";
@@ -238,13 +241,14 @@ function blockToHtml(
       // M6: AI enrichment for all text — translation, analysis, vocab grid —
       // plus the practice answer (dashed box, same as qa user answers).
       // 2026-08-10: preview toggles hide enrichment; the paragraph TEXT is main
-      // content and never hidden.
-      const userAnswer = c.userAnswer
+      // content and never hidden. 2026-08-10 M7 round 4: practice answers are
+      // omitted from the preview unless showUserAnswers (same as qa).
+      const userAnswer = opts.showUserAnswers && c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
       // Empty lines (2026-08-10 #6): writing space for paragraphs/essays when
-      // the toggle is on and no answer has been written yet.
-      const blank = opts.emptyLines && !c.userAnswer ? blankAnswerHtml() : "";
+      // the toggle is on (no practice answer is displayed by default).
+      const blank = opts.emptyLines && !(opts.showUserAnswers && c.userAnswer) ? blankAnswerHtml() : "";
       const translation = !hidden.translations && c.translation
         ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
         : "";
@@ -265,10 +269,10 @@ function blockToHtml(
       const paragraphs = c.paragraphs
         .map((p) => `<p class="block-paragraph">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
         .join("");
-      const userAnswer = c.userAnswer
+      const userAnswer = opts.showUserAnswers && c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
-      const blank = opts.emptyLines && !c.userAnswer ? blankAnswerHtml() : "";
+      const blank = opts.emptyLines && !(opts.showUserAnswers && c.userAnswer) ? blankAnswerHtml() : "";
       const translation = !hidden.translations && c.translation
         ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
         : "";
@@ -293,7 +297,13 @@ function blockToHtml(
  *  field toggles: qa/paragraph/essay enrichment sections are omitted; the main
  *  content (title, headings, questions, paragraph text) is never hidden.
  *  `emptyLines` (2026-08-10 #6): blank ruled writing areas where the model
- *  answer is hidden — the old "questions" sheet behavior, now a toggle. */
+ *  answer is hidden — the old "questions" sheet behavior, now a toggle.
+ *  `showUserAnswers` (2026-08-10 M7 round 4): practice answers (userAnswer)
+ *  render ONLY when explicitly requested — the preview NEVER shows them (user:
+ *  "it is showing practice answers why, it should not do this… in future we
+ *  will add an option for the review of the practice area"). The template is
+ *  preview-only, so the default is OFF; smoke-m5's parse-back round trip
+ *  passes `showUserAnswers: true` to keep exercising the recovery path. */
 export interface TemplateRenderOpts {
   printMode?: boolean;
   hidden?: {
@@ -303,6 +313,7 @@ export interface TemplateRenderOpts {
     modelAnswers?: boolean;
   };
   emptyLines?: boolean;
+  showUserAnswers?: boolean;
 }
 
 export function generateTemplateHTML(

@@ -1,9 +1,8 @@
 // components/Toolbar.tsx — primary actions (M6 redesign, FR-29/30/35/37/38/39/46/50).
 //
-// Layout: a title row (brand · title · tags · nav links) and an actions row —
-// Convert with AI ▾ (primary split) · Save · Preview · Practice + Check ·
-// View ▾ · Copy · Paste ▾. Stateful toggles live inside the dropdowns as
-// checkmarked items so the row stays uncluttered.
+// Layout: a title row (brand · title · tags) and an actions row —
+// Convert with AI ▾ (primary split) · Save · Preview · Practice + Detailed +
+// Check/Hide answers · Copy… · Paste ▾.
 //
 // M6 changes: single AI convert (template mode dropped); on-demand Preview;
 // Practice as the master key with a Check/Hide-answers button.
@@ -11,6 +10,15 @@
 // sheet (the user sees the exact document before downloading; "Download PDF" /
 // "Download HTML" render the current display). The three PDF variants and the
 // HTML export were covered by the preview toggles + empty-lines toggle.
+// 2026-08-10 M7 round 4 (user feedback): the View ▾ dropdown is GONE too — the
+// preview sheet covers everything ("for the preview everything is in there").
+// "Reset practice answers" stays reachable as a small link next to the
+// Check/Hide answers button while practice is on. The old "Focus" checkbox is
+// now "Detailed", UNCHECKED by default (focus mode IS the default) — it
+// reveals translations/analysis/vocab when checked (user: "it should show the
+// other way around like the detailed or something that fits the theme").
+// Instructions moved to the home screen; Library link removed (the Writer
+// brand links home).
 
 "use client";
 
@@ -18,13 +26,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { parseTags } from "@/lib/tags";
-
-export interface VisibilityCounts {
-  translationsHidden: number;
-  translationsTotal: number;
-  answersHidden: number;
-  answersTotal: number;
-}
 
 interface ToolbarProps {
   title: string;
@@ -38,18 +39,14 @@ interface ToolbarProps {
   onPreview: () => void; // M6: open the full-screen preview sheet
   practiceMode: boolean;
   onTogglePractice: () => void;
-  // 2026-08-10: Focus mode — only the main content (question+answer, paragraph
-  // text, essay paragraphs); all enrichment hidden.
-  focusMode: boolean;
-  onToggleFocus: () => void;
+  // 2026-08-10 M7 round 4: "Detailed" — unchecked = focus mode (the default):
+  // only the main content (question+answer, paragraph text, essay paragraphs);
+  // checked = translations/analysis/vocab revealed.
+  detailed: boolean;
+  onToggleDetailed: () => void;
   checked: boolean; // M6: practice "Check" — reveals model answers
   onToggleChecked: () => void;
   onResetPractice: () => void;
-  counts: VisibilityCounts;
-  onHideAllTranslations: () => void;
-  onShowAllTranslations: () => void;
-  onHideAllAnswers: () => void;
-  onShowAllAnswers: () => void;
   onOpenCopyDialog: () => void; // 2026-08-10 #5: the ONLY copy action (FR-50 dialog)
   onPasteQuestions: () => void;
   onPasteBlocks: () => void; // M6: paste the JSON block array from Copy for AI
@@ -139,6 +136,38 @@ function Dropdown({
   );
 }
 
+/** 2026-08-10 M7 round 4: the shared checkbox pill (Practice / Detailed). */
+function TogglePill({
+  label,
+  checked,
+  onChange,
+  title,
+  activeCls = "border-zinc-400 bg-zinc-100",
+}: {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+  title: string;
+  activeCls?: string;
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer select-none items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors hover:border-zinc-400 hover:bg-zinc-50 ${
+        checked ? activeCls : "border-zinc-300 text-zinc-700"
+      }`}
+      title={title}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="h-3.5 w-3.5 accent-blue-600"
+      />
+      {label}
+    </label>
+  );
+}
+
 export default function Toolbar({
   title,
   onTitleChange,
@@ -151,16 +180,11 @@ export default function Toolbar({
   onPreview,
   practiceMode,
   onTogglePractice,
-  focusMode,
-  onToggleFocus,
+  detailed,
+  onToggleDetailed,
   checked,
   onToggleChecked,
   onResetPractice,
-  counts,
-  onHideAllTranslations,
-  onShowAllTranslations,
-  onHideAllAnswers,
-  onShowAllAnswers,
   onOpenCopyDialog,
   onPasteQuestions,
   onPasteBlocks,
@@ -174,14 +198,12 @@ export default function Toolbar({
   const [tagsDraft, setTagsDraft] = useState(docTags.join(", "));
   useEffect(() => setTagsDraft(docTags.join(", ")), [docTags]);
 
-  const noQa = counts.translationsTotal === 0;
-  const allTranslationsHidden = counts.translationsTotal > 0 && counts.translationsHidden === counts.translationsTotal;
-  const allAnswersHidden = counts.answersTotal > 0 && counts.answersHidden === counts.answersTotal;
-
   return (
     <div className="border-b border-zinc-200 bg-white">
-      {/* Title row: brand · title · tags · nav. The brand links home (2026-08-10:
-          clicking the Writer icon/text returns to the dashboard). */}
+      {/* Title row: brand · title · tags. The brand links home (2026-08-10:
+          clicking the Writer icon/text returns to the dashboard — the Library
+          link was removed as redundant, and Instructions lives on the home
+          screen now). */}
       <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5">
         <Link
           href="/"
@@ -214,20 +236,10 @@ export default function Toolbar({
           title="Document tags, comma-separated — used for filtering in the library"
           className="w-36 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-xs text-zinc-500 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-700"
         />
-
-        <nav className="flex items-center gap-1">
-          <Link href="/instructions" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-            Instructions
-          </Link>
-          {/* Home = Library (2026-08-10): /library redirects here, so one nav
-              item only. */}
-          <Link href="/" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-            Library
-          </Link>
-        </nav>
       </div>
 
-      {/* Actions row: grouped controls */}
+      {/* Actions row: three visual groups separated by soft dividers —
+          document actions · practice · copy/paste. */}
       <div className="flex flex-wrap items-center gap-2 px-4 pb-2.5 pt-1.5">
         {/* Convert with AI split button: primary converts, caret opens the
             goal input + snapshot-rules toggle (M6: AI only — template dropped) */}
@@ -300,104 +312,81 @@ export default function Toolbar({
           {busy === "preview" ? "Rendering…" : "Preview"}
         </ActionButton>
 
-        {/* Practice master key: every question + paragraph gets a "My answer"
-            box. Check reveals the reference answers side-by-side (M6:
-            Answer → check → save). */}
-        <label
-          className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
-          title="Practice mode: write 'My answer' under every question and paragraph"
-        >
-          <input
-            type="checkbox"
+        {/* Practice group — separated from the document actions. */}
+        <div className="flex flex-wrap items-center gap-2 border-l border-zinc-200 pl-2.5">
+          {/* Practice master key: every question + paragraph gets a "My answer"
+              box. Check reveals the model answers for qa. */}
+          <TogglePill
+            label="Practice"
             checked={practiceMode}
             onChange={onTogglePractice}
-            className="h-3.5 w-3.5 accent-blue-600"
+            title="Practice mode: write 'My answer' under every question and paragraph"
+            activeCls="border-emerald-400 bg-emerald-50 text-emerald-800"
           />
-          Practice
-        </label>
 
-        {/* 2026-08-10 Focus mode: main content only — question+answer for
-            qa, text for paragraphs/essays. No translations/analysis/vocab. */}
-        <label
-          className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
-          title="Focus mode: only the main content — question and answer, paragraph text. All enrichment hidden."
-        >
-          <input
-            type="checkbox"
-            checked={focusMode}
-            onChange={onToggleFocus}
-            className="h-3.5 w-3.5 accent-blue-600"
+          {/* 2026-08-10 M7 round 4: "Detailed" — unchecked by default. Focus
+              mode (only the main content) is the default state, so the checked
+              "Focus" box was confusing — the toggle now says what checking it
+              does: reveal the details (user: "it should show the other way
+              around like the detailed or something that fits the theme"). */}
+          <TogglePill
+            label="Detailed"
+            checked={detailed}
+            onChange={onToggleDetailed}
+            title="Detailed mode: show translations, analysis and vocabulary. Off = focus on the main content only (the default)"
           />
-          Focus
-        </label>
 
-        {practiceMode && (
-          <button
-            type="button"
-            onClick={onToggleChecked}
+          {practiceMode && (
+            <>
+              <button
+                type="button"
+                onClick={onToggleChecked}
+                disabled={busy !== null}
+                title={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question"}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  checked
+                    ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                    : "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100"
+                }`}
+              >
+                {checked ? "Hide answers" : "Check answers"}
+              </button>
+              {/* 2026-08-10 M7 round 4: the View dropdown is gone — its only
+                  practice-only action stays as this quiet link. */}
+              <button
+                type="button"
+                onClick={onResetPractice}
+                disabled={busy !== null}
+                title="Clears every 'My answer' so you can practice again"
+                className="rounded-lg px-1.5 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-40"
+              >
+                Reset practice
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Copy / Paste group */}
+        <div className="flex flex-wrap items-center gap-2 border-l border-zinc-200 pl-2.5">
+          {/* Copy (2026-08-10 #5, user request): exactly ONE option — the copy
+              dialog. The AI-instruction copies moved into the paste sections
+              ("Copy for AI" lives in Paste ▾ → Paste blocks (AI); the other AI
+              gets its instructions from the paste-box copy buttons), so the old
+              three FR-39 items were removed. */}
+          <ActionButton onClick={onOpenCopyDialog} disabled={busy !== null} title="Copy parts of this document as clean text">
+            Copy…
+          </ActionButton>
+          <Dropdown
+            label="Paste"
             disabled={busy !== null}
-            title={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question and paragraph"}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              checked
-                ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                : "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100"
-            }`}
-          >
-            {checked ? "Hide answers" : "Check answers"}
-          </button>
-        )}
-
-        {/* Download lives inside Preview (2026-08-10): the user sees the exact
-            document before downloading — the sheet's Download PDF / Download
-            HTML buttons render the current display (field toggles + empty
-            lines). The old variant dropdown was removed. */}
-        <Dropdown
-          label="View"
-          disabled={busy !== null}
-          title="Visibility of translations, answers, and practice data"
-          items={[
-            {
-              label: allTranslationsHidden ? "Show all translations" : "Hide all translations",
-              onClick: allTranslationsHidden ? onShowAllTranslations : onHideAllTranslations,
-              disabled: noQa,
-              hint: noQa ? "No questions in this document" : "Hide or show every question translation in one click",
-            },
-            {
-              label: allAnswersHidden ? "Show all answers" : "Hide all answers",
-              onClick: allAnswersHidden ? onShowAllAnswers : onHideAllAnswers,
-              disabled: noQa,
-              hint: noQa ? "No questions in this document" : "Hide or show every model answer in one click",
-            },
-            ...(practiceMode
-              ? [
-                  { label: "—", onClick: () => {}, check: false },
-                  {
-                    label: "Reset practice answers…",
-                    onClick: onResetPractice,
-                    hint: "Clears every 'My answer' so you can practice again",
-                  },
-                ]
-              : []),
-          ]}
-        />
-        {/* Copy (2026-08-10 #5, user request): exactly ONE option — the copy
-            dialog. The AI-instruction copies moved into the paste sections
-            ("Copy for AI" lives in Paste ▾ → Paste blocks (AI); the other AI
-            gets its instructions from the paste-box copy buttons), so the old
-            three FR-39 items were removed. */}
-        <ActionButton onClick={onOpenCopyDialog} disabled={busy !== null} title="Copy parts of this document as clean text">
-          Copy…
-        </ActionButton>
-        <Dropdown
-          label="Paste"
-          disabled={busy !== null}
-          title="Paste blocks, questions, or HTML from any external AI"
-          items={[
-            { label: "Paste blocks (AI)…", onClick: onPasteBlocks, hint: "JSON block array copied via Copy for AI" },
-            { label: "Paste questions…", onClick: onPasteQuestions, hint: "Structure with AI or parse locally" },
-            { label: "Paste HTML…", onClick: onPasteHtml, hint: "Import HTML from any external AI" },
-          ]}
-        />
+            title="Paste blocks, questions, or HTML from any external AI"
+            items={[
+              { label: "Paste blocks (AI)…", onClick: onPasteBlocks, hint: "JSON block array copied via Copy for AI" },
+              { label: "Paste questions…", onClick: onPasteQuestions, hint: "Structure with AI or parse locally" },
+              { label: "Paste HTML…", onClick: onPasteHtml, hint: "Import HTML from any external AI" },
+            ]}
+          />
+        </div>
       </div>
 
       {error && (

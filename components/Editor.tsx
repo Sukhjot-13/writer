@@ -78,7 +78,11 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [status, setStatus] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState(false); // M6 master key
   const [checked, setChecked] = useState(false); // M6: practice "Check"
-  const [focusMode, setFocusMode] = useState(true); // 2026-08-10: main content only — ON by default (user: "focus mode should be default")
+  // 2026-08-10 M7 round 4 (user: "focus… it should show the other way around
+  // like the detailed"): the toolbar toggle is "Detailed", UNCHECKED by
+  // default — focus mode (main content only) IS the default state, and
+  // checking "Detailed" reveals translations/analysis/vocab.
+  const [detailed, setDetailed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   // 2026-08-10: preview display options — field toggles (omitted enrichment
@@ -298,35 +302,11 @@ export default function Editor({ docId }: { docId: string | null }) {
     mutateDoc((d) => ({ ...d, title: value }));
   }, []);
 
-  // ---- global visibility (FR-35): write per-question flags + document defaults ----
-  // The View dropdown items call this; a status message makes the effect visible
-  // (the flags only change what the PDF/preview/HTML omit, not the editor view).
-  const setAllQaFlags = useCallback(
-    (key: "hideTranslation" | "hideModelAnswer", value: boolean) => {
-      mutateDoc((d) => ({
-        ...d,
-        practice:
-          key === "hideTranslation"
-            ? { hideTranslations: value, hideModelAnswers: d.practice?.hideModelAnswers ?? false }
-            : { hideTranslations: d.practice?.hideTranslations ?? false, hideModelAnswers: value },
-        blocks: d.blocks.map((b) =>
-          b.type === "qa" ? setBlockContent(b, { ...b.content, [key]: value }) : b,
-        ),
-      }));
-      setStatus(
-        key === "hideTranslation"
-          ? value
-            ? "All question translations hidden — PDF and preview will omit them"
-            : "All question translations visible again"
-          : value
-            ? "All model answers hidden — PDF and preview will omit them"
-            : "All model answers visible again",
-      );
-    },
-    [],
-  );
+  // (2026-08-10 M7 round 4: the FR-35 "global visibility" bulk-flag actions
+  // and the View dropdown were REMOVED — the preview sheet's field toggles
+  // cover hide/show at render time without mutating block data.)
 
-  // ---- visibility counts for the status bar / toolbar labels (FR-37) ----
+  // ---- visibility counts for the status bar (FR-37) ----
   const qaBlocks = doc ? doc.blocks.filter((b) => b.type === "qa") : [];
   const counts = {
     translationsTotal: qaBlocks.length,
@@ -694,13 +674,8 @@ function essayAnswerFromParagraphs(
         checked={checked}
         onToggleChecked={() => setChecked((v) => !v)}
         onResetPractice={() => resetPractice()}
-        focusMode={focusMode}
-        onToggleFocus={() => setFocusMode((v) => !v)}
-        counts={counts}
-        onHideAllTranslations={() => setAllQaFlags("hideTranslation", true)}
-        onShowAllTranslations={() => setAllQaFlags("hideTranslation", false)}
-        onHideAllAnswers={() => setAllQaFlags("hideModelAnswer", true)}
-        onShowAllAnswers={() => setAllQaFlags("hideModelAnswer", false)}
+        detailed={detailed}
+        onToggleDetailed={() => setDetailed((v) => !v)}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
         onPasteQuestions={() => setShowPasteQuestions(true)}
         onPasteBlocks={() => setShowPasteBlocks(true)}
@@ -748,7 +723,11 @@ function essayAnswerFromParagraphs(
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="mx-auto max-w-2xl px-6 py-8">
+          {/* 2026-08-10 M7 round 4 (user: "a lot of blank space around the text
+              fields on laptop… on phone it is fine"): the fixed max-w-2xl
+              column left huge gutters on desktop — widened to max-w-4xl. Phone
+              (full-width) is untouched. */}
+          <div className="mx-auto max-w-4xl px-6 py-8">
             <BlockList
               blocks={doc.blocks}
               pendingFocusId={pendingFocusId}
@@ -764,7 +743,7 @@ function essayAnswerFromParagraphs(
               onUpdateTags={updateBlockTags}
               practiceMode={practiceMode}
               checked={checked}
-              focusMode={focusMode}
+              detailed={detailed}
             />
           </div>
         </div>

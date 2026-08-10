@@ -20,11 +20,14 @@ import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow ever
 // M6: practice view of a paragraph — the paragraph stays a continuous piece of
 // writing: its text in normal document typography with the "My answer" space
 // flowing directly beneath (no card, no duplicated boxes — a paragraph is one
-// continuous thing). Once answers are checked, the AI translation appears as a
-// green reference box below the answer.
+// continuous thing).
+// 2026-08-10 M7 round 4 (user: "when I check the answer in paragraph it is
+// showing me the translation fix it"): checking NO LONGER reveals the English
+// translation — paragraphs have no model answer, so there is nothing to check
+// against (a future practice-review option may add real reference paragraphs).
+// The checked state is just visual: the answer box turns emerald.
 // Sizes (2026-08-10 #2, user feedback): the FRENCH passage is the practicing
-// material, so it leads at 17px; the English reference is clearly secondary at
-// 13px — practice is for French, not English.
+// material, so it leads at 17px; practice is for French, not English.
 function PracticeParagraphCard({
   content,
   checked,
@@ -45,21 +48,12 @@ function PracticeParagraphCard({
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write in French if you can…"
         onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
-        className="block w-full rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+        className={`block w-full rounded-md border px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm ${
+          checked
+            ? "border-emerald-400 bg-emerald-50/40"
+            : "border-dashed border-blue-200 bg-transparent"
+        }`}
       />
-
-      {checked && (
-        <div className="mt-2 rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-600">
-          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
-            Reference
-          </span>
-          {content.translation || (
-            <span className="text-[12px] text-zinc-400">
-              No reference translation saved for this paragraph.
-            </span>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -70,8 +64,10 @@ function PracticeParagraphCard({
 // 2026-08-10 #5: practice shows ONLY the essay's heading (the passage is the
 // WRITING task, not reading material — user: "in practice it should only show
 // the heading for the essay"); the heading reads as the prompt at 17px with
-// the answer field flowing beneath. The English reference stays secondary at
-// 13px (2026-08-10 #2, same as paragraphs).
+// the answer field flowing beneath.
+// 2026-08-10 M7 round 4: checking reveals NO English reference box (same as
+// paragraphs — essays have no model answer); the checked state is the emerald
+// answer box only.
 function PracticeEssayCard({
   content,
   checked,
@@ -94,21 +90,12 @@ function PracticeEssayCard({
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write the whole essay in French if you can…"
         onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
-        className="block w-full rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+        className={`block w-full rounded-md border px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm ${
+          checked
+            ? "border-emerald-400 bg-emerald-50/40"
+            : "border-dashed border-blue-200 bg-transparent"
+        }`}
       />
-
-      {checked && (
-        <div className="mt-2 rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[13px] leading-relaxed text-zinc-600">
-          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
-            Reference
-          </span>
-          {content.translation || (
-            <span className="text-[12px] text-zinc-400">
-              No reference translation saved for this essay.
-            </span>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -152,9 +139,12 @@ interface BlockProps {
   // get "My answer" boxes, title/heading render read-only.
   practiceMode: boolean;
   checked: boolean;
-  // 2026-08-10: Focus mode — only the main content (qa: question + answer;
-  // paragraph: the text; essay: its paragraphs). All enrichment hidden.
-  focusMode: boolean;
+  // 2026-08-10 M7 round 4 (user): the toolbar toggle is now "Detailed" —
+  // UNCHECKED by default = focus mode (only the main content: qa question +
+  // answer, paragraph text, essay paragraphs; all enrichment hidden). Checking
+  // it reveals translations/analysis/vocab. Inverted from the old "Focus"
+  // checkbox (which was checked by default and confused the layout).
+  detailed: boolean;
 }
 
 export default function Block({
@@ -173,7 +163,7 @@ export default function Block({
   onUpdateTags,
   practiceMode,
   checked,
-  focusMode,
+  detailed,
 }: BlockProps) {
   const [tagsDraft, setTagsDraft] = useState(block.tags.join(", "));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -366,7 +356,7 @@ export default function Block({
               autoFocus={autoFocus}
               mode={practiceMode ? "practice" : "normal"}
               checked={checked}
-              focusMode={focusMode}
+              detailed={detailed}
               onUpdate={onUpdate}
             />
           ) : practiceMode && block.type === "paragraph" ? (
@@ -414,7 +404,7 @@ export default function Block({
               >
                 + Add paragraph
               </button>
-              {!focusMode && <ParagraphFields content={block.content} onUpdate={onUpdate} />}
+              {detailed && <ParagraphFields content={block.content} onUpdate={onUpdate} />}
             </div>
           ) : (
             <div className="relative">
@@ -436,7 +426,7 @@ export default function Block({
               {/* M6: AI enrichment for paragraphs (translation/analysis/vocab) —
                   hidden in practice AND focus mode (2026-08-10: focus shows the
                   main content only). */}
-              {block.type === "paragraph" && !practiceMode && !focusMode && (
+              {block.type === "paragraph" && !practiceMode && detailed && (
                 <ParagraphFields content={block.content} onUpdate={onUpdate} />
               )}
               {slashOpen && (

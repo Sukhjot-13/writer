@@ -200,13 +200,17 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
 
   // Omission matrix (M6 + 2026-08-10):
   //  - hideAnswers: questions + my-answers never show reference answers/translations.
-  //  - showUser: questions-only never shows even the user's own answers.
+  //  - showUser (2026-08-10 M7 round 4): practice answers render ONLY on the
+  //    "my-answers" variant (server-side / tests). The display PDF — the
+  //    Download PDF button's { doc, hidden, emptyLines } POST — is variant
+  //    "full", so it matches the preview and never shows practice answers
+  //    (user: "it is showing practice answers why, it should not do this").
   //  - showExtras: analysis + vocab grids only in the full document.
   //  - hidden (2026-08-10): the preview field toggles — omitted enrichment on
   //    top of "full", so the PDF always matches the displayed preview.
   // Per-block flags and document-level defaults (FR-36) only apply to "full".
   const hideAnswers = variant !== "full";
-  const showUser = variant !== "questions";
+  const showUser = variant === "my-answers";
   const showTranslation = !hideAnswers && !hidden?.translations && qaVisible(doc, content, "translation");
   const showModelAnswer = !hideAnswers && !hidden?.modelAnswers && qaVisible(doc, content, "modelAnswer");
   const showExtras = variant === "full";
@@ -380,11 +384,11 @@ function BlockToPDF({
     case "paragraph": {
       // M6: paragraphs carry AI enrichment (translation, analysis, vocab grid)
       // plus a practice answer (userAnswer). Enrichment renders only in "full"
-      // (gated by the preview toggles since 2026-08-10); "my-answers" shows the
-      // user's written answer (or blank rules), matching the QA omission
-      // matrix (hideAnswers/showUser).
+      // (gated by the preview toggles since 2026-08-10); practice answers only
+      // on "my-answers" (2026-08-10 M7 round 4 — the display PDF never shows
+      // them), matching the QA omission matrix (hideAnswers/showUser).
       const c = block.content;
-      const showUser = variant !== "questions";
+      const showUser = variant === "my-answers";
       return (
         <View>
           <Text style={styles.p}>{c.text}</Text>
@@ -393,7 +397,7 @@ function BlockToPDF({
               <Text>{c.userAnswer}</Text>
             </View>
           ) : null}
-          {(variant !== "full" || (emptyLines && !c.userAnswer)) && !(showUser && c.userAnswer) ? (
+          {(variant !== "full" || emptyLines) && !(showUser && c.userAnswer) ? (
             <BlankAnswerArea basePt={basePt} color={t.colors.border} />
           ) : null}
           {variant === "full" && !hidden?.translations && c.translation ? (
@@ -419,8 +423,9 @@ function BlockToPDF({
       // sheets (questions / my-answers) ONLY the heading shows — the passage
       // is the writing task, so the sheet shows the title + rules/answer, not
       // the source text (user: "in practice it should only show the heading").
+      // 2026-08-10 M7 round 4: practice answers only on "my-answers".
       const c = block.content;
-      const showUser = variant !== "questions";
+      const showUser = variant === "my-answers";
       return (
         <View>
           {c.heading ? <Text style={styles.essayHeading}>{c.heading}</Text> : null}
@@ -436,7 +441,7 @@ function BlockToPDF({
               <Text>{c.userAnswer}</Text>
             </View>
           ) : null}
-          {(variant !== "full" || (emptyLines && !c.userAnswer)) && !(showUser && c.userAnswer) ? (
+          {(variant !== "full" || emptyLines) && !(showUser && c.userAnswer) ? (
             <BlankAnswerArea basePt={basePt} color={t.colors.border} />
           ) : null}
           {variant === "full" && !hidden?.translations && c.translation ? (

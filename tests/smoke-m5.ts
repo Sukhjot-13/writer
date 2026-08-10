@@ -67,7 +67,10 @@ function richDocument() {
 
 async function run() {
   const doc = richDocument();
-  const html = generateTemplateHTML(doc, DEFAULT_TOKENS);
+  // 2026-08-10 M7 round 4: the template no longer renders practice answers by
+  // default (the preview never shows them) — the parse-back round trip passes
+  // showUserAnswers so the .qa-user-answer recovery path keeps being tested.
+  const html = generateTemplateHTML(doc, DEFAULT_TOKENS, { showUserAnswers: true });
 
   // ---------- parse-back round trip (FR-41) ----------
   const parsed = parseHtmlToBlocks(html);

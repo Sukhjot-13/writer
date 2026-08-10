@@ -89,8 +89,17 @@ check("hidden: model answers omitted", !hidden.includes("J&#39;ai mangé une pom
 check("hidden: MAIN content survives — question, paragraph text, heading, essay (+ essay heading)",
   hidden.includes("Qu&#39;est-ce que tu as fait hier ?") && hidden.includes("Je me lève tôt.") &&
   hidden.includes("Le matin") && hidden.includes("Un paragraphe.") && hidden.includes("Ma ville"));
-check("hidden: practice answers survive (not a hidden field)",
-  hidden.includes("J&#39;ai regardé la télé") && hidden.includes("Je me lève à sept heures."));
+
+// 2026-08-10 M7 round 4 (user: "it is showing practice answers why, it should
+// not do this… same for para… in future we will add an option for the review
+// of the practice area"): practice answers (userAnswer) NEVER render in the
+// preview — default output AND every toggle combination, for qa, paragraph
+// and essay. (The my-answers PDF variant + smoke-m5's round trip opt them in
+// explicitly; the future practice-review option will use the same flag.)
+check("preview: practice answers NEVER render (default output)",
+  !html.includes("J&#39;ai regardé la télé") && !html.includes("Je me lève à sept heures."));
+check("preview: practice answers NEVER render (with hidden toggles)",
+  !hidden.includes("J&#39;ai regardé la télé") && !hidden.includes("Je me lève à sept heures."));
 
 // Individual toggle only hides its own field type.
 const onlyVocab = generateTemplateHTML(doc, tokens, { hidden: { vocab: true } });

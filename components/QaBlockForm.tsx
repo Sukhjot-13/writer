@@ -142,11 +142,13 @@ interface QaBlockFormProps {
   autoFocus?: boolean;
   mode: "normal" | "practice";
   checked: boolean; // practice only: reveal the model answer
-  focusMode?: boolean; // 2026-08-10: question + answer only, nothing else
+  // 2026-08-10 M7 round 4: "detailed" — false = focus mode (question + answer
+  // only, nothing else, the default); true = enrichment revealed.
+  detailed?: boolean;
   onUpdate: (content: QaContent) => void;
 }
 
-export default function QaBlockForm({ content, autoFocus, mode, checked, focusMode, onUpdate }: QaBlockFormProps) {
+export default function QaBlockForm({ content, autoFocus, mode, checked, detailed, onUpdate }: QaBlockFormProps) {
   const [revealed, setRevealed] = useState<Set<QaField>>(() => usedFields(content));
 
   useEffect(() => {
@@ -219,10 +221,12 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, focusMo
     );
   }
 
-  // Focus mode (2026-08-10, user request): ONLY the main content — the
-  // question and the answer. No translations, no analysis, no vocab, no
-  // suggestions, no chips. Same fields, nothing hidden data-wise.
-  if (focusMode) {
+  // Focus mode (2026-08-10, user request; inverted 2026-08-10 M7 round 4):
+  // the default state — ONLY the main content, the question and the answer.
+  // No translations, no analysis, no vocab, no suggestions, no chips. Same
+  // fields, nothing hidden data-wise. The "Detailed" toolbar toggle turns
+  // this off.
+  if (!detailed) {
     return (
       <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
         <div>

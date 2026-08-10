@@ -86,7 +86,10 @@ async function main() {
   // FR-36: hidden elements omitted entirely
   check("hidden translation OMITTED (b3)", !html.includes("Second question?"));
   check("hidden model answer OMITTED", !html.includes("Réponse cachée."));
-  check("user answer of b3 retained", html.includes("Ma réponse."));
+  // 2026-08-10 M7 round 4 (user: "it is showing practice answers why, it
+  // should not do this"): practice answers NEVER render in the preview HTML —
+  // only the my-answers PDF variant and explicit showUserAnswers opt them in.
+  check("practice answer of b3 NOT rendered (preview)", !html.includes("Ma réponse."));
   // XSS still safe
   check("escaped angle brackets", !html.includes("<script>"));
 
