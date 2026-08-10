@@ -97,8 +97,9 @@ code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px
 .qa-block { border: 1px solid ${t.colors.border}; border-radius: ${t.radius.card}; padding: ${t.spacing.cardPadding}; margin: 0 0 1em; background: #fff; }
 .qa-question { display: flex; align-items: flex-start; gap: 10px; }
 .qa-num { flex: none; width: 24px; height: 24px; border-radius: ${t.radius.badge}; background: ${t.colors.badgeBg}; color: ${t.colors.badgeText}; font-weight: bold; text-align: center; line-height: 24px; font-size: 0.8em; }
+.qa-question-body { flex: 1; min-width: 0; }
 .qa-question-text { margin: 0; font-weight: bold; color: ${t.colors.heading}; }
-.qa-question-text em { font-weight: normal; font-size: 0.9em; opacity: 0.85; }
+.qa-question-translation { margin: 2px 0 0; font-style: italic; font-weight: normal; font-size: 0.9em; opacity: 0.85; color: ${t.colors.mainText}; }
 .qa-grammar-note { margin: 4px 0 0 34px; font-style: italic; font-size: 0.82em; color: ${t.colors.mainText}; opacity: 0.75; }
 .qa-response-label { margin: 10px 0 4px; text-transform: uppercase; color: ${t.colors.accentGreen}; letter-spacing: 1.5px; font-size: 0.78em; font-weight: bold; }
 .qa-answer, .qa-user-answer { background: ${t.colors.highlightBg}; padding: ${t.spacing.answerPadding}; margin-top: 6px; }
@@ -177,8 +178,12 @@ function qaBlockHtml(
   const md = renderInlineMarkdown;
   const hidden = opts.hidden ?? {};
 
+  // 2026-08-10 M7 round 5 (user: "it is showing in same line as question it
+  // should be below it"): the question translation renders BELOW the question,
+  // in its own <p class="qa-question-translation"> (italic, muted) — the old
+  // inline <em> inside .qa-question-text put it on the same line.
   const translation = !hidden.translations && qaVisible(doc, content, "translation") && content.questionTranslation
-    ? `<em>${md(content.questionTranslation)}</em>`
+    ? `<p class="qa-question-translation">${md(content.questionTranslation)}</p>`
     : "";
   const grammarNote = content.grammarNote ? `<p class="qa-grammar-note">${md(content.grammarNote)}</p>` : "";
   const responseLabel = content.responseLabel
@@ -210,8 +215,10 @@ function qaBlockHtml(
   // (user: "reponse text is shown below the answer why?").
   const grid = hidden.vocab ? "" : vocabGridHtml(content.vocab, content.expressions);
 
+  // The question row is a flex row (badge + body); the body is a column so the
+  // translation drops BELOW the question (2026-08-10 M7 round 5).
   return `<section class="${wrapper}"><div class="qa-block">
-<div class="qa-question"><span class="qa-num">${number}</span><p class="qa-question-text">${md(content.question)}${translation}</p></div>
+<div class="qa-question"><span class="qa-num">${number}</span><div class="qa-question-body"><p class="qa-question-text">${md(content.question)}</p>${translation}</div></div>
 ${analysis}${responseLabel}${modelAnswer || blank}${answerTranslation}${userAnswer}${grammarNote}${grid}
 </div></section>`;
 }

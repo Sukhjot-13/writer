@@ -73,6 +73,12 @@ const anIdx = html.indexOf("Passé composé with avoir");
 const maIdx = html.indexOf("J&#39;ai mangé une pomme");
 const atIdx = html.indexOf("I ate an apple");
 check("order: question before question translation", qaIdx !== -1 && qtIdx > qaIdx);
+// 2026-08-10 M7 round 5 (user: "it is showing in same line as question it
+// should be below it"): the translation renders BELOW the question in its own
+// <p class="qa-question-translation"> — no longer an inline <em> inside the
+// question text.
+check("question translation on its OWN element below the question",
+  html.includes('<p class="qa-question-translation">') && !html.includes("?<em>") && !html.includes("<em>What"));
 check("order: translation before analysis", anIdx > qtIdx);
 check("order: analysis before model answer", maIdx > anIdx);
 check("order: model answer before answer translation", atIdx > maIdx);

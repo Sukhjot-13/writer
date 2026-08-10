@@ -3,13 +3,22 @@
 // Two modes driven by the Practice master key:
 //   mode="normal"   — full editing. Question + ALWAYS-visible reference answer
 //                     ("Answer"), plus optional extras behind "＋ chips"
-//                     (question translation, grammar note, response label,
-//                     answer translation, analysis, vocab, expressions).
+//                     (question translation, grammar note, answer translation,
+//                     analysis, vocab, expressions).
 //   mode="practice" — question shown read-only with a "My answer" box to write
 //                     into. Once the user checks answers, a green read-only
 //                     "Model answer" box appears alongside their own answer.
 // The two answers are separate fields (userAnswer = practice attempt,
 // modelAnswer = reference), so practice never touches the reference data.
+//
+// 2026-08-10 M7 round 5 (user feedback): the 👁/🙈 hide toggles on the question
+// translation and the answer are GONE — visibility now lives in the preview
+// sheet's per-field checkboxes (render-time, no data mutation; the legacy
+// hideTranslation/hideModelAnswer flags still exist in the data model and the
+// renderers still honor them for older documents). The "Answer label"
+// (responseLabel) field is GONE too — it is always "RÉPONSE", so there is no
+// reason to edit it; the renderers keep using the stored value (default
+// "RÉPONSE").
 
 "use client";
 
@@ -26,20 +35,20 @@ import {
 type QaField =
   | "questionTranslation"
   | "grammarNote"
-  | "responseLabel"
   | "answerTranslation"
   | "analysis"
   | "vocab"
   | "expressions";
 
 // Display order (2026-08-10, user request): question → translation → analysis →
-// answer → answer translation → grammar note → label → vocab → expressions.
+// answer → answer translation → grammar note → vocab → expressions.
+// (2026-08-10 M7 round 5: the "Answer label" entry is gone — responseLabel is
+// always "RÉPONSE" and no longer editable.)
 const OPTIONAL_FIELDS: { key: QaField; label: string }[] = [
   { key: "questionTranslation", label: "Question translation" },
   { key: "analysis", label: "Analysis" },
   { key: "answerTranslation", label: "Answer translation" },
   { key: "grammarNote", label: "Grammar note" },
-  { key: "responseLabel", label: "Answer label" },
   { key: "vocab", label: "Vocabulary" },
   { key: "expressions", label: "Expressions" },
 ];
@@ -49,29 +58,11 @@ function usedFields(c: QaContent): Set<QaField> {
   const used = new Set<QaField>();
   if (c.questionTranslation) used.add("questionTranslation");
   if (c.grammarNote) used.add("grammarNote");
-  if (c.responseLabel) used.add("responseLabel");
   if (c.answerTranslation) used.add("answerTranslation");
   if (c.analysis) used.add("analysis");
   if (c.vocab?.length) used.add("vocab");
   if (c.expressions?.length) used.add("expressions");
   return used;
-}
-
-function EyeToggle({ on, onToggle, title }: { on: boolean; onToggle: () => void; title: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      title={title}
-      className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
-        on
-          ? "border-zinc-300 bg-white text-zinc-400 hover:text-zinc-600"
-          : "border-red-200 bg-red-50 text-red-500 hover:text-red-700"
-      }`}
-    >
-      {on ? "👁" : "🙈"}
-    </button>
-  );
 }
 
 // AI-reported corrections (2026-08-10). The AI never edits text — each row has
@@ -268,16 +259,13 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
       </div>
 
       {/* 2026-08-10 field order (user request, mirrored in preview + PDF):
-          question → translation → analysis → answer → answer translation → … */}
+          question → translation → analysis → answer → answer translation → …
+          2026-08-10 M7 round 5: the 👁/🙈 hide toggle is GONE — visibility is
+          controlled in the preview sheet. */}
       {is("questionTranslation") && (
         <div>
           <div className={labelCls}>
             <span>Question translation</span>
-            <EyeToggle
-              on={!content.hideTranslation}
-              onToggle={() => set("hideTranslation", !content.hideTranslation)}
-              title={content.hideTranslation ? "Show question translation in output" : "Hide question translation in output"}
-            />
             <button
               type="button"
               onClick={() => hideField("questionTranslation")}
@@ -319,15 +307,12 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
         </div>
       )}
 
-      {/* Reference answer — always visible (M6: one answer field, clean cards) */}
+      {/* Reference answer — always visible (M6: one answer field, clean cards).
+          2026-08-10 M7 round 5: the 👁/🙈 hide toggle is GONE — visibility is
+          controlled in the preview sheet. */}
       <div>
         <div className={labelCls}>
           <span>Answer</span>
-          <EyeToggle
-            on={!content.hideModelAnswer}
-            onToggle={() => set("hideModelAnswer", !content.hideModelAnswer)}
-            title={content.hideModelAnswer ? "Show answer in output" : "Hide answer in output"}
-          />
         </div>
         <AutoGrowTextarea
           className={inputCls}
@@ -404,28 +389,6 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             value={content.grammarNote ?? ""}
             placeholder="e.g. passé composé"
             onChange={(e) => set("grammarNote", e.target.value)}
-          />
-        </div>
-      )}
-
-      {is("responseLabel") && (
-        <div>
-          <div className={labelCls}>
-            <span>Answer label</span>
-            <button
-              type="button"
-              onClick={() => hideField("responseLabel")}
-              className="ml-auto text-zinc-300 hover:text-red-500"
-              title="Remove field"
-            >
-              ✕
-            </button>
-          </div>
-          <input
-            className={`${inputCls} w-40`}
-            value={content.responseLabel ?? "RÉPONSE"}
-            placeholder="RÉPONSE"
-            onChange={(e) => set("responseLabel", e.target.value)}
           />
         </div>
       )}

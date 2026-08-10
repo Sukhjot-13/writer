@@ -204,6 +204,16 @@ function parseQa(inner: string): QaContent {
     }
   }
 
+  // 2026-08-10 M7 round 5: the question translation now renders BELOW the
+  // question in its own <p class="qa-question-translation"> (user: "it is
+  // showing in same line as question it should be below it") — recover it
+  // there; the <em>-in-question fallback above still reads older exports.
+  const qt = byClass(inner, "qa-question-translation");
+  if (qt) {
+    const translation = innerToMarkdown(qt.inner);
+    if (translation) content.questionTranslation = translation;
+  }
+
   const grammar = byClass(inner, "qa-grammar-note");
   if (grammar) content.grammarNote = innerToMarkdown(grammar.inner);
 

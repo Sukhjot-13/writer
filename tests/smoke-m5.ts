@@ -86,7 +86,7 @@ async function run() {
 
   const q1 = p3.type === "qa" ? p3.content : null;
   check("parse: QA question", q1?.question === "Qu'as-tu fait hier ?");
-  check("parse: QA <em> translation split out", q1?.questionTranslation === "What did you do yesterday?");
+  check("parse: question translation split out (below the question)", q1?.questionTranslation === "What did you do yesterday?");
   check("parse: grammar note", q1?.grammarNote === "Passé composé avec avoir.");
   check("parse: response label", q1?.responseLabel === "RÉPONSE");
   check("parse: user answer (dashed box)", q1?.userAnswer === "Hier, je suis allé au cinéma.");

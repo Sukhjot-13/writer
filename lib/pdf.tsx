@@ -235,8 +235,12 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
       marginTop: 2,
     },
     badgeText: { color: t.colors.badgeText, fontSize: basePt * 0.7, fontWeight: "bold" },
-    questionText: { flex: 1, fontWeight: "bold", color: t.colors.heading, fontSize: basePt },
-    questionTranslation: { fontWeight: "normal", fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.85 },
+    // 2026-08-10 M7 round 5: the question row is badge + a flex-1 column body,
+    // so the translation renders on its OWN line BELOW the question (was a
+    // nested Text inside questionText — same line; mirrors the HTML template).
+    questionBody: { flex: 1 },
+    questionText: { fontWeight: "bold", color: t.colors.heading, fontSize: basePt },
+    questionTranslation: { marginTop: 2, fontWeight: "normal", fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.85 },
     grammarNote: { marginTop: 3, marginLeft: 24, fontStyle: "italic", fontSize: basePt * 0.82, opacity: 0.75 },
     responseLabel: {
       marginTop: 6,
@@ -271,12 +275,15 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{number}</Text>
         </View>
-        <Text style={styles.questionText}>
-          {content.question}
+        {/* 2026-08-10 M7 round 5: translation BELOW the question on its own
+            line (user: "it is showing in same line as question it should be
+            below it") — mirrors the HTML template's .qa-question-translation. */}
+        <View style={styles.questionBody}>
+          <Text style={styles.questionText}>{content.question}</Text>
           {showTranslation && content.questionTranslation ? (
-            <Text style={styles.questionTranslation}> {content.questionTranslation}</Text>
+            <Text style={styles.questionTranslation}>{content.questionTranslation}</Text>
           ) : null}
-        </Text>
+        </View>
       </View>
 
       {/* 2026-08-10 field order (user request, mirrored in the HTML template
