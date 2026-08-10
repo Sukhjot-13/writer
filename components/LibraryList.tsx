@@ -27,14 +27,55 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
   const router = useRouter();
   const [sort, setSort] = useState<SortKey>("updated");
   const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [filterTag, setFilterTag] = useState<string | null>(null); // M5: tag filter
+  const [downloadingBackup, setDownloadingBackup] = useState(false); // M5: backup zip
+
+  // M5: every distinct tag across the library, most-used first — clickable filter chips.
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const doc of documents) {
+      for (const tag of doc.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([tag]) => tag);
+  }, [documents]);
+
+  const filtered = useMemo(
+    () => (filterTag ? documents.filter((d) => d.tags.includes(filterTag)) : documents),
+    [documents, filterTag],
+  );
 
   const sorted = useMemo(() => {
-    const docs = [...documents];
+    const docs = [...filtered];
     if (sort === "updated") docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     if (sort === "created") docs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     if (sort === "title") docs.sort((a, b) => a.title.localeCompare(b.title));
     return docs;
-  }, [documents, sort]);
+  }, [filtered, sort]);
+
+  // M5: one-click backup of the whole library (zip of every document folder).
+  async function downloadBackup() {
+    if (downloadingBackup) return;
+    setDownloadingBackup(true);
+    try {
+      const res = await fetch("/api/documents/backup");
+      if (!res.ok) {
+        alert("Backup failed — see server logs.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+      a.download = match?.[1] ?? "writer-app-backup.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingBackup(false);
+    }
+  }
 
   async function remove(doc: Document) {
     if (!window.confirm(`Delete "${doc.title || "Untitled"}"? This removes the whole folder (JSON, HTML, PDF).`)) {
@@ -73,7 +114,7 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 text-sm text-zinc-500">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
         <span>Sort:</span>
         <select
           value={sort}
@@ -84,7 +125,52 @@ export default function LibraryList({ documents }: { documents: Document[] }) {
           <option value="created">Date created</option>
           <option value="title">Title</option>
         </select>
+        <span className="ml-2 text-zinc-300">|</span>
+        <span>Filter:</span>
+        <div className="flex flex-wrap items-center gap-1">
+          {allTags.length === 0 && <span className="text-xs text-zinc-400">no tags yet</span>}
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => setFilterTag(filterTag === tag ? null : tag)}
+              title="Filter the library by this tag"
+              className={`rounded px-2 py-0.5 text-xs transition-colors ${
+                filterTag === tag
+                  ? "bg-blue-600 text-white"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+          {filterTag && (
+            <button
+              type="button"
+              onClick={() => setFilterTag(null)}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void downloadBackup()}
+          disabled={downloadingBackup}
+          title="Download a zip of every document folder (JSON + HTML + PDF + snapshot)"
+          className="ml-auto rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+        >
+          {downloadingBackup ? "Packaging…" : "⬇ Backup (zip)"}
+        </button>
       </div>
+
+      {filterTag && (
+        <p className="mb-3 text-xs text-zinc-500">
+          Showing {sorted.length} document{sorted.length === 1 ? "" : "s"} tagged{" "}
+          <strong className="text-zinc-700">#{filterTag}</strong>
+        </p>
+      )}
 
       <ul className="grid gap-4 sm:grid-cols-2">
         {sorted.map((doc) => (

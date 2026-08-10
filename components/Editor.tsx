@@ -24,6 +24,7 @@ import PreviewPane from "./PreviewPane";
 import PasteQuestionsModal from "./PasteQuestionsModal";
 import PasteHtmlModal from "./PasteHtmlModal";
 import CopyDialog from "./CopyDialog";
+import { parseHtmlToBlocks } from "@/lib/html-to-blocks"; // FR-41 (M5)
 
 const DRAFT_KEY = "writer-app:draft";
 const AUTOSAVE_MS = 800;
@@ -268,6 +269,50 @@ export default function Editor({ docId }: { docId: string | null }) {
     setPendingFocusId(fresh.id);
   }, []);
 
+  // M5: drag-and-drop reorder — drop `fromId` onto `toId` (insert at its index).
+  const reorderBlock = useCallback((fromId: string, toId: string) => {
+    mutateDoc((d) => {
+      const from = d.blocks.findIndex((b) => b.id === fromId);
+      const to = d.blocks.findIndex((b) => b.id === toId);
+      if (from < 0 || to < 0 || from === to) return d;
+      const blocks = [...d.blocks];
+      const [moved] = blocks.splice(from, 1);
+      // After removal the target index shifts by one when the source was above it.
+      blocks.splice(from < to ? to - 1 : to, 0, moved);
+      return { ...d, blocks };
+    });
+  }, []);
+
+  // M5 (FR-3): Enter in the middle of a text block splits it in two.
+  const splitBlock = useCallback((id: string, rest: string) => {
+    const fresh = createBlock("paragraph") as Extract<BlockModel, { type: "paragraph" }>;
+    fresh.content = { text: rest, format: "plain" };
+    mutateDoc((d) => ({
+      ...d,
+      blocks: d.blocks.flatMap((b) => (b.id === id ? [b, fresh] : [b])),
+    }));
+    setPendingFocusId(fresh.id);
+  }, []);
+
+  // M5 (FR-3): Backspace on an empty block merges it up — remove + refocus the
+  // previous block so typing continues where it stopped.
+  const removeBlockFocusUp = useCallback((id: string) => {
+    const prev = docRef.current;
+    const idx = prev ? prev.blocks.findIndex((b) => b.id === id) : -1;
+    mutateDoc((d) => ({ ...d, blocks: d.blocks.filter((b) => b.id !== id) }));
+    if (idx > 0 && prev) setPendingFocusId(prev.blocks[idx - 1].id);
+  }, []);
+
+  // M5 (FR-5): per-block custom tags (become CSS classes in output HTML).
+  const updateBlockTags = useCallback((id: string, tags: string[]) => {
+    mutateDoc((d) => ({ ...d, blocks: d.blocks.map((b) => (b.id === id ? { ...b, tags } : b)) }));
+  }, []);
+
+  // M5 (FR-18): document-level tags shown in the library.
+  const setDocTags = useCallback((tags: string[]) => {
+    mutateDoc((d) => ({ ...d, tags }));
+  }, []);
+
   const setTitle = useCallback((value: string) => {
     mutateDoc((d) => ({ ...d, title: value }));
   }, []);
@@ -388,6 +433,39 @@ export default function Editor({ docId }: { docId: string | null }) {
     setStatus("Imported HTML document — preview ready (FR-40)");
   }
 
+  // ---- parse to blocks (FR-41, M5): imported HTML → editable blocks ----
+  async function parseToBlocks() {
+    const current = docRef.current;
+    if (!current || busy) return;
+    setBusy("parse");
+    setError(null);
+    try {
+      let source = html;
+      if (!source || previewStale) {
+        const res = await fetch(`/api/documents/${current.id}/html`);
+        if (!res.ok) throw new Error("Could not load the saved HTML");
+        source = await res.text();
+      }
+      const { blocks: parsed, unparsedCount } = parseHtmlToBlocks(source);
+      if (parsed.length === 0) throw new Error("No recognizable blocks found in the HTML");
+      // Replace blocks + flip the source; the existing preview stays valid
+      // until the user edits (mutateDoc would mark it stale, FR-46).
+      setDoc((prev) =>
+        prev ? { ...prev, blocks: parsed, source: "editor", updatedAt: new Date().toISOString() } : prev,
+      );
+      setIsDirty(true);
+      setStatus(
+        `Parsed to ${parsed.length} editable block${parsed.length === 1 ? "" : "s"}${
+          unparsedCount ? ` — ${unparsedCount} kept as raw HTML` : ""
+        } (FR-41)`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Parse failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // ---- save (FR-17) ----
   async function save(): Promise<boolean> {
     const current = docRef.current;
@@ -481,6 +559,8 @@ export default function Editor({ docId }: { docId: string | null }) {
       <Toolbar
         title={doc.title}
         onTitleChange={setTitle}
+        docTags={doc.tags}
+        onTagsChange={setDocTags}
         busy={busy}
         error={error}
         convertMode={convertMode}
@@ -508,6 +588,22 @@ export default function Editor({ docId }: { docId: string | null }) {
         onTogglePreview={() => setShowPreview((v) => !v)}
       />
 
+      {/* FR-41 (M5): imported HTML is editable only after a best-effort parse */}
+      {doc.source === "external-html" && (
+        <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <span>Imported HTML — blocks aren&apos;t editable yet.</span>
+          <button
+            type="button"
+            onClick={() => void parseToBlocks()}
+            disabled={busy !== null}
+            className="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {busy === "parse" ? "Parsing…" : "Parse to blocks (best-effort)"}
+          </button>
+          <span className="text-xs text-amber-600">FR-41</span>
+        </div>
+      )}
+
       {showPasteQuestions && (
         <PasteQuestionsModal
           onClose={() => setShowPasteQuestions(false)}
@@ -531,6 +627,10 @@ export default function Editor({ docId }: { docId: string | null }) {
               onMoveBlock={moveBlock}
               onInsertAfter={insertAfter}
               onAppend={appendBlock}
+              onReorder={reorderBlock}
+              onSplitBelow={splitBlock}
+              onRemoveFocusUp={removeBlockFocusUp}
+              onUpdateTags={updateBlockTags}
             />
           </div>
         </div>

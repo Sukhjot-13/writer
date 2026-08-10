@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Block as BlockModel, BlockType } from "@/lib/types";
+import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
@@ -37,6 +38,11 @@ interface BlockProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onAddAfter: () => void;
+  // M5 (FR-3): Enter splits the block, backspace on empty merges up.
+  onSplitBelow: (rest: string) => void;
+  onRemoveFocusUp: () => void;
+  // M5 (FR-5): per-block tags become CSS classes in the output HTML.
+  onUpdateTags: (tags: string[]) => void;
 }
 
 export default function Block({
@@ -50,7 +56,11 @@ export default function Block({
   onMoveUp,
   onMoveDown,
   onAddAfter,
+  onSplitBelow,
+  onRemoveFocusUp,
+  onUpdateTags,
 }: BlockProps) {
+  const [tagsDraft, setTagsDraft] = useState(block.tags.join(", "));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashCursor, setSlashCursor] = useState(0);
@@ -69,6 +79,11 @@ export default function Block({
       textareaRef.current.focus();
     }
   }, [autoFocus]);
+
+  // Keep the tags draft in sync when tags change outside this input.
+  useEffect(() => {
+    setTagsDraft(block.tags.join(", "));
+  }, [block.tags]);
 
   const text = block.type === "separator" ? "" : (block.content as { text?: string }).text ?? "";
 
@@ -97,6 +112,25 @@ export default function Block({
     if (e.key === "/") {
       setSlashOpen(true);
       setSlashCursor(0);
+      return;
+    }
+    // FR-3 (M5): Enter creates a new block below — splitting at the cursor
+    // when the caret isn't at the end; Shift+Enter inserts a newline.
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const pos = textareaRef.current?.selectionStart ?? text.length;
+      if (pos < text.length) {
+        onUpdate({ ...(block.content as object), text: text.slice(0, pos) });
+        onSplitBelow(text.slice(pos));
+      } else {
+        onAddAfter();
+      }
+      return;
+    }
+    // FR-3 (M5): backspace on an empty block merges it into the one above.
+    if (e.key === "Backspace" && text === "") {
+      e.preventDefault();
+      onRemoveFocusUp();
     }
   }
 
@@ -174,6 +208,20 @@ export default function Block({
                 <option value={3}>H3</option>
               </select>
             )}
+            <input
+              value={tagsDraft}
+              onChange={(e) => setTagsDraft(e.target.value)}
+              onBlur={() => onUpdateTags(parseTags(tagsDraft))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="tags"
+              title="Custom tags (comma-separated) — become CSS classes in the output HTML (FR-5)"
+              className="ml-auto w-32 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-[10px] text-zinc-400 outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:text-zinc-600"
+            />
           </div>
 
           {block.type === "separator" ? (

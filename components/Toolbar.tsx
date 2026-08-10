@@ -6,8 +6,10 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+
+import { parseTags } from "@/lib/tags";
 
 export type ConvertMode = "ai" | "template";
 
@@ -21,6 +23,8 @@ export interface VisibilityCounts {
 interface ToolbarProps {
   title: string;
   onTitleChange: (value: string) => void;
+  docTags: string[]; // M5: document tags shown in the library (FR-18)
+  onTagsChange: (tags: string[]) => void;
   busy: string | null;
   error: string | null;
   convertMode: ConvertMode;
@@ -120,6 +124,8 @@ function Dropdown({
 export default function Toolbar({
   title,
   onTitleChange,
+  docTags,
+  onTagsChange,
   busy,
   error,
   convertMode,
@@ -148,6 +154,8 @@ export default function Toolbar({
 }: ToolbarProps) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [goal, setGoal] = useState("");
+  const [tagsDraft, setTagsDraft] = useState(docTags.join(", "));
+  useEffect(() => setTagsDraft(docTags.join(", ")), [docTags]);
 
   const noQa = counts.translationsTotal === 0;
   const allTranslationsHidden = counts.translationsTotal > 0 && counts.translationsHidden === counts.translationsTotal;
@@ -162,6 +170,20 @@ export default function Toolbar({
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder="Untitled document"
           className="w-56 rounded-md border border-transparent bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white"
+        />
+        <input
+          value={tagsDraft}
+          onChange={(e) => setTagsDraft(e.target.value)}
+          onBlur={() => onTagsChange(parseTags(tagsDraft))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          placeholder="doc tags (french, past-tense)"
+          title="Document tags — shown in the library and used for filtering (FR-18, M5)"
+          className="w-48 rounded-md border border-transparent bg-zinc-50 px-2 py-1.5 text-xs text-zinc-500 outline-none placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white focus:text-zinc-700"
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">

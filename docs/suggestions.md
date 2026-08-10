@@ -1,5 +1,10 @@
 # Suggestions Log
 
+## 🐛 Known Bugs
+
+- **2026-08-10 — HTML→blocks parse-back infinite loop (FIXED):** `lib/html-to-blocks.ts` `byClass`/`elementsByClass` descended into `#text` nodes: `collectTopLevel(text)` re-yields the same `#text` node, which was pushed back onto the search stack → infinite loop at 98% CPU. Killed the editor's "Parse to blocks" button (FR-41) on any document containing text and hung `tests/smoke-m5.ts`. Fixed 2026-08-10 with a `if (el.tag === "#text") continue;` guard in both functions.
+- **2026-08-10 — Parse-back vocab row check failing (1/33, PENDING):** `tests/smoke-m5.ts` "parse: vocab grid rows" fails — `q1.vocab[1]` (term "le cinéma") doesn't match after round-trip, though "round trip: vocab survives two passes" passes and expressions parse fine. Suspect row ordering or term/def attribution inside `parseRows`/vocab-col splitting. Diagnosis deferred per session note — testing skipped for now.
+
 ## 🟢 Improvements
 
 - **2026-08-09 — Unify page margins:** `html2pdf/server.js` forces 20px margins, while `html_instructions.md` specifies `@page { margin: 14mm }`. The print CSS should be the single source of truth (the writer app already does this via the instructions file).

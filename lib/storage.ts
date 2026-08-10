@@ -11,6 +11,7 @@
 
 import type { Document } from "./types";
 import { createFSStorage } from "./storage-fs";
+import { createMongoBlobStorage } from "./storage-mongo";
 
 export interface StorageBackend {
   // Documents
@@ -44,9 +45,4 @@ export function getStorage(): StorageBackend {
   return storageSingleton;
 }
 
-// MongoDB + Blob implementation arrives with the Vercel deploy (Plan M5).
-function createMongoBlobStorage(): StorageBackend {
-  throw new Error(
-    "MongoDB storage is not implemented yet (Plan M5). Remove MONGODB_URI to use filesystem storage.",
-  );
-}
+// MongoDB + Blob (ResumeBuilder stack) — implemented in M5 (see lib/storage-mongo.ts).
