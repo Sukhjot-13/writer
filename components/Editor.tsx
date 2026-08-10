@@ -19,13 +19,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Block as BlockModel, BlockType, Document } from "@/lib/types";
-import { createBlock, createDocument, replaceBlockType, setBlockContent } from "@/lib/types";
-import type { PDFVariant } from "@/lib/pdf";
+import type { Block as BlockModel, BlockType, Document, PreviewHidden, PreviewOptions } from "@/lib/types";
+import {
+  createBlock,
+  createDocument,
+  replaceBlockType,
+  setBlockContent,
+  DEFAULT_PREVIEW_OPTIONS,
+} from "@/lib/types";
 
 import Toolbar from "./Toolbar";
 import BlockList from "./BlockList";
-import PreviewSheet, { type PreviewHidden } from "./PreviewSheet";
+import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
 import PasteBlocksModal from "./PasteBlocksModal";
 import PasteHtmlModal from "./PasteHtmlModal";
@@ -76,15 +81,12 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [focusMode, setFocusMode] = useState(true); // 2026-08-10: main content only — ON by default (user: "focus mode should be default")
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
-  // 2026-08-10: preview field toggles — omitted enrichment for qa/paragraph/
-  // essay blocks. Main content (headings, questions, paragraph text) is never
-  // hidden; the master toggle turns every extra off at once.
-  const [previewHidden, setPreviewHidden] = useState({
-    translations: false,
-    analyses: false,
-    vocab: false,
-    modelAnswers: false,
-  });
+  // 2026-08-10: preview display options — field toggles (omitted enrichment
+  // for qa/paragraph/essay blocks; main content is never hidden) + "Empty
+  // lines" (blank ruled areas where the model answer is hidden). The SAME
+  // options drive the PDF/HTML downloads, so the download is always exactly
+  // what the preview shows.
+  const [previewOptions, setPreviewOptions] = useState<PreviewOptions>(DEFAULT_PREVIEW_OPTIONS);
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [aiModel, setAiModel] = useState<string | null>(null); // FR-28: model name in status bar
   const [instructionsVersion, setInstructionsVersion] = useState<string | null>(null); // FR-28
@@ -98,6 +100,9 @@ export default function Editor({ docId }: { docId: string | null }) {
 
   const docRef = useRef(doc);
   docRef.current = doc;
+  const previewOptionsRef = useRef(previewOptions);
+  previewOptionsRef.current = previewOptions;
+  const previewSeqRef = useRef(0); // 2026-08-10 #6: latest toggle wins the render
   const persistedRef = useRef(persisted);
   persistedRef.current = persisted;
   const useSnapshotRef = useRef(useSnapshot);
@@ -450,21 +455,27 @@ function essayAnswerFromParagraphs(
   }
 
   // ---- on-demand preview (M6): POST the current doc, show the sheet ----
-  // 2026-08-10 #5 (bug fix): `hiddenOverride` lets a toggle re-render with the
-  // NEW hidden values in the same tick — the old code read the stale closure
+  // 2026-08-10 #5 (bug fix): `optionsOverride` lets a toggle re-render with the
+  // NEW values in the same tick — the old code read the stale closure
   // (`previewHidden` from the last render), so the preview showed the previous
   // toggle state until a second click (user: "i have to unclick and click").
-  async function openPreview(hiddenOverride?: PreviewHidden) {
+  // 2026-08-10 #6 (glitch fix): a sequence guard drops out-of-order responses —
+  // rapid toggles each POST a re-render, and only the LATEST one is applied.
+  async function openPreview(optionsOverride?: PreviewOptions) {
     const current = docRef.current;
-    if (!current || busyRef.current) return;
-    beginBusy("preview");
+    if (!current) return;
+    const seq = ++previewSeqRef.current;
+    busyRef.current = "preview";
+    setBusy("preview");
     setError(null);
     try {
+      const options = optionsOverride ?? previewOptionsRef.current;
       const res = await fetch("/api/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc: current, hidden: hiddenOverride ?? previewHidden }),
+        body: JSON.stringify({ doc: current, hidden: options.hidden, emptyLines: options.emptyLines }),
       });
+      if (seq !== previewSeqRef.current) return; // a newer toggle superseded this render
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "Preview failed");
@@ -473,9 +484,12 @@ function essayAnswerFromParagraphs(
       setPreviewHtml(body.html);
       setPreviewOpen(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Preview failed");
+      if (seq === previewSeqRef.current) setError(e instanceof Error ? e.message : "Preview failed");
     } finally {
-      endBusy();
+      if (seq === previewSeqRef.current) {
+        busyRef.current = null;
+        setBusy(null);
+      }
     }
   }
 
@@ -598,29 +612,27 @@ function essayAnswerFromParagraphs(
     return () => clearTimeout(timer);
   }, [doc, loading, isDirty]);
 
-  // ---- downloads (M6): instant, from the current doc — no save, no gating ----
-  async function ensureSaved(): Promise<boolean> {
-    if (persistedRef.current) return true;
-    return save();
-  }
-
-  async function downloadPdf(variant: PDFVariant) {
+  // ---- downloads (2026-08-10 #6, moved into the preview sheet): the buttons
+  // in Preview download EXACTLY what is currently displayed — the same
+  // hidden/emptyLines options that produced the preview HTML. No save, no
+  // gating, no variant menu (the user sees the document before downloading). ----
+  async function downloadPdfDisplay() {
     const current = docRef.current;
     if (!current || busyRef.current) return;
     beginBusy("pdf");
     setError(null);
     try {
+      const options = previewOptionsRef.current;
       const res = await fetch(`/api/documents/${current.id}/pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc: current, variant }),
+        body: JSON.stringify({ doc: current, hidden: options.hidden, emptyLines: options.emptyLines }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? "PDF generation failed");
       }
-      const suffix = variant === "full" ? "" : variant === "questions" ? "-questions" : "-my-answers";
-      downloadBlob(await res.blob(), safeFilename(current.title + suffix, "pdf"));
+      downloadBlob(await res.blob(), safeFilename(current.title, "pdf"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "PDF download failed");
     } finally {
@@ -628,21 +640,11 @@ function essayAnswerFromParagraphs(
     }
   }
 
-  async function downloadHtml() {
-    const current = docRef.current;
-    if (!current || busyRef.current) return;
-    beginBusy("html");
-    setError(null);
-    try {
-      if (!(await ensureSaved())) return;
-      const res = await fetch(`/api/documents/${current.id}/html`);
-      if (!res.ok) throw new Error("HTML download failed");
-      downloadBlob(await res.blob(), safeFilename(current.title, "html"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "HTML download failed");
-    } finally {
-      endBusy();
-    }
+  // The preview HTML is already in memory (set by openPreview) — download it
+  // as-is, byte for byte what the sheet shows.
+  function downloadHtmlDisplay() {
+    if (!previewHtml) return;
+    downloadBlob(new Blob([previewHtml], { type: "text/html;charset=utf-8" }), safeFilename(docRef.current?.title ?? "", "html"));
   }
 
   // ---- practice (M6): clear every "My answer" (qa + paragraph + essay) so the
@@ -694,8 +696,6 @@ function essayAnswerFromParagraphs(
         onResetPractice={() => resetPractice()}
         focusMode={focusMode}
         onToggleFocus={() => setFocusMode((v) => !v)}
-        onDownloadPdf={(variant) => void downloadPdf(variant)}
-        onDownloadHtml={() => void downloadHtml()}
         counts={counts}
         onHideAllTranslations={() => setAllQaFlags("hideTranslation", true)}
         onShowAllTranslations={() => setAllQaFlags("hideTranslation", false)}
@@ -773,13 +773,14 @@ function essayAnswerFromParagraphs(
       {previewOpen && (
         <PreviewSheet
           html={previewHtml}
-          busy={busy === "preview"}
-          hidden={previewHidden}
-          onHiddenChange={(next) => {
-            setPreviewHidden(next);
-            void openPreview(next); // re-render with the NEW values (no stale closure)
+          busy={busy !== null}
+          options={previewOptions}
+          onOptionsChange={(next) => {
+            setPreviewOptions(next);
+            void openPreview(next); // re-render with the NEW options (no stale closure)
           }}
-          onRefresh={() => void openPreview()}
+          onDownloadPdf={() => void downloadPdfDisplay()}
+          onDownloadHtml={() => downloadHtmlDisplay()}
           onClose={() => setPreviewOpen(false)}
         />
       )}

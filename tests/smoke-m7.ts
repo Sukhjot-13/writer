@@ -5,6 +5,7 @@
 // exercised via the history content fallback shape.
 import { buildAICopyText, serializeBlocksForAI } from "../lib/prompt";
 import { generateTemplateHTML } from "../lib/html-template";
+import { generatePDFBuffer } from "../lib/pdf";
 import { getTokens } from "../lib/design-tokens";
 import { createBlock, setBlockContent, createDocument } from "../lib/types";
 
@@ -96,6 +97,43 @@ const onlyVocab = generateTemplateHTML(doc, tokens, { hidden: { vocab: true } })
 check("hidden-vocab-only: grids gone but translations/analyses/answers stay",
   !onlyVocab.includes("Vocabulaire Clé") && onlyVocab.includes("What did you do yesterday?") &&
   onlyVocab.includes("Passé composé with avoir") && onlyVocab.includes("J&#39;ai mangé une pomme"));
+
+// ---------- Empty lines (2026-08-10 #6): blank ruled areas where the model
+// answer is hidden — the old "questions" sheet, now a toggle ----------
+// (The check uses the element markup — the CSS rule for .blank-answer is always
+// emitted in the <style> block.)
+const emptyLines = generateTemplateHTML(doc, tokens, { hidden: { modelAnswers: true }, emptyLines: true });
+check("empty-lines: blank answer box where the model answer is hidden",
+  emptyLines.includes("<div class=\"blank-answer\">") && emptyLines.includes("<div class=\"line\"></div>"));
+check("empty-lines: model answer still omitted", !emptyLines.includes("J&#39;ai mangé une pomme"));
+check("empty-lines: main content + enrichment survive",
+  emptyLines.includes("Qu&#39;est-ce que tu as fait hier ?") && emptyLines.includes("Passé composé with avoir"));
+const noEmpty = generateTemplateHTML(doc, tokens, { hidden: { modelAnswers: true } });
+check("empty-lines: absent when the toggle is off", !noEmpty.includes("<div class=\"blank-answer\">"));
+const emptyAllVisible = generateTemplateHTML(doc, tokens, { emptyLines: true });
+check("empty-lines: qa keeps the visible model answer (no blank under it)",
+  emptyAllVisible.includes("J&#39;ai mangé une pomme"));
+check("empty-lines: essay with no written answer gets writing space",
+  emptyAllVisible.includes("<div class=\"blank-answer\">"));
+
+// ---------- PDF display mode (2026-08-10 #6): the same options drive the
+// "Download PDF" button. Text content can't be asserted from the stream
+// (react-pdf embeds subset fonts as CID/glyph codes), so we assert structure:
+// the hidden sections shrink the PDF, and the empty-lines toggle adds the
+// blank-area vector content on top. ----------
+const pdfFull = await generatePDFBuffer(doc, tokens, {});
+const pdfHiddenOnly = await generatePDFBuffer(doc, tokens, {
+  hidden: { modelAnswers: true, translations: true },
+});
+const pdfDisp = await generatePDFBuffer(doc, tokens, {
+  hidden: { modelAnswers: true, translations: true },
+  emptyLines: true,
+});
+check("pdf-display: %PDF magic", pdfDisp.subarray(0, 5).toString() === "%PDF-");
+check("pdf-display: hidden sections shrink the PDF (omitted content)",
+  pdfHiddenOnly.length < pdfFull.length);
+check("pdf-display: empty lines add blank-area content on top",
+  pdfDisp.length > pdfHiddenOnly.length);
 
 console.log(`\nM7: ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

@@ -117,6 +117,11 @@ code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px
 .qa-vocab-row + .qa-vocab-row, .qa-expr-row + .qa-expr-row, .qa-vocab-row + .qa-expr-row, .qa-expr-row + .qa-vocab-row { border-top: 1px solid ${t.colors.rowBorder}; }
 .qa-vocab-term, .qa-expr-term { font-weight: bold; color: ${t.colors.accentGreen}; flex: none; }
 .qa-vocab-def, .qa-expr-def { text-align: right; }
+/* Empty lines (2026-08-10 #6): blank ruled writing area where the model answer
+   is hidden (like the old "questions" sheet — questions + blank lines). */
+.blank-answer { margin-top: 6px; border: 1px dashed ${t.colors.border}; border-radius: 4px; padding: 8px; }
+.blank-answer .line { border-bottom: 1px dashed ${t.colors.border}; height: 1.7em; }
+.blank-answer .line:last-child { border-bottom: none; height: 0; }
 `;
 }
 
@@ -153,6 +158,13 @@ function qaVisible(doc: Document, content: QaContent, kind: "translation" | "mod
   return !(content.hideModelAnswer || doc.practice?.hideModelAnswers);
 }
 
+/** Blank ruled writing area (2026-08-10 #6) — mirrors the PDF's BlankAnswerArea:
+ *  a dashed box with ~4 ruled lines, for when "Empty lines" is on and the model
+ *  answer is hidden (the old "questions" sheet behavior). */
+function blankAnswerHtml(): string {
+  return `<div class="blank-answer">${[0, 1, 2, 3].map(() => `<div class="line"></div>`).join("")}</div>`;
+}
+
 function qaBlockHtml(
   doc: Document,
   block: Extract<Block, { type: "qa" }>,
@@ -178,6 +190,10 @@ function qaBlockHtml(
   const modelAnswer = !hidden.modelAnswers && qaVisible(doc, content, "modelAnswer") && content.modelAnswer
     ? `<div class="qa-answer">${md(content.modelAnswer)}</div>`
     : "";
+  // Empty lines (2026-08-10 #6): when the model answer is not shown (hidden via
+  // toggle/flag or simply absent) and the user has not written their own, the
+  // answer slot becomes blank ruled writing lines — like the "questions" sheet.
+  const blank = !modelAnswer && opts.emptyLines && !content.userAnswer ? blankAnswerHtml() : "";
   const answerTranslation = !hidden.translations && qaVisible(doc, content, "translation") && content.answerTranslation
     ? `<div class="qa-translation">${md(content.answerTranslation)}</div>`
     : "";
@@ -193,7 +209,7 @@ function qaBlockHtml(
 
   return `<section class="${wrapper}"><div class="qa-block">
 <div class="qa-question"><span class="qa-num">${number}</span><p class="qa-question-text">${md(content.question)}${translation}</p></div>
-${analysis}${responseLabel}${modelAnswer}${answerTranslation}${userAnswer}${grammarNote}${grid}
+${analysis}${responseLabel}${modelAnswer || blank}${answerTranslation}${userAnswer}${grammarNote}${grid}
 </div></section>`;
 }
 
@@ -226,6 +242,9 @@ function blockToHtml(
       const userAnswer = c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
+      // Empty lines (2026-08-10 #6): writing space for paragraphs/essays when
+      // the toggle is on and no answer has been written yet.
+      const blank = opts.emptyLines && !c.userAnswer ? blankAnswerHtml() : "";
       const translation = !hidden.translations && c.translation
         ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
         : "";
@@ -233,7 +252,7 @@ function blockToHtml(
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
       const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
-      return `<p class="${wrapper}">${text}</p>${userAnswer}${translation}${analysis}${grid}`;
+      return `<p class="${wrapper}">${text}</p>${userAnswer}${blank}${translation}${analysis}${grid}`;
     }
     case "essay": {
       // One continuous passage: an optional heading, each paragraph as its own
@@ -249,6 +268,7 @@ function blockToHtml(
       const userAnswer = c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
+      const blank = opts.emptyLines && !c.userAnswer ? blankAnswerHtml() : "";
       const translation = !hidden.translations && c.translation
         ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
         : "";
@@ -256,7 +276,7 @@ function blockToHtml(
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
       const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
-      return `<div class="${wrapper}">${heading}${paragraphs}${userAnswer}${translation}${analysis}${grid}</div>`;
+      return `<div class="${wrapper}">${heading}${paragraphs}${userAnswer}${blank}${translation}${analysis}${grid}</div>`;
     }
     case "separator":
       return `<hr class="${wrapper}">`;
@@ -271,7 +291,9 @@ function blockToHtml(
  *  on screen (A4 sheet look) — used by the on-demand preview so it matches the
  *  PDF; downloads keep the screen mode. `hidden` (2026-08-10) are the preview
  *  field toggles: qa/paragraph/essay enrichment sections are omitted; the main
- *  content (title, headings, questions, paragraph text) is never hidden. */
+ *  content (title, headings, questions, paragraph text) is never hidden.
+ *  `emptyLines` (2026-08-10 #6): blank ruled writing areas where the model
+ *  answer is hidden — the old "questions" sheet behavior, now a toggle. */
 export interface TemplateRenderOpts {
   printMode?: boolean;
   hidden?: {
@@ -280,6 +302,7 @@ export interface TemplateRenderOpts {
     vocab?: boolean;
     modelAnswers?: boolean;
   };
+  emptyLines?: boolean;
 }
 
 export function generateTemplateHTML(

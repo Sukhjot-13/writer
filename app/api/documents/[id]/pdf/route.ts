@@ -7,13 +7,18 @@
 // the old ?practice= flag. POST accepts the current in-editor document body
 // { doc, variant } so "Download PDF" renders instantly from current content
 // without requiring a save first; GET keeps the saved-doc path with ?variant=.
+//
+// 2026-08-10 (downloads moved into the preview): the POST body is now
+// { doc, hidden?, emptyLines? } — the PDF renders EXACTLY the current preview
+// display (field toggles + empty-lines toggle), replacing the variant menu.
+// The variant engine stays for GET/tests.
 
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
 import { getTokens } from "@/lib/design-tokens";
 import { generatePDFBuffer, type PDFVariant } from "@/lib/pdf";
-import { documentSchema } from "@/lib/schemas";
+import { documentSchema, hiddenOptionsSchema } from "@/lib/schemas";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -61,7 +66,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const payload = (body ?? {}) as { doc?: unknown; variant?: unknown };
+  const payload = (body ?? {}) as { doc?: unknown; variant?: unknown; hidden?: unknown; emptyLines?: unknown };
   const parsed = documentSchema.safeParse(payload.doc ?? body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -76,9 +81,14 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
   }
 
+  // 2026-08-10: the UI sends { hidden, emptyLines } — the PDF renders the
+  // current preview display. `variant` is still accepted (backward compat,
+  // GET/tests) and defaults to "full".
   const variant = typeof payload.variant === "string" ? parseVariant(payload.variant) : "full";
+  const hidden = hiddenOptionsSchema.parse(payload.hidden);
+  const emptyLines = typeof payload.emptyLines === "boolean" ? payload.emptyLines : false;
   const tokens = await getTokens();
-  const buffer = await generatePDFBuffer(parsed.data, tokens, { variant });
+  const buffer = await generatePDFBuffer(parsed.data, tokens, { variant, hidden, emptyLines });
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

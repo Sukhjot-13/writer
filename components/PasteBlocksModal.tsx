@@ -42,8 +42,11 @@ export default function PasteBlocksModal({ onClose, onResult }: PasteBlocksModal
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-[2px]" onClick={onClose}>
+      {/* 2026-08-10 #6 (user feedback): the whole card scrolls when it outgrows
+          the viewport — the textarea cap alone wasn't enough (instruction box +
+          textarea + buttons could still push the modal off-screen). */}
       <div
-        className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl"
+        className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-zinc-100 px-5 py-4">

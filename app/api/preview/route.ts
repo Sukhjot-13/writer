@@ -7,9 +7,8 @@
 // [id]/html download route uses.
 
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
-import { documentSchema } from "@/lib/schemas";
+import { documentSchema, hiddenOptionsSchema } from "@/lib/schemas";
 import { getTokens } from "@/lib/design-tokens";
 import { generateTemplateHTML } from "@/lib/html-template";
 
@@ -35,22 +34,19 @@ export async function POST(request: Request) {
   // 2026-08-10: preview field toggles — { hidden: { translations?,
   // analyses?, vocab?, modelAnswers? } } omits those enrichment sections for
   // qa/paragraph/essay blocks. Main content (headings, questions, paragraph
-  // text) is never hidden.
-  const hiddenSchema = z
-    .object({
-      translations: z.boolean().optional(),
-      analyses: z.boolean().optional(),
-      vocab: z.boolean().optional(),
-      modelAnswers: z.boolean().optional(),
-    })
-    .optional();
-  const hidden = hiddenSchema.parse((payload as { hidden?: unknown }).hidden);
+  // text) is never hidden. 2026-08-10 #6: { emptyLines } adds blank ruled
+  // writing areas where the model answer is hidden (the "questions" sheet).
+  const hidden = hiddenOptionsSchema.parse((payload as { hidden?: unknown }).hidden);
+  const emptyLines =
+    typeof (payload as { emptyLines?: unknown }).emptyLines === "boolean"
+      ? (payload as { emptyLines: boolean }).emptyLines
+      : false;
 
   const tokens = await getTokens();
   // A4-sheet preview (2026-08-10 #4): renders the spec's SCREEN design — base
   // font (11.5px) and page margins (18mm) — with true print rules inside
   // @media print, so the preview matches the spec and printing the sheet is
   // still a clean A4 at print size (10.5px, 14mm).
-  const html = generateTemplateHTML(parsed.data, tokens, { printMode: true, hidden });
+  const html = generateTemplateHTML(parsed.data, tokens, { printMode: true, hidden, emptyLines });
   return NextResponse.json({ html });
 }

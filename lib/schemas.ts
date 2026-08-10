@@ -123,3 +123,15 @@ export const saveDocumentPayloadSchema = z.object({
   html: z.string().optional(),
   instructionsVersion: z.string().optional(),
 });
+
+/** Preview/PDF field toggles (2026-08-10): `true` = that enrichment section is
+ *  hidden. Optional object — absent means nothing hidden. Shared by the preview
+ *  route and the PDF route (POST body `{ doc, hidden, emptyLines }`). */
+export const hiddenOptionsSchema = z
+  .object({
+    translations: z.boolean().optional(),
+    analyses: z.boolean().optional(),
+    vocab: z.boolean().optional(),
+    modelAnswers: z.boolean().optional(),
+  })
+  .optional();

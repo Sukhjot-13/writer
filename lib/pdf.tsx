@@ -36,15 +36,24 @@ import {
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
-import type { Block, Document, QaContent } from "./types";
+import type { Block, Document, PreviewHidden, QaContent } from "./types";
 import type { DesignTokens } from "./design-tokens";
 import { pageNumberLabel } from "./pdf-labels"; // 2026-08-10: "1/7" page footers
 
 export type PDFVariant = "full" | "questions" | "my-answers";
 
 export interface PDFOptions {
-  /** Which rendering to produce — see header comment (default "full"). */
+  /** Which rendering to produce — see header comment (default "full").
+   *  Kept for the engine/tests; the UI no longer offers variants (2026-08-10:
+   *  downloads render the current preview display instead). */
   variant?: PDFVariant;
+  /** 2026-08-10: preview field toggles — omitted enrichment sections
+   *  (translations/analyses/vocab/model answers). Applies on top of "full";
+   *  partial objects are fine (missing fields = visible). */
+  hidden?: Partial<PreviewHidden>;
+  /** 2026-08-10 #6: blank ruled writing lines where the model answer is hidden
+   *  (the old "questions" sheet behavior, now a toggle). */
+  emptyLines?: boolean;
 }
 
 const MM_TO_PT = 72 / 25.4; // 1mm = 2.8346pt
@@ -180,22 +189,26 @@ interface QABlockProps {
   tokens: DesignTokens;
   number: number;
   variant: PDFVariant;
+  hidden?: Partial<PreviewHidden>;
+  emptyLines?: boolean;
 }
 
-function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
+function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }: QABlockProps) {
   const t = tokens;
   const content = block.content;
   const basePt = lengthToPt(t.sizes.base);
 
-  // Omission matrix (M6):
+  // Omission matrix (M6 + 2026-08-10):
   //  - hideAnswers: questions + my-answers never show reference answers/translations.
   //  - showUser: questions-only never shows even the user's own answers.
   //  - showExtras: analysis + vocab grids only in the full document.
+  //  - hidden (2026-08-10): the preview field toggles — omitted enrichment on
+  //    top of "full", so the PDF always matches the displayed preview.
   // Per-block flags and document-level defaults (FR-36) only apply to "full".
   const hideAnswers = variant !== "full";
   const showUser = variant !== "questions";
-  const showTranslation = !hideAnswers && qaVisible(doc, content, "translation");
-  const showModelAnswer = !hideAnswers && qaVisible(doc, content, "modelAnswer");
+  const showTranslation = !hideAnswers && !hidden?.translations && qaVisible(doc, content, "translation");
+  const showModelAnswer = !hideAnswers && !hidden?.modelAnswers && qaVisible(doc, content, "modelAnswer");
   const showExtras = variant === "full";
 
   const styles = StyleSheet.create({
@@ -267,7 +280,7 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
           answer translation → practice answer → grammar note → grid.
           2026-08-10 #5: the response label moved ABOVE the answer — it labels
           the answer area (user: "reponse text is shown below the answer why?"). */}
-      {showExtras && content.analysis ? (
+      {showExtras && !hidden?.analyses && content.analysis ? (
         <Text style={styles.analysis}>
           <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
           {content.analysis}
@@ -284,7 +297,9 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
         </View>
       ) : null}
 
-      {hideAnswers && !(showUser && content.userAnswer) ? (
+      {/* Blank ruled area: on the practice variants as before, AND on the full
+          display when "Empty lines" is on and the model answer is hidden. */}
+      {(hideAnswers || (emptyLines && !showModelAnswer)) && !(showUser && content.userAnswer) ? (
         <BlankAnswerArea basePt={basePt} color={t.colors.border} />
       ) : null}
 
@@ -302,7 +317,7 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
         <Text style={styles.grammarNote}>{content.grammarNote}</Text>
       ) : null}
 
-      {showExtras ? (
+      {showExtras && !hidden?.vocab ? (
         <VocabGridPDF tokens={tokens} vocab={content.vocab} expressions={content.expressions} />
       ) : null}
     </View>
@@ -315,12 +330,16 @@ function BlockToPDF({
   tokens,
   qaNumber,
   variant,
+  hidden,
+  emptyLines,
 }: {
   block: Block;
   doc: Document;
   tokens: DesignTokens;
   qaNumber: { n: number };
   variant: PDFVariant;
+  hidden?: Partial<PreviewHidden>;
+  emptyLines?: boolean;
 }) {
   const t = tokens;
   const basePt = lengthToPt(t.sizes.base);
@@ -360,9 +379,10 @@ function BlockToPDF({
       );
     case "paragraph": {
       // M6: paragraphs carry AI enrichment (translation, analysis, vocab grid)
-      // plus a practice answer (userAnswer). Enrichment renders only in "full";
-      // "my-answers" shows the user's written answer (or blank rules), matching
-      // the QA omission matrix (hideAnswers/showUser).
+      // plus a practice answer (userAnswer). Enrichment renders only in "full"
+      // (gated by the preview toggles since 2026-08-10); "my-answers" shows the
+      // user's written answer (or blank rules), matching the QA omission
+      // matrix (hideAnswers/showUser).
       const c = block.content;
       const showUser = variant !== "questions";
       return (
@@ -373,19 +393,19 @@ function BlockToPDF({
               <Text>{c.userAnswer}</Text>
             </View>
           ) : null}
-          {variant !== "full" && !(showUser && c.userAnswer) ? (
+          {(variant !== "full" || (emptyLines && !c.userAnswer)) && !(showUser && c.userAnswer) ? (
             <BlankAnswerArea basePt={basePt} color={t.colors.border} />
           ) : null}
-          {variant === "full" && c.translation ? (
+          {variant === "full" && !hidden?.translations && c.translation ? (
             <Text style={styles.pTranslation}>{c.translation}</Text>
           ) : null}
-          {variant === "full" && c.analysis ? (
+          {variant === "full" && !hidden?.analyses && c.analysis ? (
             <Text style={styles.pAnalysis}>
               <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
               {c.analysis}
             </Text>
           ) : null}
-          {variant === "full" ? (
+          {variant === "full" && !hidden?.vocab ? (
             <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
           ) : null}
         </View>
@@ -416,19 +436,19 @@ function BlockToPDF({
               <Text>{c.userAnswer}</Text>
             </View>
           ) : null}
-          {variant !== "full" && !(showUser && c.userAnswer) ? (
+          {(variant !== "full" || (emptyLines && !c.userAnswer)) && !(showUser && c.userAnswer) ? (
             <BlankAnswerArea basePt={basePt} color={t.colors.border} />
           ) : null}
-          {variant === "full" && c.translation ? (
+          {variant === "full" && !hidden?.translations && c.translation ? (
             <Text style={styles.pTranslation}>{c.translation}</Text>
           ) : null}
-          {variant === "full" && c.analysis ? (
+          {variant === "full" && !hidden?.analyses && c.analysis ? (
             <Text style={styles.pAnalysis}>
               <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
               {c.analysis}
             </Text>
           ) : null}
-          {variant === "full" ? (
+          {variant === "full" && !hidden?.vocab ? (
             <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
           ) : null}
         </View>
@@ -452,6 +472,8 @@ export async function generatePDFBuffer(
   opts: PDFOptions = {},
 ): Promise<Buffer> {
   const variant = opts.variant ?? "full";
+  const hidden = opts.hidden;
+  const emptyLines = opts.emptyLines ?? false;
   const basePt = lengthToPt(tokens.sizes.base);
   const pageStyles = StyleSheet.create({
     page: {
@@ -517,6 +539,8 @@ export async function generatePDFBuffer(
             tokens={tokens}
             qaNumber={qaNumber}
             variant={variant}
+            hidden={hidden}
+            emptyLines={emptyLines}
           />
         ))}
         {pageFooter}

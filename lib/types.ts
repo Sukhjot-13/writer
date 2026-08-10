@@ -183,3 +183,37 @@ export function createDocument(title = "", id?: string): Document {
     blocks: [],
   };
 }
+
+// ---- preview / PDF display options (2026-08-10) ----
+// The preview sheet, the PDF download and the HTML download all render the
+// CURRENT display: field toggles hide enrichment sections (translations,
+// analyses, vocab/expressions, model answers) for qa/paragraph/essay blocks —
+// headings, questions and paragraph text are main content and never hidden.
+
+/** Per-field preview toggles — `true` = that enrichment field is HIDDEN. */
+export interface PreviewHidden {
+  translations: boolean;
+  analyses: boolean;
+  vocab: boolean;
+  modelAnswers: boolean;
+}
+
+/** Everything that controls the preview rendering + what the downloads produce. */
+export interface PreviewOptions {
+  hidden: PreviewHidden;
+  /** Blank ruled writing lines where the model answer is hidden (like the old
+   *  "questions" sheet: questions + blank lines) — 2026-08-10 user request. */
+  emptyLines: boolean;
+}
+
+export const EMPTY_PREVIEW_HIDDEN: PreviewHidden = {
+  translations: false,
+  analyses: false,
+  vocab: false,
+  modelAnswers: false,
+};
+
+export const DEFAULT_PREVIEW_OPTIONS: PreviewOptions = {
+  hidden: EMPTY_PREVIEW_HIDDEN,
+  emptyLines: false,
+};

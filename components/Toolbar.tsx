@@ -1,20 +1,22 @@
 // components/Toolbar.tsx — primary actions (M6 redesign, FR-29/30/35/37/38/39/46/50).
 //
 // Layout: a title row (brand · title · tags · nav links) and an actions row —
-// Convert with AI ▾ (primary split) · Save · Preview · Practice + Check · Download ▾ ·
-// View ▾ · Copy ▾ · Paste ▾. Stateful toggles live inside the dropdowns as
+// Convert with AI ▾ (primary split) · Save · Preview · Practice + Check ·
+// View ▾ · Copy · Paste ▾. Stateful toggles live inside the dropdowns as
 // checkmarked items so the row stays uncluttered.
 //
 // M6 changes: single AI convert (template mode dropped); on-demand Preview;
-// Practice as the master key with a Check/Hide-answers button; three PDF
-// variants (full · questions · questions + my answers).
+// Practice as the master key with a Check/Hide-answers button.
+// 2026-08-10: the Download dropdown is GONE — downloads moved into the preview
+// sheet (the user sees the exact document before downloading; "Download PDF" /
+// "Download HTML" render the current display). The three PDF variants and the
+// HTML export were covered by the preview toggles + empty-lines toggle.
 
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import type { PDFVariant } from "@/lib/pdf";
 import { parseTags } from "@/lib/tags";
 
 export interface VisibilityCounts {
@@ -43,8 +45,6 @@ interface ToolbarProps {
   checked: boolean; // M6: practice "Check" — reveals model answers
   onToggleChecked: () => void;
   onResetPractice: () => void;
-  onDownloadPdf: (variant: PDFVariant) => void;
-  onDownloadHtml: () => void;
   counts: VisibilityCounts;
   onHideAllTranslations: () => void;
   onShowAllTranslations: () => void;
@@ -156,8 +156,6 @@ export default function Toolbar({
   checked,
   onToggleChecked,
   onResetPractice,
-  onDownloadPdf,
-  onDownloadHtml,
   counts,
   onHideAllTranslations,
   onShowAllTranslations,
@@ -349,30 +347,10 @@ export default function Toolbar({
           </button>
         )}
 
-        <Dropdown
-          label="Download"
-          disabled={busy !== null}
-          title="PDF variants or HTML of the document — rendered instantly from the current content"
-          items={[
-            {
-              label: "Download PDF",
-              onClick: () => onDownloadPdf("full"),
-              hint: "Full document — questions, answers and enrichment",
-            },
-            {
-              label: "Questions only (share)",
-              onClick: () => onDownloadPdf("questions"),
-              hint: "Shareable practice sheet — questions + blank lines",
-            },
-            {
-              label: "Questions + my answers",
-              onClick: () => onDownloadPdf("my-answers"),
-              hint: "After practice — send your answers for checking",
-            },
-            { label: "—", onClick: () => {}, check: false },
-            { label: "Download HTML", onClick: onDownloadHtml, hint: "Legacy styled-HTML export" },
-          ]}
-        />
+        {/* Download lives inside Preview (2026-08-10): the user sees the exact
+            document before downloading — the sheet's Download PDF / Download
+            HTML buttons render the current display (field toggles + empty
+            lines). The old variant dropdown was removed. */}
         <Dropdown
           label="View"
           disabled={busy !== null}

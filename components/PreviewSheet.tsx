@@ -2,37 +2,37 @@
 //
 // "Preview" opens this sheet instead of an always-on pane. The sheet renders
 // styled HTML produced from the CURRENT document (POST /api/preview — stateless,
-// unsaved edits included, no convert-first gating). Refresh re-renders.
+// unsaved edits included, no convert-first gating). Toggling re-renders
+// immediately (no Refresh button — 2026-08-10: it was redundant).
 // The iframe is fully sandboxed (sandbox="" → no scripts, no same-origin)
 // so generated HTML can never execute (see suggestions.md).
 //
 // 2026-08-10: field toggles — per-field + overall ("All extras") checkboxes
 // hide translations/analyses/vocab/model answers for qa + paragraph/essay
 // blocks. Headings, questions and paragraph text are the main content and are
-// never hidden. Toggling re-renders immediately.
+// never hidden. 2026-08-10 #6 (user feedback): the per-field checkboxes were
+// INVERTED (checked meant HIDDEN), so the display never matched the selection
+// ("the thing that is selected it should show that") — checked now means the
+// field IS SHOWN, and "All extras" checked = every extra is visible; clicking
+// it selects all four at once. Added the "Empty lines" toggle (blank ruled
+// writing areas where the model answer is hidden — the old "questions" sheet).
+//
+// 2026-08-10 #6 (downloads moved into the preview): the sheet owns the
+// downloads — "Download PDF" and "Download HTML" produce EXACTLY the currently
+// displayed document (same hidden + emptyLines options). The toolbar's variant
+// dropdown is gone; the PDF route renders the current display.
 
 "use client";
 
-export type PreviewHidden = {
-  translations: boolean;
-  analyses: boolean;
-  vocab: boolean;
-  modelAnswers: boolean;
-};
-
-export const EMPTY_PREVIEW_HIDDEN: PreviewHidden = {
-  translations: false,
-  analyses: false,
-  vocab: false,
-  modelAnswers: false,
-};
+import type { PreviewHidden, PreviewOptions } from "@/lib/types";
 
 interface PreviewSheetProps {
   html: string | null;
   busy: boolean;
-  hidden: PreviewHidden;
-  onHiddenChange: (next: PreviewHidden) => void;
-  onRefresh: () => void;
+  options: PreviewOptions;
+  onOptionsChange: (next: PreviewOptions) => void;
+  onDownloadPdf: () => void;
+  onDownloadHtml: () => void;
   onClose: () => void;
 }
 
@@ -43,55 +43,84 @@ const FIELD_LABELS: { key: keyof PreviewHidden; label: string }[] = [
   { key: "modelAnswers", label: "Model answers" },
 ];
 
-export default function PreviewSheet({ html, busy, hidden, onHiddenChange, onRefresh, onClose }: PreviewSheetProps) {
+export default function PreviewSheet({
+  html,
+  busy,
+  options,
+  onOptionsChange,
+  onDownloadPdf,
+  onDownloadHtml,
+  onClose,
+}: PreviewSheetProps) {
+  const hidden = options.hidden;
   const anyHidden = FIELD_LABELS.some((f) => hidden[f.key]);
-  const allHidden = FIELD_LABELS.every((f) => hidden[f.key]);
-  // 2026-08-10 #5 (user-reported): "All extras" was checked when EVERYTHING
-  // was hidden (inverted semantics — checked meant nothing showed). Now the
-  // checkbox is checked when NOTHING is hidden, i.e. all extras are VISIBLE.
+  // 2026-08-10 #6: the master checkbox is checked when NOTHING is hidden, i.e.
+  // every extra is VISIBLE (was inverted: checked meant everything hidden —
+  // user: "nothing is showing even though all extras is clicked").
 
   function toggle(key: keyof PreviewHidden) {
-    onHiddenChange({ ...hidden, [key]: !hidden[key] });
+    onOptionsChange({ ...options, hidden: { ...hidden, [key]: !hidden[key] } });
   }
 
+  // "All extras": checked = every extra shown. Clicking it from any state where
+  // something is hidden SELECTS all four fields (shows everything); clicking it
+  // when everything is already shown clears them all.
   function toggleAll() {
-    onHiddenChange(
-      Object.fromEntries(FIELD_LABELS.map((f) => [f.key, !allHidden])) as PreviewHidden,
-    );
+    const nextHidden = anyHidden
+      ? { translations: false, analyses: false, vocab: false, modelAnswers: false }
+      : { translations: true, analyses: true, vocab: true, modelAnswers: true };
+    onOptionsChange({ ...options, hidden: nextHidden });
+  }
+
+  function toggleEmptyLines() {
+    onOptionsChange({ ...options, emptyLines: !options.emptyLines });
   }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-zinc-100">
       <header className="flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-white px-4 py-2.5">
         <h2 className="text-sm font-semibold text-zinc-800">Preview</h2>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={busy}
-          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
-        >
-          {busy ? "Rendering…" : "Refresh"}
-        </button>
 
-        {/* 2026-08-10 field toggles: individual + overall ("All extras") —
-            headings, questions and paragraph text are never hidden. */}
+        {/* Field toggles: individual + overall ("All extras") + "Empty lines".
+            Checked = SHOWN (2026-08-10 #6). Headings, questions and paragraph
+            text are never hidden. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
           <span className="font-medium text-zinc-500">Show:</span>
-          <label className="flex cursor-pointer items-center gap-1" title="Hide or show every extra field at once">
-            <input type="checkbox" checked={!anyHidden} onChange={toggleAll} className="h-3 w-3 accent-blue-600" />
+          <label
+            className="flex cursor-pointer items-center gap-1"
+            title="Select or clear every extra field at once"
+          >
+            <input
+              type="checkbox"
+              checked={!anyHidden}
+              onChange={toggleAll}
+              className="h-3 w-3 accent-blue-600"
+            />
             All extras
           </label>
           {FIELD_LABELS.map(({ key, label }) => (
-            <label key={key} className="flex cursor-pointer items-center gap-1">
+            <label key={key} className="flex cursor-pointer items-center gap-1" title={`Show or hide ${label.toLowerCase()}`}>
               <input
                 type="checkbox"
-                checked={hidden[key]}
+                checked={!hidden[key]}
                 onChange={() => toggle(key)}
                 className="h-3 w-3 accent-blue-600"
               />
               {label}
             </label>
           ))}
+          <label
+            className="flex cursor-pointer items-center gap-1 border-l border-zinc-200 pl-3"
+            title="Blank ruled writing lines where the model answer is hidden — like the Questions-only sheet"
+          >
+            <input
+              type="checkbox"
+              checked={options.emptyLines}
+              onChange={toggleEmptyLines}
+              className="h-3 w-3 accent-blue-600"
+            />
+            Empty lines
+          </label>
           {anyHidden && (
             <span className="hidden text-[11px] text-zinc-400 lg:inline">
               Headings, questions &amp; paragraph text stay
@@ -102,14 +131,38 @@ export default function PreviewSheet({ html, busy, hidden, onHiddenChange, onRef
         <span className="hidden text-xs text-zinc-400 sm:inline">
           Rendered from your current document — no saving needed
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
-          title="Close preview"
-        >
-          ✕
-        </button>
+
+        {/* Downloads live HERE (2026-08-10 #6, user request): the user sees the
+            exact document before downloading, so PDF + HTML download what is
+            currently displayed. */}
+        <span className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onDownloadPdf}
+            disabled={busy || !html}
+            title="Download the PDF of exactly what is shown"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Download PDF
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadHtml}
+            disabled={busy || !html}
+            title="Download the HTML of exactly what is shown"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Download HTML
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
+            title="Close preview"
+          >
+            ✕
+          </button>
+        </span>
       </header>
 
       <div className="flex-1 overflow-auto p-6">
@@ -124,7 +177,7 @@ export default function PreviewSheet({ html, busy, hidden, onHiddenChange, onRef
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-zinc-400">
-            {busy ? "Rendering…" : "No preview yet — click Refresh."}
+            {busy ? "Rendering…" : "No preview yet."}
           </div>
         )}
       </div>
