@@ -49,9 +49,13 @@ doc.blocks = [
 const tokens = await getTokens(); // reads docs/html_instructions.md (same as smoke-m2)
 
 // ---------- buildAICopyText (Copy dialog → "For AI" tab) ----------
-const ai = buildAICopyText(doc);
-check("ai-copy: instruction heading present", ai.startsWith("You are helping prepare French practice material."));
+// 2026-08-10: the payload embeds the SAME instructions Convert with AI uses,
+// then the shared format spec (BLOCK_FORMAT_SPEC) + content.
+const AI_INSTRUCTIONS = "Convert French material into practice worksheets with translations.";
+const ai = buildAICopyText(doc, AI_INSTRUCTIONS);
+check("ai-copy: embeds the active instructions verbatim at the top", ai.startsWith(AI_INSTRUCTIONS));
 check("ai-copy: JSON shapes included", ai.includes('{"type":"qa","question":"…"') && ai.includes('{"type":"essay","heading":"…","paragraphs":["…","…"]'));
+check("ai-copy: corrections section present (parity with Convert with AI)", ai.includes("CORRECTIONS:"));
 check("ai-copy: content marker separates instruction from content", ai.includes("\n=== CONTENT ==="));
 check("ai-copy: document content follows (marker serialization)",
   ai.endsWith(serializeBlocksForAI(doc)) && ai.includes("Qu'est-ce que tu as fait hier ?"));

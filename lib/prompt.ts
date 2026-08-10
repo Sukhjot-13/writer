@@ -74,16 +74,14 @@ export interface AIPrompt {
 }
 
 /**
- * Build the AI prompt (FR-12, M6): system = the active instructions verbatim;
- * user = optional GOAL line + block serialization. The response instruction
- * demands EDITABLE STRUCTURED BLOCKS: a JSON array of block objects (no HTML)
- * that lib/structuring.ts parses back into document blocks.
+ * The response-format directive shared by BOTH conversion paths — in-app
+ * "Convert with AI" (buildAIPrompt) and the external-AI payload from
+ * Copy → "For AI" (buildAICopyText). ONE constant so the two instructions can
+ * never drift apart (2026-08-10: user asked whether the copy instruction is
+ * the same as Convert with AI — now it is, by construction): same JSON block
+ * shapes, same essay rule, same CORRECTIONS (suggestions) rules.
  */
-export function buildAIPrompt(doc: Document, instructions: string, goal?: string): AIPrompt {
-  const goalLine = goal?.trim() ? `GOAL: ${goal.trim()}\n\n` : "";
-  const user = `${goalLine}${serializeBlocksForAI(doc)}
-
-Convert the content above into structured document blocks following the system instructions precisely. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
+const BLOCK_FORMAT_SPEC = `Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
@@ -93,26 +91,35 @@ Convert the content above into structured document blocks following the system i
 Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one.
 CORRECTIONS: for every qa block's "question" and "modelAnswer", check spelling (accents included), grammar, and punctuation (commas, full stops, French spacing — no space before , . ; and a space before : ; ! ?). NEVER rewrite the text — keep the user's wording verbatim. When a mistake exists, add "suggestions" (one object per distinct mistake: {"kind":"spelling"|"grammar"|"punctuation","field":"question"|"modelAnswer","original":"exact text as written, accents included","suggestion":"corrected replacement","reason":"short reason"}); "original" must match the field text verbatim; omit "suggestions" when the text is correct; max 10 per block. All text you write must be typographically correct.
 Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.`;
+
+/**
+ * Build the AI prompt (FR-12, M6): system = the active instructions verbatim;
+ * user = optional GOAL line + block serialization + BLOCK_FORMAT_SPEC (the
+ * response instruction demanding EDITABLE STRUCTURED BLOCKS: a JSON array of
+ * block objects — no HTML — that lib/structuring.ts parses back).
+ */
+export function buildAIPrompt(doc: Document, instructions: string, goal?: string): AIPrompt {
+  const goalLine = goal?.trim() ? `GOAL: ${goal.trim()}\n\n` : "";
+  const user = `${goalLine}${serializeBlocksForAI(doc)}
+
+Convert the content above into structured document blocks following the system instructions precisely. ${BLOCK_FORMAT_SPEC}`;
   return { system: instructions, user };
 }
 
 /**
  * "Copy AI instructions" (2026-08-10, user request): ONE clipboard payload —
- * an instruction for any external AI (explaining the exact JSON block format
- * the app parses) followed by the document content in the type-marker
- * serialization. The user pastes this + their material into another AI; the
+ * the SAME instructions Convert with AI uses (active file, or the document's
+ * snapshot when the toggle is on — resolved server-side like a conversion)
+ * followed by the BLOCK_FORMAT_SPEC and the document content in the
+ * type-marker serialization. The user pastes this into any external AI; the
  * AI returns a JSON block array; PasteBlocksModal recognizes it without any
  * AI call in this app.
  */
-export function buildAICopyText(doc: Document): string {
-  return `You are helping prepare French practice material. Convert the content below into structured document blocks. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
-{"type":"title","text":"…"}
-{"type":"heading","text":"…","level":2}
-{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"separator"}
-Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.
+export function buildAICopyText(doc: Document, instructions: string): string {
+  const head = instructions.trim()
+    ? `${instructions.trim()}\n\nConvert the content below into structured document blocks following the instructions above. ${BLOCK_FORMAT_SPEC}`
+    : `Convert the content below into structured document blocks. ${BLOCK_FORMAT_SPEC}`;
+  return `${head}
 
 === CONTENT ===
 ${serializeBlocksForAI(doc)}`;

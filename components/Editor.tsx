@@ -802,7 +802,9 @@ function essayAnswerFromParagraphs(
       {showPasteHtml && (
         <PasteHtmlModal onClose={() => setShowPasteHtml(false)} onImported={applyImportedHtml} />
       )}
-      {showCopyDialog && <CopyDialog doc={doc} onClose={() => setShowCopyDialog(false)} />}
+      {showCopyDialog && (
+        <CopyDialog doc={doc} useSnapshot={useSnapshot} onClose={() => setShowCopyDialog(false)} />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white">

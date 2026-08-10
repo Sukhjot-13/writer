@@ -10,12 +10,29 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getStorage } from "@/lib/storage";
-import { getInstructionsState, saveInstructions, InstructionsError } from "@/lib/instructions";
+import {
+  getInstructionsState,
+  hashVersion,
+  resolveConversionInstructions,
+  saveInstructions,
+  InstructionsError,
+} from "@/lib/instructions";
 
 const payloadSchema = z.object({ content: z.string().min(1) });
 
-export async function GET() {
+export async function GET(request: Request) {
+  // 2026-08-10: Copy → "For AI" resolves instructions the SAME way a
+  // conversion does (?docId + ?useSnapshot=true, FR-23) so the copied payload
+  // and Convert with AI can never disagree on which rules apply. Without
+  // params this is the plain instructions-editor state (content + history).
+  const { searchParams } = new URL(request.url);
+  const docId = searchParams.get("docId") || undefined;
+  const useSnapshot = searchParams.get("useSnapshot") === "true";
   const storage = getStorage();
+  if (docId || useSnapshot) {
+    const content = await resolveConversionInstructions(storage, docId, useSnapshot);
+    return NextResponse.json({ content, version: hashVersion(content) });
+  }
   const state = await getInstructionsState(storage);
   return NextResponse.json(state);
 }

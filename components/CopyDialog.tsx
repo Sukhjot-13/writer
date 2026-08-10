@@ -6,8 +6,10 @@
 //      Translations and model answers are OFF by default. Q&A numbering is
 //      preserved (1., 2., …). The last-used selection is remembered.
 //   2. "For AI" — copy AI instructions (lib/prompt.ts buildAICopyText): one
-//      clipboard payload = an instruction for ANY external AI (the exact JSON
-//      block format this app parses) + the document content. The other AI
+//      clipboard payload = the SAME instructions Convert with AI uses (active
+//      file, or the document snapshot when the toggle is on — resolved like a
+//      conversion via GET /api/instructions?docId&useSnapshot) + the exact
+//      JSON block format this app parses + the document content. The other AI
 //      returns a JSON block array; PasteBlocksModal recognizes it — no AI call
 //      here.
 
@@ -156,15 +158,42 @@ export function buildCopyText(doc: Document, sel: CopySelection): string {
 
 interface CopyDialogProps {
   doc: Document;
+  useSnapshot: boolean; // FR-23: resolve instructions like Convert with AI does (2026-08-10)
   onClose: () => void;
 }
 
-export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
+export default function CopyDialog({ doc, useSnapshot, onClose }: CopyDialogProps) {
   const [tab, setTab] = useState<"share" | "ai">("share"); // 2026-08-10: two options
   const [selection, setSelection] = useState<CopySelection>(() =>
     typeof window === "undefined" ? { ...DEFAULT_SELECTION } : loadSelection(),
   );
   const [copied, setCopied] = useState(false);
+  // 2026-08-10: the "For AI" payload embeds the same instructions Convert with
+  // AI uses. null = still loading; fetch once when the dialog opens.
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const [instructionsError, setInstructionsError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (useSnapshot && doc.id) params.set("docId", doc.id);
+    if (useSnapshot) params.set("useSnapshot", "true");
+    const qs = params.toString();
+    fetch(`/api/instructions${qs ? `?${qs}` : ""}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => {
+        if (!cancelled) {
+          setInstructions(String((data as { content?: unknown }).content ?? ""));
+          setInstructionsError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInstructionsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.id, useSnapshot]);
 
   useEffect(() => {
     try {
@@ -175,7 +204,11 @@ export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
   }, [selection]);
 
   const text = useMemo(() => buildCopyText(doc, selection), [doc, selection]);
-  const aiText = useMemo(() => buildAICopyText(doc), [doc]); // 2026-08-10
+  const aiText = useMemo(() => {
+    if (instructions === null) return ""; // loading — UI shows a placeholder
+    return buildAICopyText(doc, instructions);
+  }, [doc, instructions]); // 2026-08-10: embeds the convert-time instructions
+  const aiReady = instructions !== null && !instructionsError;
   const hasQa = useMemo(() => doc.blocks.some((b) => b.type === "qa"), [doc]);
 
   function toggle(key: keyof CopySelection) {
@@ -285,13 +318,14 @@ export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
           ) : (
             <>
               <p className="mb-2 text-sm text-zinc-500">
-                One payload: an instruction for any external AI + your questions, answers and
-                paragraphs. Give the whole thing to another AI — it returns a JSON block array,
-                which you paste back via <strong>Paste blocks (AI)…</strong>. No AI call here.
+                One payload: your worksheet instructions (the same ones Convert with AI uses) +
+                the JSON block format + your questions, answers and paragraphs. Give the whole
+                thing to any external AI — it returns a JSON block array, which you paste back via{" "}
+                <strong>Paste blocks (AI)…</strong>. No AI call here.
               </p>
               <div className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                 <pre className="whitespace-pre-wrap font-mono text-[12px] leading-relaxed text-zinc-600">
-                  {aiText}
+                  {aiReady ? aiText : instructionsError ? "Couldn't load your instructions — close and try again." : "Loading instructions…"}
                 </pre>
               </div>
             </>
@@ -309,7 +343,7 @@ export default function CopyDialog({ doc, onClose }: CopyDialogProps) {
           <button
             type="button"
             onClick={() => void copy()}
-            disabled={tab === "share" && !text}
+            disabled={(tab === "share" && !text) || (tab === "ai" && !aiReady)}
             className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] transition-colors hover:bg-blue-700 disabled:opacity-40"
           >
             {copied ? "Copied ✓" : "Copy"}
