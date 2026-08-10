@@ -337,6 +337,39 @@ export default function Editor({ docId }: { docId: string | null }) {
   // ---- conversion (M6, FR-8/9/23/29): AI → editable structured blocks ----
   // One conversion replaces the document's blocks; afterwards every edit
   // re-renders locally — no repeat conversion, no HTML round-trip.
+/**
+ * 2026-08-10: when the AI groups previously-separate paragraph blocks into ONE
+ * essay, merge their practice answers in order. Only fires when every essay
+ * paragraph exactly matches a CONTIGUOUS run of the previous paragraphs' text
+ * (the AI preserves wording, so this holds for regroupings of untouched prose).
+ */
+function essayAnswerFromParagraphs(
+  prevBlocks: BlockModel[],
+  essayParagraphs: string[],
+): string | undefined {
+  const target = essayParagraphs.map((p) => p.trim());
+  const prose = prevBlocks
+    .filter((b) => b.type === "paragraph")
+    .map((b) => ({ text: b.content.text.trim(), answer: b.content.userAnswer?.trim() ?? "" }));
+  for (let i = 0; i + target.length <= prose.length; i++) {
+    let ok = true;
+    for (let j = 0; j < target.length; j++) {
+      if (prose[i + j].text !== target[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) {
+      const answers = prose
+        .slice(i, i + target.length)
+        .map((p) => p.answer)
+        .filter(Boolean);
+      return answers.length > 0 ? answers.join("\n\n") : undefined;
+    }
+  }
+  return undefined;
+}
+
   async function convert(goal: string | null) {
     const current = docRef.current;
     if (!current || busyRef.current) return;
@@ -358,24 +391,49 @@ export default function Editor({ docId }: { docId: string | null }) {
       if (!Array.isArray(body.blocks) || body.blocks.length === 0) {
         throw new Error("The AI returned no blocks — try again or check the instructions");
       }
-      // M6: practice answers + visibility choices survive conversion by matching
-      // on question text — a re-run never discards them.
-      const prevQa = new Map<string, Extract<BlockModel, { type: "qa" }>["content"]>();
+      // M6 + 2026-08-10: practice answers + visibility choices survive
+      // conversion. qa matches on question text, paragraphs on text, essays on
+      // the joined paragraphs — plus a run fallback: when the AI groups
+      // previously-separate paragraph blocks into ONE essay (the essay-type
+      // rule), their answers merge in order (user-reported: answers were lost).
+      const prev = new Map<string, { userAnswer?: string; hideTranslation?: boolean; hideModelAnswer?: boolean }>();
       for (const b of current.blocks) {
         if (b.type === "qa" && b.content.question.trim()) {
-          prevQa.set(b.content.question.trim(), b.content);
+          prev.set(`q:${b.content.question.trim()}`, b.content);
+        } else if (b.type === "paragraph" && b.content.text.trim()) {
+          prev.set(`p:${b.content.text.trim()}`, { userAnswer: b.content.userAnswer });
+        } else if (b.type === "essay") {
+          const joined = b.content.paragraphs.map((p) => p.trim()).filter(Boolean).join("\n\n");
+          if (joined) prev.set(`e:${joined}`, { userAnswer: b.content.userAnswer });
         }
       }
       const blocks = body.blocks.map((b) => {
-        if (b.type !== "qa") return b;
-        const prevContent = prevQa.get(b.content.question.trim());
-        if (!prevContent) return b;
-        return setBlockContent(b, {
-          ...b.content,
-          userAnswer: prevContent.userAnswer,
-          hideTranslation: prevContent.hideTranslation ?? false,
-          hideModelAnswer: prevContent.hideModelAnswer ?? false,
-        });
+        if (b.type === "qa") {
+          const prevContent = prev.get(`q:${b.content.question.trim()}`);
+          if (!prevContent) return b;
+          return setBlockContent(b, {
+            ...b.content,
+            userAnswer: prevContent.userAnswer,
+            hideTranslation: prevContent.hideTranslation ?? false,
+            hideModelAnswer: prevContent.hideModelAnswer ?? false,
+          });
+        }
+        if (b.type === "paragraph") {
+          const prevContent = prev.get(`p:${b.content.text.trim()}`);
+          if (!prevContent) return b;
+          return setBlockContent(b, {
+            ...b.content,
+            userAnswer: prevContent.userAnswer,
+          });
+        }
+        if (b.type === "essay") {
+          const joined = b.content.paragraphs.map((p) => p.trim()).filter(Boolean).join("\n\n");
+          const matched = prev.get(`e:${joined}`);
+          const answer = matched?.userAnswer ?? essayAnswerFromParagraphs(current.blocks, b.content.paragraphs);
+          if (answer == null) return b;
+          return setBlockContent(b, { ...b.content, userAnswer: answer });
+        }
+        return b;
       });
       setDoc((prev) => (prev ? { ...prev, blocks, updatedAt: new Date().toISOString() } : prev));
       if (body.instructionsVersion) {
