@@ -38,7 +38,8 @@ type QaField =
   | "answerTranslation"
   | "analysis"
   | "vocab"
-  | "expressions";
+  | "expressions"
+  | "synonyms"; // 2026-08-10: richer synonyms for vocab growth
 
 // Display order (2026-08-10, user request): question → translation → analysis →
 // answer → answer translation → grammar note → vocab → expressions.
@@ -51,6 +52,7 @@ const OPTIONAL_FIELDS: { key: QaField; label: string }[] = [
   { key: "grammarNote", label: "Grammar note" },
   { key: "vocab", label: "Vocabulary" },
   { key: "expressions", label: "Expressions" },
+  { key: "synonyms", label: "Synonyms" }, // 2026-08-10: richer words for the same meaning
 ];
 
 /** Which optional fields currently have content (auto-reveal on load). */
@@ -62,6 +64,7 @@ function usedFields(c: QaContent): Set<QaField> {
   if (c.analysis) used.add("analysis");
   if (c.vocab?.length) used.add("vocab");
   if (c.expressions?.length) used.add("expressions");
+  if (c.synonyms?.length) used.add("synonyms");
   return used;
 }
 
@@ -159,6 +162,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
     const next = { ...content };
     if (key === "vocab") next.vocab = undefined;
     else if (key === "expressions") next.expressions = undefined;
+    else if (key === "synonyms") next.synonyms = undefined;
     else (next as Record<string, unknown>)[key] = undefined;
     onUpdate(next);
   };
@@ -182,9 +186,22 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
         </div>
 
         <div>
-          <label className={labelCls}>My answer</label>
+          <label className={labelCls}>
+            My answer
+            {/* 2026-08-10 (user: "the questions which are not answered are
+                not easy to spot in light mode"): a quiet amber hint — the
+                box itself gets the amber dashed border + tint below, and this
+                small label marks it "unanswered". Nothing loud. */}
+            {!content.userAnswer && (
+              <span className="text-amber-600">Unanswered</span>
+            )}
+          </label>
           <AutoGrowTextarea
-            className={`${inputCls} border-dashed border-blue-200`}
+            className={`${inputCls} border-dashed ${
+              content.userAnswer
+                ? "border-blue-200"
+                : "border-amber-300 bg-amber-50/40"
+            }`}
             rows={3}
             value={content.userAnswer ?? ""}
             placeholder="Write your own answer…"
@@ -433,6 +450,32 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             rows={content.expressions ?? []}
             onRows={(rows) => set("expressions", rows)}
             placeholderTerm="expression"
+            placeholderDef="meaning"
+            termCls="font-semibold text-green-700"
+          />
+        </div>
+      )}
+
+      {/* 2026-08-10 (user: "add a field for synonyms recommendation so that it
+          will help in enhancing my vocab"): richer words for the same meaning —
+          the AI recommends them per block; rows are term|meaning like vocab. */}
+      {is("synonyms") && (
+        <div>
+          <div className={labelCls}>
+            <span>Synonyms</span>
+            <button
+              type="button"
+              onClick={() => hideField("synonyms")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove list"
+            >
+              ✕
+            </button>
+          </div>
+          <RowEditor
+            rows={content.synonyms ?? []}
+            onRows={(rows) => set("synonyms", rows)}
+            placeholderTerm="synonym"
             placeholderDef="meaning"
             termCls="font-semibold text-green-700"
           />

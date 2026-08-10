@@ -27,6 +27,7 @@ doc.blocks = [
     analysis: "Se lever — reflexive.",
     vocab: [{ term: "se lever", def: "to get up" }],
     expressions: [{ term: "tôt", def: "early" }],
+    synonyms: [{ term: "se réveiller", def: "to wake up" }, { term: "de bonne heure", def: "early in the day" }], // 2026-08-10
     userAnswer: "Je me lève à sept heures.",
   }),
   setBlockContent(createBlock("essay"), {
@@ -61,6 +62,11 @@ check("ai-copy: document content follows (marker serialization)",
   ai.endsWith(serializeBlocksForAI(doc)) && ai.includes("Qu'est-ce que tu as fait hier ?"));
 check("ai-copy: never includes practice answers (private)", !ai.includes("J'ai regardé la télé"));
 
+// ---------- synonyms (2026-08-10): qa marker round-trips + template prints a
+// "Synonymes" column (the template checks need `html` — defined below) ----------
+check("synonyms: qa marker serialized (term|def list)",
+  ai.includes("SYNONYMS: se réveiller|to wake up; de bonne heure|early in the day"));
+
 // ---------- essay heading (2026-08-10 #5): optional title round-trips ----------
 const marker = serializeBlocksForAI(doc);
 check("essay-heading: <HEADING> marker inside <ESSAY>",
@@ -69,6 +75,10 @@ check("essay-heading: <HEADING> marker inside <ESSAY>",
 // ---------- generateTemplateHTML — qa field order (question → translation →
 // analysis → answer) and preview hidden toggles ----------
 const html = generateTemplateHTML(doc, tokens, { printMode: true });
+check("synonyms: template renders the Synonymes column",
+  html.includes("<div class=\"qa-vocab-header\">Synonymes</div>") && html.includes("se réveiller"));
+check("synonyms: grid is multi-column when synonyms join vocab/expressions",
+  html.includes("qa-vocab-grid two-col"));
 check("essay-heading: template renders the heading above the passage",
   html.indexOf("Ma ville") !== -1 && html.indexOf("<h3 class=\"block-essay-heading\">Ma ville</h3>") !== -1);
 const qaIdx = html.indexOf("Qu&#39;est-ce que tu as fait hier ?"); // escaped apostrophe

@@ -18,6 +18,7 @@ ENRICHMENT (all text, French → English)
 - Every "qa" block: "questionTranslation" (English translation of the question) and, when a model answer exists, "answerTranslation". Add "grammarNote" (one short, relevant grammar point), "analysis" (a concise linguistic breakdown), and "vocab"/"expressions" only for words or expressions clearly worth learning — never invent vocabulary.
 - Every "paragraph" block: "translation" (English), "analysis" (short explanation of the paragraph's key point or grammar), and "vocab"/"expressions" when clearly present.
 - Every "essay" block: ONE "translation" (English translation of the whole passage), ONE "analysis", and ONE "vocab"/"expressions" set covering the whole essay — never a separate set per paragraph.
+- "synonyms" (vocab growth, 2026-08-10): when a qa/paragraph/essay uses a basic everyday word worth enriching, add 2–3 REAL French synonyms that fit the context (term = the synonym, def = its English meaning). Never invent a word; never suggest a synonym that changes the meaning; omit "synonyms" entirely when nothing worth enriching is present.
 - "responseLabel" is always "RÉPONSE".
 - Omit any optional field you cannot fill with confidence.
 - TYPOGRAPHY RULE: every text you WRITE (translations, grammar notes, analysis, vocabulary definitions, suggestion reasons) must be typographically correct — accents (é è ê ë à â ç î ï ô ù û), commas, full stops, and French spacing (no space before "," "." ";"; a space before ":" ";" "!" "?"). Never write an accentless word when the accented form exists.
@@ -36,9 +37,9 @@ INPUT FLAGS
 OUTPUT SHAPES (JSON array, in document order — the only shapes allowed)
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
-{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
+{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}]}
+{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}]}
+{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
 {"type":"separator"}
 
 NEVER

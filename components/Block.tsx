@@ -51,7 +51,9 @@ function PracticeParagraphCard({
         className={`block w-full rounded-md border px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm ${
           checked
             ? "border-emerald-400 bg-emerald-50/40"
-            : "border-dashed border-blue-200 bg-transparent"
+            : content.userAnswer
+              ? "border-dashed border-blue-200 bg-transparent"
+              : "border-dashed border-amber-300 bg-amber-50/40"
         }`}
       />
     </div>
@@ -93,7 +95,9 @@ function PracticeEssayCard({
         className={`block w-full rounded-md border px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm ${
           checked
             ? "border-emerald-400 bg-emerald-50/40"
-            : "border-dashed border-blue-200 bg-transparent"
+            : content.userAnswer
+              ? "border-dashed border-blue-200 bg-transparent"
+              : "border-dashed border-amber-300 bg-amber-50/40"
         }`}
       />
     </div>

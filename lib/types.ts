@@ -32,6 +32,7 @@ export interface QaContent {
   analysis?: string; // "Analyse : …" block
   vocab?: { term: string; def: string }[]; // → vocabulary column
   expressions?: { term: string; def: string }[]; // → expressions column
+  synonyms?: { term: string; def: string }[]; // → synonyms column (2026-08-10: vocab growth)
   hideTranslation?: boolean; // per-question: omit English translation in output (FR-34)
   hideModelAnswer?: boolean; // per-question: omit model answer in output (FR-34)
   suggestions?: Suggestion[]; // AI-reported corrections — user applies or dismisses (2026-08-10)
@@ -45,6 +46,7 @@ export interface ParagraphContent {
   analysis?: string; // short explanation (AI enrichment)
   vocab?: { term: string; def: string }[]; // vocabulary found in the text
   expressions?: { term: string; def: string }[]; // expressions found in the text
+  synonyms?: { term: string; def: string }[]; // richer synonyms for the vocab (2026-08-10)
   userAnswer?: string; // practice answer written by the user (M6, FR-33 parity with qa)
 }
 
@@ -66,6 +68,7 @@ export interface EssayContent {
   analysis?: string; // ONE short explanation of the essay (AI)
   vocab?: { term: string; def: string }[]; // vocabulary found in the essay (AI)
   expressions?: { term: string; def: string }[]; // expressions found in the essay (AI)
+  synonyms?: { term: string; def: string }[]; // richer synonyms for the vocab (2026-08-10)
   userAnswer?: string; // practice: ONE answer field for the whole essay
 }
 

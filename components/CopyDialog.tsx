@@ -139,6 +139,8 @@ export function buildCopyText(doc: Document, sel: CopySelection): string {
           if (vocab) blockLines.push(`  Vocabulaire : ${vocab}`);
           const expressions = joinVocab(c.expressions);
           if (expressions) blockLines.push(`  Expressions : ${expressions}`);
+          const synonyms = joinVocab(c.synonyms); // 2026-08-10
+          if (synonyms) blockLines.push(`  Synonymes : ${synonyms}`);
         }
         if (blockLines.length > 0) {
           lines.push(`${qaNumber}. ${blockLines[0].trimStart()}`); // first line on the number, rest indented

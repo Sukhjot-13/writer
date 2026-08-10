@@ -30,6 +30,7 @@ import {
 
 import Toolbar from "./Toolbar";
 import FloatingDetailedToggle from "./FloatingDetailedToggle";
+import FloatingThemeToggle from "./FloatingThemeToggle"; // 2026-08-10: floating 🌙/☀️ top-right
 import BlockList from "./BlockList";
 import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
@@ -845,6 +846,12 @@ function essayAnswerFromParagraphs(
         onToggleDetailed={toggleDetailed}
         containerRef={scrollRef}
       />
+
+      {/* 2026-08-10 (user: "add a floating button for dark and light mode too
+          ....top right"): the navbar's theme toggle scrolls away with the
+          toolbar — this fixed top-right copy appears once it is out of view
+          and stays in sync with the navbar toggle (shared .dark class). */}
+      <FloatingThemeToggle containerRef={scrollRef} />
 
       {previewOpen && (
         <PreviewSheet

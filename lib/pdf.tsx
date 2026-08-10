@@ -123,10 +123,12 @@ function VocabGridPDF({
   tokens,
   vocab,
   expressions,
+  synonyms, // 2026-08-10: third column — richer words for vocab growth
 }: {
   tokens: DesignTokens;
   vocab?: { term: string; def: string }[];
   expressions?: { term: string; def: string }[];
+  synonyms?: { term: string; def: string }[];
 }) {
   const t = tokens;
   const basePt = lengthToPt(t.sizes.base);
@@ -174,11 +176,13 @@ function VocabGridPDF({
 
   const vocabCol = col("Vocabulaire Clé", vocab ?? []);
   const exprCol = col("Expressions Avancées", expressions ?? [], Boolean(vocabCol));
-  if (!vocabCol && !exprCol) return null;
+  const synCol = col("Synonymes", synonyms ?? [], Boolean(vocabCol) || Boolean(exprCol));
+  if (!vocabCol && !exprCol && !synCol) return null;
   return (
     <View style={styles.grid}>
       {vocabCol}
       {exprCol}
+      {synCol}
     </View>
   );
 }
@@ -329,7 +333,7 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
       ) : null}
 
       {showExtras && !hidden?.vocab ? (
-        <VocabGridPDF tokens={tokens} vocab={content.vocab} expressions={content.expressions} />
+        <VocabGridPDF tokens={tokens} vocab={content.vocab} expressions={content.expressions} synonyms={content.synonyms} />
       ) : null}
     </View>
   );
@@ -417,7 +421,7 @@ function BlockToPDF({
             </Text>
           ) : null}
           {variant === "full" && !hidden?.vocab ? (
-            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} synonyms={c.synonyms} />
           ) : null}
         </View>
       );
@@ -461,7 +465,7 @@ function BlockToPDF({
             </Text>
           ) : null}
           {variant === "full" && !hidden?.vocab ? (
-            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} synonyms={c.synonyms} />
           ) : null}
         </View>
       );

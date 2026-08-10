@@ -26,6 +26,7 @@ function serializeQa(c: QaContent): string {
   if (c.analysis) lines.push(`ANALYSIS: ${c.analysis}`);
   if (c.vocab?.length) lines.push(`VOCAB: ${c.vocab.map((v) => `${v.term}|${v.def}`).join("; ")}`);
   if (c.expressions?.length) lines.push(`EXPRESSIONS: ${c.expressions.map((v) => `${v.term}|${v.def}`).join("; ")}`);
+  if (c.synonyms?.length) lines.push(`SYNONYMS: ${c.synonyms.map((v) => `${v.term}|${v.def}`).join("; ")}`); // 2026-08-10
   lines.push(`HIDE_TRANSLATION: ${Boolean(c.hideTranslation)}`);
   lines.push(`HIDE_MODEL_ANSWER: ${Boolean(c.hideModelAnswer)}`);
   return lines.join("\n");
@@ -84,12 +85,13 @@ export interface AIPrompt {
 const BLOCK_FORMAT_SPEC = `Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
-{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
+{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}]}
+{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}]}
+{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"synonyms":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
 {"type":"separator"}
 Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one.
 CORRECTIONS: for every qa block's "question" and "modelAnswer", check spelling (accents included), grammar, and punctuation (commas, full stops, French spacing — no space before , . ; and a space before : ; ! ?). NEVER rewrite the text — keep the user's wording verbatim. When a mistake exists, add "suggestions" (one object per distinct mistake: {"kind":"spelling"|"grammar"|"punctuation","field":"question"|"modelAnswer","original":"exact text as written, accents included","suggestion":"corrected replacement","reason":"short reason"}); "original" must match the field text verbatim; omit "suggestions" when the text is correct; max 10 per block. All text you write must be typographically correct.
+SYNONYMS (2026-08-10, vocab growth): when the passage uses a basic/everyday word worth enriching, add 2–3 REAL French synonyms to "synonyms" (term = the synonym, def = its English meaning) that fit the context — never invent a word, never recommend a synonym that changes the meaning. Omit "synonyms" entirely when nothing worth enriching is present.
 Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.`;
 
 /**

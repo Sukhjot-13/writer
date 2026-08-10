@@ -127,11 +127,17 @@ code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px
 }
 
 /**
- * Render the vocabulary/expressions grid. `.two-col` when both lists exist,
- * `.one-col` when only one — per the instructions' critical rules.
+ * Render the vocabulary/expressions/synonyms grid (2026-08-10: synonyms
+ * column added). `.two-col` when more than one list exists, `.one-col` when
+ * only one — per the instructions' critical rules.
  */
-function vocabGridHtml(vocab: { term: string; def: string }[] | undefined, expressions: { term: string; def: string }[] | undefined): string {
-  const colClass = vocab && expressions ? "two-col" : "one-col";
+function vocabGridHtml(
+  vocab: { term: string; def: string }[] | undefined,
+  expressions: { term: string; def: string }[] | undefined,
+  synonyms: { term: string; def: string }[] | undefined,
+): string {
+  const colCount = [vocab, expressions, synonyms].filter((l) => l?.length).length;
+  const colClass = colCount > 1 ? "two-col" : "one-col";
 
   const col = (title: string, rows: { term: string; def: string }[], rowClass: string, termClass: string) => `
       <div class="qa-vocab-col">
@@ -147,6 +153,7 @@ function vocabGridHtml(vocab: { term: string; def: string }[] | undefined, expre
   const parts: string[] = [];
   if (vocab?.length) parts.push(col("Vocabulaire Clé", vocab, "qa-vocab-row", "qa-vocab-term"));
   if (expressions?.length) parts.push(col("Expressions Avancées", expressions, "qa-expr-row", "qa-expr-term"));
+  if (synonyms?.length) parts.push(col("Synonymes", synonyms, "qa-vocab-row", "qa-vocab-term"));
   if (parts.length === 0) return "";
   return `<div class="qa-vocab-grid ${colClass}">${parts.join("")}</div>`;
 }
@@ -213,7 +220,7 @@ function qaBlockHtml(
   // 2026-08-10 #5: the response label ("RÉPONSE") moved ABOVE the answer — it
   // labels the answer area, so it sits between the analysis and the answer
   // (user: "reponse text is shown below the answer why?").
-  const grid = hidden.vocab ? "" : vocabGridHtml(content.vocab, content.expressions);
+  const grid = hidden.vocab ? "" : vocabGridHtml(content.vocab, content.expressions, content.synonyms);
 
   // The question row is a flex row (badge + body); the body is a column so the
   // translation drops BELOW the question (2026-08-10 M7 round 5).
@@ -262,7 +269,7 @@ function blockToHtml(
       const analysis = !hidden.analyses && c.analysis
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
-      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
+      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions, c.synonyms);
       return `<p class="${wrapper}">${text}</p>${userAnswer}${blank}${translation}${analysis}${grid}`;
     }
     case "essay": {
@@ -286,7 +293,7 @@ function blockToHtml(
       const analysis = !hidden.analyses && c.analysis
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
-      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
+      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions, c.synonyms);
       return `<div class="${wrapper}">${heading}${paragraphs}${userAnswer}${blank}${translation}${analysis}${grid}</div>`;
     }
     case "separator":

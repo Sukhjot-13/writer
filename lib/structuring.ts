@@ -49,6 +49,7 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
       analysis: z.string().optional(),
       vocab: z.array(vocabItemSchema).optional(),
       expressions: z.array(vocabItemSchema).optional(),
+      synonyms: z.array(vocabItemSchema).optional(), // 2026-08-10
     })
     .loose(),
   // Essay (design pass 2026-08-10): 1..n paragraphs of ONE continuous text,
@@ -63,6 +64,7 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
       analysis: z.string().optional(),
       vocab: z.array(vocabItemSchema).optional(),
       expressions: z.array(vocabItemSchema).optional(),
+      synonyms: z.array(vocabItemSchema).optional(), // 2026-08-10
     })
     .loose(),
   z
@@ -77,6 +79,7 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
       analysis: z.string().optional(),
       vocab: z.array(vocabItemSchema).optional(),
       expressions: z.array(vocabItemSchema).optional(),
+      synonyms: z.array(vocabItemSchema).optional(), // 2026-08-10
       // 2026-08-10: AI-reported corrections. .catch([]) keeps the whole qa
       // block alive when ONE suggestion object is malformed (the module's
       // drop-tolerant philosophy — a single bad entry never kills a block).
@@ -152,6 +155,7 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
               analysis: opt(d.analysis),
               vocab: optList(d.vocab),
               expressions: optList(d.expressions),
+              synonyms: optList(d.synonyms),
             }),
           );
         }
@@ -168,6 +172,7 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
               analysis: opt(d.analysis),
               vocab: optList(d.vocab),
               expressions: optList(d.expressions),
+              synonyms: optList(d.synonyms),
             }),
           );
         }
@@ -186,6 +191,7 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
               analysis: opt(d.analysis),
               vocab: optList(d.vocab),
               expressions: optList(d.expressions),
+              synonyms: optList(d.synonyms),
               suggestions: optSuggestions(d.suggestions),
               hideTranslation: false,
               hideModelAnswer: false,

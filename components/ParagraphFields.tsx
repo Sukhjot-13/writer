@@ -14,13 +14,14 @@ import type { EssayContent, ParagraphContent } from "@/lib/types";
 import { inputCls, labelCls, RowEditor } from "./RowEditor";
 import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow
 
-type ParagraphField = "translation" | "analysis" | "vocab" | "expressions";
+type ParagraphField = "translation" | "analysis" | "vocab" | "expressions" | "synonyms";
 
 const FIELDS: { key: ParagraphField; label: string }[] = [
   { key: "translation", label: "Translation" },
   { key: "analysis", label: "Analysis" },
   { key: "vocab", label: "Vocabulary" },
   { key: "expressions", label: "Expressions" },
+  { key: "synonyms", label: "Synonyms" }, // 2026-08-10: richer words for the same meaning
 ];
 
 /** Which optional fields currently have content (auto-reveal on load). */
@@ -30,6 +31,7 @@ function usedFields(c: ParagraphContent | EssayContent): Set<ParagraphField> {
   if (c.analysis) used.add("analysis");
   if (c.vocab?.length) used.add("vocab");
   if (c.expressions?.length) used.add("expressions");
+  if (c.synonyms?.length) used.add("synonyms");
   return used;
 }
 
@@ -58,6 +60,7 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
     const next = { ...content };
     if (key === "vocab") next.vocab = undefined;
     else if (key === "expressions") next.expressions = undefined;
+    else if (key === "synonyms") next.synonyms = undefined;
     else (next as Record<string, unknown>)[key] = undefined;
     onUpdate(next);
   };
@@ -172,6 +175,32 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
             rows={content.expressions ?? []}
             onRows={(rows) => set("expressions", rows)}
             placeholderTerm="expression"
+            placeholderDef="meaning"
+            termCls="font-semibold text-green-700"
+          />
+        </div>
+      )}
+
+      {/* 2026-08-10 (user: "add a field for synonyms recommendation so that it
+          will help in enhancing my vocab"): richer words for the same meaning —
+          the AI recommends them per block; rows are term|meaning like vocab. */}
+      {is("synonyms") && (
+        <div>
+          <div className={labelCls}>
+            <span>Synonyms</span>
+            <button
+              type="button"
+              onClick={() => hideField("synonyms")}
+              className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500"
+              title="Remove list"
+            >
+              ✕
+            </button>
+          </div>
+          <RowEditor
+            rows={content.synonyms ?? []}
+            onRows={(rows) => set("synonyms", rows)}
+            placeholderTerm="synonym"
             placeholderDef="meaning"
             termCls="font-semibold text-green-700"
           />
