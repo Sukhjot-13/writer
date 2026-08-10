@@ -60,9 +60,10 @@ All .qa-block and .card elements use break-inside: avoid in print CSS so they ne
 TYPOGRAPHY & ELEMENTS
 (use as needed, NOT as a template)
 Headings: bold, #1e3a5f. Section titles can have a 3px bottom border in #1e3a5f if it suits the content.
-Small labels: uppercase, accent colour, letter-spacing 1.5px, font-size 0.8–0.9rem.
+Paragraph / essay prose: 1.15em — the passage is the reading material and leads the page. The English translation of a passage stays 0.9em, clearly secondary (practice is for the primary language).
+Small labels: uppercase, accent colour, letter-spacing 1.5px, font-size 0.8–0.9em (relative to the base font — secondary text must stay SMALLER than the prose).
 Inline code: background #fdfcf9, padding 2px 5px, border-radius 2px, Courier New monospace.
-Tags: inline-block, background #e8f0e9, padding 2px 7px, border-radius 3px, bold, 0.78rem.
+Tags: inline-block, background #e8f0e9, padding 2px 7px, border-radius 3px, bold, 0.78em.
 
 REUSABLE COMPONENTS — GENERAL
 (use only when the content naturally suggests them)
@@ -78,16 +79,16 @@ Parts of a .qa-block
 1. Question row (.qa-question) — a flex row with:
 .qa-num: circular dark-blue badge, 24px diameter, background #1e3a5f, white text, question number
 .qa-question-text: bold primary-language question + <em> italic translation, both in #1e3a5f
-2. Grammar note (.qa-grammar-note) — small italic line, indented past the badge, color #555, 0.82rem. Omit if no grammar note is provided.
-3. Response label (.qa-response-label) — e.g. "RÉPONSE", uppercase, accent green #2c5f2d, letter-spacing 1.5px, 0.78rem.
+2. Grammar note (.qa-grammar-note) — small italic line, indented past the badge, color #555, 0.82em. Omit if no grammar note is provided.
+3. Response label (.qa-response-label) — e.g. "RÉPONSE", uppercase, accent green #2c5f2d, letter-spacing 1.5px, 0.78em.
 4. Answer box (.qa-answer) — background #fdfcf9, left border 3px solid #2c5f2d, padding 8px 12px. Contains the answer sentence in the primary language.
-5. Translation (.qa-translation) — italic, color #444, 0.9rem. The English (or target-language) translation of the answer.
-6. Analysis (.qa-analyse) — 0.88rem, color #333. Starts with bold "Analyse :" label. Linguistic or grammatical breakdown of the answer.
+5. Translation (.qa-translation) — italic, color #444, 0.9em. The English (or target-language) translation of the answer.
+6. Analysis (.qa-analyse) — 0.88em, color #333. Starts with bold "Analyse :" label. Linguistic or grammatical breakdown of the answer.
 7. Vocabulary grid (.qa-vocab-grid) — bordered, rounded table below the analysis. Two variants:
 .two-col — when both a vocabulary column and an expressions column are present
 .one-col — when only one column is needed
 Grid structure:
-.qa-vocab-header — column header cell, bg #f7f9fb, uppercase, #1e3a5f, 0.78rem, bold. Right column header has a left border.
+.qa-vocab-header — column header cell, bg #f7f9fb, uppercase, #1e3a5f, 0.78em, bold. Right column header has a left border.
 .qa-vocab-col — column body, background #eef2f7 (light blue-grey tint, same for both columns). Right column has a left border.
 .qa-vocab-row — single vocab entry: .qa-vocab-term (bold, #2c5f2d) + .qa-vocab-def. Row separators use border-top #d8dfe8.
 .qa-expr-row — single expression entry: .qa-expr-term (bold, #2c5f2d) + definition. Row separators use border-top #d8dfe8.
@@ -124,7 +125,7 @@ fonts:
 sizes:
   base: "11.5px"
   print: "10.5px"
-  small: "0.8rem"
+  small: "0.8em"
 spacing:
   pageMargin: "18mm"
   printMargin: "14mm"

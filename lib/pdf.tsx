@@ -322,7 +322,10 @@ function BlockToPDF({
     h1: { fontSize: basePt * 1.9, fontWeight: "bold", color: t.colors.heading, marginBottom: 10 },
     h2: { fontSize: basePt * 1.45, fontWeight: "bold", color: t.colors.heading, marginTop: 10, marginBottom: 6 },
     h3: { fontSize: basePt * 1.2, fontWeight: "bold", color: t.colors.heading, marginTop: 8, marginBottom: 4 },
-    p: { fontSize: basePt, marginBottom: 8 },
+    // 2026-08-10 #3: prose is the FRENCH reading material — paragraphs/essays
+    // lead at 1.15× base (mirrors p.block-paragraph in the HTML template);
+    // translations/analysis stay at 0.88–0.9× base, clearly secondary.
+    p: { fontSize: basePt * 1.15, marginBottom: 8 },
     pTranslation: { fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.8, marginBottom: 8 },
     pAnalysis: { fontSize: basePt * 0.88, opacity: 0.9, marginBottom: 8 },
     userAnswer: {

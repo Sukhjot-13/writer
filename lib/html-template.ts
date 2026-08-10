@@ -71,34 +71,39 @@ ${paperRules}
 h1.block-title { color: ${t.colors.heading}; font-size: 1.9em; margin: 0 0 0.4em; }
 h2.block-heading { color: ${t.colors.heading}; font-size: 1.45em; border-bottom: 3px solid ${t.colors.heading}; padding-bottom: 4px; margin: 1em 0 0.5em; }
 h3.block-heading { color: ${t.colors.heading}; font-size: 1.2em; margin: 0.9em 0 0.4em; }
-p.block-paragraph { margin: 0 0 0.9em; }
+/* 2026-08-10 #3 (user feedback): prose is the FRENCH reading material — it
+   leads at 1.15em (bigger than the base); all secondary text (translations,
+   notes, labels) is sized in em relative to the base so it stays SMALLER than
+   the French. (Was rem — relative to the 16px root, which made English
+   translations bigger than French paragraphs. Fixed.) */
+p.block-paragraph { font-size: 1.15em; margin: 0 0 0.9em; }
 /* Essay (2026-08-10): one continuous passage — paragraphs render as
    .block-paragraph inside a .block-essay wrapper, sharing ONE enrichment set. */
 .block-essay { margin: 0 0 0.9em; }
-p.p-translation { font-style: italic; font-size: 0.9rem; color: ${t.colors.mainText}; opacity: 0.8; margin: -0.5em 0 0.5em; }
-.p-analyse { font-size: 0.88rem; color: ${t.colors.mainText}; opacity: 0.9; margin: 0 0 0.5em; }
+p.p-translation { font-style: italic; font-size: 0.9em; color: ${t.colors.mainText}; opacity: 0.8; margin: -0.5em 0 0.5em; }
+.p-analyse { font-size: 0.88em; color: ${t.colors.mainText}; opacity: 0.9; margin: 0 0 0.5em; }
 .p-analyse strong { color: ${t.colors.mainText}; opacity: 1; }
 hr.block-separator { border: none; border-top: 1px solid ${t.colors.border}; margin: 1.4em 0; }
 code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px; font-family: ${t.fonts.mono}; }
 /* ---- Q&A blocks (instructions: "REUSABLE COMPONENTS — Q&A BLOCKS") ---- */
 .qa-block { border: 1px solid ${t.colors.border}; border-radius: ${t.radius.card}; padding: ${t.spacing.cardPadding}; margin: 0 0 1em; background: #fff; }
 .qa-question { display: flex; align-items: flex-start; gap: 10px; }
-.qa-num { flex: none; width: 24px; height: 24px; border-radius: ${t.radius.badge}; background: ${t.colors.badgeBg}; color: ${t.colors.badgeText}; font-weight: bold; text-align: center; line-height: 24px; font-size: 0.8rem; }
+.qa-num { flex: none; width: 24px; height: 24px; border-radius: ${t.radius.badge}; background: ${t.colors.badgeBg}; color: ${t.colors.badgeText}; font-weight: bold; text-align: center; line-height: 24px; font-size: 0.8em; }
 .qa-question-text { margin: 0; font-weight: bold; color: ${t.colors.heading}; }
 .qa-question-text em { font-weight: normal; font-size: 0.9em; opacity: 0.85; }
-.qa-grammar-note { margin: 4px 0 0 34px; font-style: italic; font-size: 0.82rem; color: ${t.colors.mainText}; opacity: 0.75; }
-.qa-response-label { margin: 10px 0 4px; text-transform: uppercase; color: ${t.colors.accentGreen}; letter-spacing: 1.5px; font-size: 0.78rem; font-weight: bold; }
+.qa-grammar-note { margin: 4px 0 0 34px; font-style: italic; font-size: 0.82em; color: ${t.colors.mainText}; opacity: 0.75; }
+.qa-response-label { margin: 10px 0 4px; text-transform: uppercase; color: ${t.colors.accentGreen}; letter-spacing: 1.5px; font-size: 0.78em; font-weight: bold; }
 .qa-answer, .qa-user-answer { background: ${t.colors.highlightBg}; padding: ${t.spacing.answerPadding}; margin-top: 6px; }
 .qa-answer { border-left: 3px solid ${t.colors.accentGreen}; }
 .qa-user-answer { border-left: 3px dashed ${t.colors.accentGreen}; }
-.qa-translation { margin-top: 6px; font-style: italic; font-size: 0.9rem; color: ${t.colors.mainText}; opacity: 0.8; }
-.qa-analyse { margin-top: 6px; font-size: 0.88rem; color: ${t.colors.mainText}; opacity: 0.9; }
+.qa-translation { margin-top: 6px; font-style: italic; font-size: 0.9em; color: ${t.colors.mainText}; opacity: 0.8; }
+.qa-analyse { margin-top: 6px; font-size: 0.88em; color: ${t.colors.mainText}; opacity: 0.9; }
 .qa-analyse strong { color: ${t.colors.mainText}; opacity: 1; }
 .qa-vocab-grid { margin-top: 10px; display: flex; border: 1px solid ${t.colors.border}; border-radius: 4px; overflow: hidden; }
 .qa-vocab-grid.one-col { flex-direction: column; }
 .qa-vocab-col { flex: 1; min-width: 0; }
 .qa-vocab-col + .qa-vocab-col { border-left: 1px solid ${t.colors.border}; }
-.qa-vocab-header { background: ${t.colors.lightBg}; text-transform: uppercase; color: ${t.colors.heading}; font-size: 0.78rem; font-weight: bold; padding: 5px 10px; }
+.qa-vocab-header { background: ${t.colors.lightBg}; text-transform: uppercase; color: ${t.colors.heading}; font-size: 0.78em; font-weight: bold; padding: 5px 10px; }
 .qa-vocab-body { background: ${t.colors.vocabBg}; padding: 0; }
 .qa-vocab-row, .qa-expr-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 10px; }
 .qa-vocab-row + .qa-vocab-row, .qa-expr-row + .qa-expr-row, .qa-vocab-row + .qa-expr-row, .qa-expr-row + .qa-vocab-row { border-top: 1px solid ${t.colors.rowBorder}; }

@@ -67,7 +67,7 @@ export const DEFAULT_TOKENS: DesignTokens = {
   sizes: {
     base: "11.5px",
     print: "10.5px",
-    small: "0.8rem",
+    small: "0.8em",
   },
   spacing: {
     pageMargin: "18mm",
