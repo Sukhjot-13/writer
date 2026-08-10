@@ -293,6 +293,8 @@ export default function Editor({ docId }: { docId: string | null }) {
   }, []);
 
   // ---- global visibility (FR-35): write per-question flags + document defaults ----
+  // The View dropdown items call this; a status message makes the effect visible
+  // (the flags only change what the PDF/preview/HTML omit, not the editor view).
   const setAllQaFlags = useCallback(
     (key: "hideTranslation" | "hideModelAnswer", value: boolean) => {
       mutateDoc((d) => ({
@@ -305,6 +307,15 @@ export default function Editor({ docId }: { docId: string | null }) {
           b.type === "qa" ? setBlockContent(b, { ...b.content, [key]: value }) : b,
         ),
       }));
+      setStatus(
+        key === "hideTranslation"
+          ? value
+            ? "All question translations hidden — PDF and preview will omit them"
+            : "All question translations visible again"
+          : value
+            ? "All model answers hidden — PDF and preview will omit them"
+            : "All model answers visible again",
+      );
     },
     [],
   );

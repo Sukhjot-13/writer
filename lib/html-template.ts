@@ -43,8 +43,20 @@ export function renderInlineMarkdown(text: string): string {
     .replace(/(^|[\s>])\*([^*\n]+)\*/g, "$1<em>$2</em>");
 }
 
-function buildCss(tokens: DesignTokens): string {
+function buildCss(tokens: DesignTokens, paper = false): string {
   const t = tokens;
+  // Paper mode (preview): the print rules apply on screen — the document is
+  // shown as an A4 sheet with the print font size and print margins, so the
+  // preview matches the PDF exactly. The backdrop stays transparent so the
+  // preview sheet's own background shows around the paper.
+  const paperRules = paper
+    ? `
+body { font-size: ${t.sizes.print}; }
+.document { max-width: 210mm; margin: 0 auto; padding: ${t.spacing.printMargin}; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
+@media print {
+  .document { margin: 0; padding: 0; box-shadow: none; }
+}`
+    : "";
   return `
 @page { size: A4; margin: ${t.spacing.printMargin}; }
 * { box-sizing: border-box; }
@@ -55,6 +67,7 @@ body { font-family: ${t.fonts.base}; font-size: ${t.sizes.base}; color: ${t.colo
   body { font-size: ${t.sizes.print}; }
   .qa-block, .card { break-inside: avoid; }
 }
+${paperRules}
 h1.block-title { color: ${t.colors.heading}; font-size: 1.9em; margin: 0 0 0.4em; }
 h2.block-heading { color: ${t.colors.heading}; font-size: 1.45em; border-bottom: 3px solid ${t.colors.heading}; padding-bottom: 4px; margin: 1em 0 0.5em; }
 h3.block-heading { color: ${t.colors.heading}; font-size: 1.2em; margin: 0.9em 0 0.4em; }
@@ -83,9 +96,9 @@ code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px
 .qa-vocab-col { flex: 1; min-width: 0; }
 .qa-vocab-col + .qa-vocab-col { border-left: 1px solid ${t.colors.border}; }
 .qa-vocab-header { background: ${t.colors.lightBg}; text-transform: uppercase; color: ${t.colors.heading}; font-size: 0.78rem; font-weight: bold; padding: 5px 10px; }
-.qa-vocab-body { background: ${t.colors.tableStripe}; padding: 0; }
+.qa-vocab-body { background: ${t.colors.vocabBg}; padding: 0; }
 .qa-vocab-row, .qa-expr-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 10px; }
-.qa-vocab-row + .qa-vocab-row, .qa-expr-row + .qa-expr-row, .qa-vocab-row + .qa-expr-row, .qa-expr-row + .qa-vocab-row { border-top: 1px solid ${t.colors.border}; }
+.qa-vocab-row + .qa-vocab-row, .qa-expr-row + .qa-expr-row, .qa-vocab-row + .qa-expr-row, .qa-expr-row + .qa-vocab-row { border-top: 1px solid ${t.colors.rowBorder}; }
 .qa-vocab-term, .qa-expr-term { font-weight: bold; color: ${t.colors.accentGreen}; flex: none; }
 .qa-vocab-def, .qa-expr-def { text-align: right; }
 `;
@@ -197,8 +210,14 @@ function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber
   }
 }
 
-/** Build a complete, self-contained styled HTML document from block data. */
-export function generateTemplateHTML(doc: Document, tokens: DesignTokens): string {
+/** Build a complete, self-contained styled HTML document from block data.
+ *  `printMode` forces the print rules on screen (A4 sheet look) — used by the
+ *  on-demand preview so it matches the PDF; downloads keep the screen mode. */
+export function generateTemplateHTML(
+  doc: Document,
+  tokens: DesignTokens,
+  opts: { printMode?: boolean } = {},
+): string {
   const qaNumber = { n: 0 };
   const body = doc.blocks.map((b) => blockToHtml(doc, b, tokens, qaNumber)).join("\n");
   const title = escapeHtml(doc.title || "Document");
@@ -208,7 +227,7 @@ export function generateTemplateHTML(doc: Document, tokens: DesignTokens): strin
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<style>${buildCss(tokens)}</style>
+<style>${buildCss(tokens, opts.printMode)}</style>
 </head>
 <body>
 <main class="document">

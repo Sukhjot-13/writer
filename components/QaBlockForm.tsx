@@ -185,16 +185,18 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
         ) : null}
       </div>
 
-      {/* Optional-field chip menu (FR-4/26: sections appear once used) */}
+      {/* Optional-field chip menu (FR-4/26: sections appear once used) — kept
+          deliberately subtle: enrichment is mostly AI-generated, so the chips
+          sit quietly under the card until the user wants to touch them. */}
       {OPTIONAL_FIELDS.filter((f) => !is(f.key)).length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Add:</span>
+          <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-300">Add:</span>
           {OPTIONAL_FIELDS.filter((f) => !is(f.key)).map((f) => (
             <button
               key={f.key}
               type="button"
               onClick={() => reveal(f.key)}
-              className="rounded-full border border-dashed border-zinc-300 bg-white px-2.5 py-0.5 text-[11px] text-zinc-500 transition-colors hover:border-blue-400 hover:text-blue-600"
+              className="rounded-full border border-dashed border-zinc-200 bg-transparent px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-600"
             >
               + {f.label}
             </button>

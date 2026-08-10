@@ -6,8 +6,50 @@
    instructions file, not here (FR-47). */
 
 :root {
-  --background: #fafafa; /* zinc-50 */
-  --foreground: #18181b; /* zinc-900 */
+  --background: #f7f9fb; /* spec lightBg — app canvas */
+  --foreground: #1a1a1a; /* spec mainText */
+}
+
+/*
+ * UI palette remap (2026-08-10): the editor borrows the PDF's print-ready
+ * design scheme (docs/html_instructions.md Part 2) — zinc → the spec neutral
+ * ramp, blue → the dark "badge/heading" navy #1e3a5f, emerald → the accent
+ * green #2c5f2d. Everything below is derived from the spec's colors so the
+ * editor and the printed worksheet share one family.
+ */
+@theme {
+  /* neutrals: lightBg #f7f9fb → mainText #1a1a1a (spec) */
+  --color-zinc-50: #f7f9fb;
+  --color-zinc-100: #eef2f7;
+  --color-zinc-200: #d0d5dc;
+  --color-zinc-300: #b6bfca;
+  --color-zinc-400: #8a97a8;
+  --color-zinc-500: #5c6b80;
+  --color-zinc-600: #43536b;
+  --color-zinc-700: #33445c;
+  --color-zinc-800: #24344c;
+  --color-zinc-900: #1a2738;
+  /* primary → navy #1e3a5f (spec headings/badges) */
+  --color-blue-50: #eef2f7;
+  --color-blue-100: #dbe4f0;
+  --color-blue-200: #b9c9de;
+  --color-blue-300: #8fa8c9;
+  --color-blue-400: #5f7fae;
+  --color-blue-500: #3d5d8c;
+  --color-blue-600: #1e3a5f;
+  --color-blue-700: #172e4c;
+  --color-blue-800: #12243c;
+  --color-blue-900: #0d1a2e;
+  /* success/check → accent green #2c5f2d (spec) */
+  --color-emerald-50: #e8f0e9;
+  --color-emerald-100: #cfe0d1;
+  --color-emerald-200: #a8c4ab;
+  --color-emerald-300: #7da682;
+  --color-emerald-400: #4f8556;
+  --color-emerald-500: #36703d;
+  --color-emerald-600: #2c5f2d;
+  --color-emerald-700: #224a24;
+  --color-emerald-800: #1a3a1c;
 }
 
 @theme inline {
@@ -25,12 +67,13 @@ body {
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* Calmer default focus ring for keyboard users (accessibility). */
+/* Calmer default focus ring for keyboard users (accessibility) — navy to
+   match the PDF design scheme. */
 :focus-visible {
-  outline: 2px solid #2563eb; /* blue-600 */
+  outline: 2px solid #1e3a5f;
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #bfdbfe; /* blue-200 */
+  background: #b9c9de; /* blue-200 (navy ramp) */
 }

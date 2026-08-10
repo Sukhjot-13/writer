@@ -60,7 +60,7 @@ export function RowEditor({
       <button
         type="button"
         onClick={() => onRows([...rows, { term: "", def: "" }])}
-        className="rounded border border-dashed border-zinc-300 px-2 py-1 text-xs text-zinc-400 hover:border-blue-400 hover:text-blue-500"
+        className="rounded border border-dashed border-zinc-200 px-2 py-1 text-xs text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-600"
       >
         + Add row
       </button>

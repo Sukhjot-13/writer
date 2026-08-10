@@ -21,6 +21,8 @@ export interface DesignTokens {
     highlightBg: string;
     border: string;
     tableStripe: string;
+    vocabBg: string; // vocab/expressions grid body tint (#eef2f7 — print spec)
+    rowBorder: string; // vocab grid row separator (#d8dfe8 — print spec)
     tagBg: string;
     tagText: string;
     badgeBg: string;
@@ -50,6 +52,8 @@ export const DEFAULT_TOKENS: DesignTokens = {
     highlightBg: "#fdfcf9",
     border: "#d0d5dc",
     tableStripe: "#f0f3f6",
+    vocabBg: "#eef2f7",
+    rowBorder: "#d8dfe8",
     tagBg: "#e8f0e9",
     tagText: "#2c5f2d",
     badgeBg: "#1e3a5f",

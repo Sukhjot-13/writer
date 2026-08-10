@@ -68,6 +68,8 @@ export function parseTokensBlock(markdown: string, defaults: DesignTokens): Desi
       highlightBg: colors.highlightBg ?? defaults.colors.highlightBg,
       border: colors.border ?? defaults.colors.border,
       tableStripe: colors.tableStripe ?? defaults.colors.tableStripe,
+      vocabBg: colors.vocabBg ?? defaults.colors.vocabBg,
+      rowBorder: colors.rowBorder ?? defaults.colors.rowBorder,
       tagBg: colors.tagBg ?? defaults.colors.tagBg,
       tagText: colors.tagText ?? defaults.colors.tagText,
       badgeBg: colors.badgeBg ?? defaults.colors.badgeBg,

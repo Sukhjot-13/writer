@@ -10,11 +10,12 @@ import type { Block as BlockModel, BlockType, ParagraphContent } from "@/lib/typ
 import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
 import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment for paragraphs
-import { inputCls, labelCls } from "./RowEditor"; // M6: practice card styling
 
-// M6: practice view of a paragraph — read-only text + "My answer" box, and a
-// green Reference box (the AI translation) once answers are checked. Mirrors
-// QaBlockForm's practice card so questions and paragraphs behave identically.
+// M6: practice view of a paragraph — the paragraph stays a continuous piece of
+// writing: its text in normal document typography with the "My answer" space
+// flowing directly beneath (no card, no duplicated boxes — a paragraph is one
+// continuous thing). Once answers are checked, the AI translation appears as a
+// green reference box below the answer.
 function PracticeParagraphCard({
   content,
   checked,
@@ -25,38 +26,28 @@ function PracticeParagraphCard({
   onUpdate: (content: ParagraphContent) => void;
 }) {
   return (
-    <div className="mt-1 space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
-      <div>
-        <label className={labelCls}>Paragraph</label>
-        <div className="rounded-md bg-white px-3 py-2 text-[15px] leading-relaxed text-zinc-800">
-          {content.text || <span className="text-zinc-300">(empty paragraph)</span>}
-        </div>
+    <div className="mt-1">
+      <div className="py-1.5 text-[15px] leading-relaxed text-zinc-800">
+        {content.text || <span className="text-zinc-300">(empty paragraph)</span>}
       </div>
 
-      <div>
-        <label className={labelCls}>My answer</label>
-        <textarea
-          className={`${inputCls} resize-none border-dashed border-blue-200`}
-          rows={3}
-          value={content.userAnswer ?? ""}
-          placeholder="Write your own answer…"
-          onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
-        />
-      </div>
+      <textarea
+        rows={2}
+        value={content.userAnswer ?? ""}
+        placeholder="Your answer — write in French if you can…"
+        onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
+        className="block w-full resize-none rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[15px] leading-relaxed text-zinc-800 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+      />
 
       {checked && (
-        <div>
-          <label className={labelCls}>
-            <span className="text-emerald-700">Reference</span>
-          </label>
-          {content.translation ? (
-            <div className="rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800">
-              {content.translation}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed border-emerald-300 px-2.5 py-1.5 text-[13px] text-zinc-400">
+        <div className="mt-2 rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800">
+          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+            Reference
+          </span>
+          {content.translation || (
+            <span className="text-[13px] text-zinc-400">
               No reference translation saved for this paragraph.
-            </div>
+            </span>
           )}
         </div>
       )}

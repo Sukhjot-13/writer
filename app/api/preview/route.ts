@@ -32,6 +32,8 @@ export async function POST(request: Request) {
   }
 
   const tokens = await getTokens();
-  const html = generateTemplateHTML(parsed.data, tokens);
+  // Print-accurate: the preview renders with the print rules forced on screen
+  // (A4 sheet, print font size, print margins) so it looks exactly like the PDF.
+  const html = generateTemplateHTML(parsed.data, tokens, { printMode: true });
   return NextResponse.json({ html });
 }

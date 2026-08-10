@@ -23,7 +23,7 @@ export default function AddBlockMenu({ onAdd }: { onAdd: (type: BlockType) => vo
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setOpen(false)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-zinc-300 bg-white text-lg leading-none text-zinc-400 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-zinc-300 bg-white text-lg leading-none text-zinc-400 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600"
         title="Add block"
       >
         +

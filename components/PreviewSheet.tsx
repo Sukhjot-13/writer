@@ -43,11 +43,13 @@ export default function PreviewSheet({ html, busy, onRefresh, onClose }: Preview
 
       <div className="flex-1 overflow-auto p-6">
         {html ? (
+          // The template renders in printMode (A4 sheet with its own shadow) —
+          // the iframe stays transparent so the sheet backdrop shows around it.
           <iframe
             title="Document preview"
             srcDoc={html}
             sandbox=""
-            className="mx-auto block min-h-[600px] w-full max-w-[210mm] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08),0_12px_32px_rgba(0,0,0,0.14)]"
+            className="mx-auto block min-h-[600px] w-full max-w-[210mm]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-zinc-400">
