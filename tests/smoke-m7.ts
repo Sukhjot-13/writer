@@ -29,6 +29,7 @@ doc.blocks = [
     userAnswer: "Je me lève à sept heures.",
   }),
   setBlockContent(createBlock("essay"), {
+    heading: "Ma ville", // 2026-08-10 #5: optional essay heading
     paragraphs: ["Un paragraphe.", "Deuxième paragraphe."],
     translation: "One paragraph. Second paragraph.",
   }),
@@ -49,15 +50,22 @@ const tokens = await getTokens(); // reads docs/html_instructions.md (same as sm
 // ---------- buildAICopyText (Copy dialog → "For AI" tab) ----------
 const ai = buildAICopyText(doc);
 check("ai-copy: instruction heading present", ai.startsWith("You are helping prepare French practice material."));
-check("ai-copy: JSON shapes included", ai.includes('{"type":"qa","question":"…"') && ai.includes('{"type":"essay","paragraphs":["…","…"]'));
+check("ai-copy: JSON shapes included", ai.includes('{"type":"qa","question":"…"') && ai.includes('{"type":"essay","heading":"…","paragraphs":["…","…"]'));
 check("ai-copy: content marker separates instruction from content", ai.includes("\n=== CONTENT ==="));
 check("ai-copy: document content follows (marker serialization)",
   ai.endsWith(serializeBlocksForAI(doc)) && ai.includes("Qu'est-ce que tu as fait hier ?"));
 check("ai-copy: never includes practice answers (private)", !ai.includes("J'ai regardé la télé"));
 
+// ---------- essay heading (2026-08-10 #5): optional title round-trips ----------
+const marker = serializeBlocksForAI(doc);
+check("essay-heading: <HEADING> marker inside <ESSAY>",
+  marker.includes("<ESSAY>") && marker.includes("<HEADING>Ma ville</HEADING>") && marker.includes("<P>Un paragraphe.</P>"));
+
 // ---------- generateTemplateHTML — qa field order (question → translation →
 // analysis → answer) and preview hidden toggles ----------
 const html = generateTemplateHTML(doc, tokens, { printMode: true });
+check("essay-heading: template renders the heading above the passage",
+  html.indexOf("Ma ville") !== -1 && html.indexOf("<h3 class=\"block-essay-heading\">Ma ville</h3>") !== -1);
 const qaIdx = html.indexOf("Qu&#39;est-ce que tu as fait hier ?"); // escaped apostrophe
 const qtIdx = html.indexOf("What did you do yesterday?");
 const anIdx = html.indexOf("Passé composé with avoir");
@@ -77,9 +85,9 @@ check("hidden: translations omitted (question + answer translations)", !hidden.i
 check("hidden: analyses omitted", !hidden.includes("Passé composé with avoir") && !hidden.includes("Se lever"));
 check("hidden: vocab/expressions grids omitted", !hidden.includes("Vocabulaire Clé") && !hidden.includes("Expressions Avancées") && !hidden.includes("se lever"));
 check("hidden: model answers omitted", !hidden.includes("J&#39;ai mangé une pomme"));
-check("hidden: MAIN content survives — question, paragraph text, heading, essay",
+check("hidden: MAIN content survives — question, paragraph text, heading, essay (+ essay heading)",
   hidden.includes("Qu&#39;est-ce que tu as fait hier ?") && hidden.includes("Je me lève tôt.") &&
-  hidden.includes("Le matin") && hidden.includes("Un paragraphe."));
+  hidden.includes("Le matin") && hidden.includes("Un paragraphe.") && hidden.includes("Ma ville"));
 check("hidden: practice answers survive (not a hidden field)",
   hidden.includes("J&#39;ai regardé la télé") && hidden.includes("Je me lève à sept heures."));
 

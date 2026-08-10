@@ -264,12 +264,18 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
 
       {/* 2026-08-10 field order (user request, mirrored in the HTML template
           and the editor): question → translation → analysis → answer →
-          answer translation → practice answer → grammar note / label → grid. */}
+          answer translation → practice answer → grammar note → grid.
+          2026-08-10 #5: the response label moved ABOVE the answer — it labels
+          the answer area (user: "reponse text is shown below the answer why?"). */}
       {showExtras && content.analysis ? (
         <Text style={styles.analysis}>
           <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
           {content.analysis}
         </Text>
+      ) : null}
+
+      {variant !== "my-answers" && content.responseLabel ? (
+        <Text style={styles.responseLabel}>{content.responseLabel}</Text>
       ) : null}
 
       {showModelAnswer && content.modelAnswer ? (
@@ -294,9 +300,6 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
 
       {variant !== "my-answers" && content.grammarNote ? (
         <Text style={styles.grammarNote}>{content.grammarNote}</Text>
-      ) : null}
-      {variant !== "my-answers" && content.responseLabel ? (
-        <Text style={styles.responseLabel}>{content.responseLabel}</Text>
       ) : null}
 
       {showExtras ? (
@@ -330,6 +333,8 @@ function BlockToPDF({
     // lead at 1.15× base (mirrors p.block-paragraph in the HTML template);
     // translations/analysis stay at 0.88–0.9× base, clearly secondary.
     p: { fontSize: basePt * 1.15, marginBottom: 8 },
+    // Essay heading (2026-08-10 #5): optional short title above the passage.
+    essayHeading: { fontSize: basePt * 1.15, fontWeight: "bold", color: t.colors.heading, marginBottom: 8 },
     pTranslation: { fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.8, marginBottom: 8 },
     pAnalysis: { fontSize: basePt * 0.88, opacity: 0.9, marginBottom: 8 },
     userAnswer: {
@@ -390,15 +395,22 @@ function BlockToPDF({
       // Essay (2026-08-10): ONE continuous passage — paragraphs render as
       // normal text, with a single shared enrichment set (translation, analysis,
       // vocab grid, practice answer) exactly like the paragraph case.
+      // 2026-08-10 #5: an optional heading leads the passage; on the practice
+      // sheets (questions / my-answers) ONLY the heading shows — the passage
+      // is the writing task, so the sheet shows the title + rules/answer, not
+      // the source text (user: "in practice it should only show the heading").
       const c = block.content;
       const showUser = variant !== "questions";
       return (
         <View>
-          {c.paragraphs.map((p, i) => (
-            <Text key={i} style={styles.p}>
-              {p}
-            </Text>
-          ))}
+          {c.heading ? <Text style={styles.essayHeading}>{c.heading}</Text> : null}
+          {variant === "full"
+            ? c.paragraphs.map((p, i) => (
+                <Text key={i} style={styles.p}>
+                  {p}
+                </Text>
+              ))
+            : null}
           {showUser && c.userAnswer ? (
             <View style={styles.userAnswer}>
               <Text>{c.userAnswer}</Text>

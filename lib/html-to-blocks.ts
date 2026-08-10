@@ -260,9 +260,16 @@ function parseQa(inner: string): QaContent {
 
 /** Essay (2026-08-10): the .block-essay wrapper holds .block-paragraph <p>s
  *  plus ONE shared enrichment set (p-translation / p-analyse / qa-vocab-grid /
- *  qa-user-answer) — parsed back into a single essay block, never split. */
+ *  qa-user-answer) — parsed back into a single essay block, never split.
+ *  2026-08-10 #5: an optional .block-essay-heading becomes the essay's heading. */
 function parseEssay(inner: string): EssayContent {
   const content: EssayContent = { paragraphs: [] };
+
+  const heading = byClass(inner, "block-essay-heading");
+  if (heading) {
+    const text = textOnly(heading.inner).trim();
+    if (text) content.heading = text;
+  }
 
   content.paragraphs = elementsByClass(inner, "block-paragraph")
     .map((el) => innerToMarkdown(el.inner))

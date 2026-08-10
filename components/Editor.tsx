@@ -25,7 +25,7 @@ import type { PDFVariant } from "@/lib/pdf";
 
 import Toolbar from "./Toolbar";
 import BlockList from "./BlockList";
-import PreviewSheet from "./PreviewSheet";
+import PreviewSheet, { type PreviewHidden } from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
 import PasteBlocksModal from "./PasteBlocksModal";
 import PasteHtmlModal from "./PasteHtmlModal";
@@ -46,20 +46,6 @@ function downloadBlob(blob: Blob, filename: string) {
 function safeFilename(title: string, ext: string): string {
   const clean = title.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return (clean || "document") + "." + ext;
-}
-
-/** Copy text to the clipboard, falling back to a hidden textarea (non-secure contexts). */
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  }
 }
 
 /** True when a block carries any real content (used by paste-questions import). */
@@ -87,7 +73,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [status, setStatus] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState(false); // M6 master key
   const [checked, setChecked] = useState(false); // M6: practice "Check"
-  const [focusMode, setFocusMode] = useState(false); // 2026-08-10: main content only
+  const [focusMode, setFocusMode] = useState(true); // 2026-08-10: main content only — ON by default (user: "focus mode should be default")
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   // 2026-08-10: preview field toggles — omitted enrichment for qa/paragraph/
@@ -464,7 +450,11 @@ function essayAnswerFromParagraphs(
   }
 
   // ---- on-demand preview (M6): POST the current doc, show the sheet ----
-  async function openPreview() {
+  // 2026-08-10 #5 (bug fix): `hiddenOverride` lets a toggle re-render with the
+  // NEW hidden values in the same tick — the old code read the stale closure
+  // (`previewHidden` from the last render), so the preview showed the previous
+  // toggle state until a second click (user: "i have to unclick and click").
+  async function openPreview(hiddenOverride?: PreviewHidden) {
     const current = docRef.current;
     if (!current || busyRef.current) return;
     beginBusy("preview");
@@ -473,7 +463,7 @@ function essayAnswerFromParagraphs(
       const res = await fetch("/api/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc: current, hidden: previewHidden }),
+        body: JSON.stringify({ doc: current, hidden: hiddenOverride ?? previewHidden }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -484,34 +474,6 @@ function essayAnswerFromParagraphs(
       setPreviewOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Preview failed");
-    } finally {
-      endBusy();
-    }
-  }
-
-  // ---- copy for external AI (FR-39): user markers / system / plain text ----
-  async function copyPrompt(part: "user" | "system" | "plainText") {
-    if (busyRef.current) return;
-    beginBusy("copy");
-    setError(null);
-    try {
-      if (!(await ensureSaved())) return;
-      const current = docRef.current;
-      if (!current) return;
-      const res = await fetch(`/api/export/prompt?docId=${encodeURIComponent(current.id)}`);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Could not build prompt (${res.status})`);
-      }
-      const body = (await res.json()) as { user?: string; system?: string; plainText?: string };
-      const text = body[part];
-      if (!text) throw new Error("Prompt is empty");
-      await copyToClipboard(text);
-      const label =
-        part === "user" ? "AI prompt (type markers)" : part === "system" ? "system instructions" : "plain text";
-      setStatus(`Copied ${label} to clipboard`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Copy failed");
     } finally {
       endBusy();
     }
@@ -739,7 +701,6 @@ function essayAnswerFromParagraphs(
         onShowAllTranslations={() => setAllQaFlags("hideTranslation", false)}
         onHideAllAnswers={() => setAllQaFlags("hideModelAnswer", true)}
         onShowAllAnswers={() => setAllQaFlags("hideModelAnswer", false)}
-        onCopyPrompt={(part) => void copyPrompt(part)}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
         onPasteQuestions={() => setShowPasteQuestions(true)}
         onPasteBlocks={() => setShowPasteBlocks(true)}
@@ -816,7 +777,7 @@ function essayAnswerFromParagraphs(
           hidden={previewHidden}
           onHiddenChange={(next) => {
             setPreviewHidden(next);
-            void openPreview(); // re-render with the new visibility
+            void openPreview(next); // re-render with the NEW values (no stale closure)
           }}
           onRefresh={() => void openPreview()}
           onClose={() => setPreviewOpen(false)}

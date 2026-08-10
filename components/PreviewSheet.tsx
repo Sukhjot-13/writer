@@ -46,6 +46,9 @@ const FIELD_LABELS: { key: keyof PreviewHidden; label: string }[] = [
 export default function PreviewSheet({ html, busy, hidden, onHiddenChange, onRefresh, onClose }: PreviewSheetProps) {
   const anyHidden = FIELD_LABELS.some((f) => hidden[f.key]);
   const allHidden = FIELD_LABELS.every((f) => hidden[f.key]);
+  // 2026-08-10 #5 (user-reported): "All extras" was checked when EVERYTHING
+  // was hidden (inverted semantics — checked meant nothing showed). Now the
+  // checkbox is checked when NOTHING is hidden, i.e. all extras are VISIBLE.
 
   function toggle(key: keyof PreviewHidden) {
     onHiddenChange({ ...hidden, [key]: !hidden[key] });
@@ -75,7 +78,7 @@ export default function PreviewSheet({ html, busy, hidden, onHiddenChange, onRef
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-600">
           <span className="font-medium text-zinc-500">Show:</span>
           <label className="flex cursor-pointer items-center gap-1" title="Hide or show every extra field at once">
-            <input type="checkbox" checked={allHidden} onChange={toggleAll} className="h-3 w-3 accent-blue-600" />
+            <input type="checkbox" checked={!anyHidden} onChange={toggleAll} className="h-3 w-3 accent-blue-600" />
             All extras
           </label>
           {FIELD_LABELS.map(({ key, label }) => (

@@ -11,7 +11,7 @@ BLOCK STRUCTURE RULES
 - Answers provided: if a question in the input is followed by an answer, keep that answer as "modelAnswer", preserving the user's own wording. If no answer is provided, omit "modelAnswer" entirely — never invent an answer.
 - Keep the user's phrasing: preserve the primary language, wording, and order of the input. Do not rewrite questions or paragraphs.
 - Paragraphs: non-question prose stays a "paragraph" block. Preserve markdown formatting (bold/italic) where present.
-- ESSAYS — the key rule: when an essay (a continuous piece of writing, 2–3 paragraphs or more — a story, composition, or passage) appears, output ONE "essay" block holding ALL of its paragraphs in the "paragraphs" array. Never split an essay into separate per-paragraph blocks, never make one "paragraph" block per paragraph of the same passage. A lone single paragraph stays a "paragraph" block.
+- ESSAYS — the key rule: when an essay (a continuous piece of writing, 2–3 paragraphs or more — a story, composition, or passage) appears, output ONE "essay" block holding ALL of its paragraphs in the "paragraphs" array. Never split an essay into separate per-paragraph blocks, never make one "paragraph" block per paragraph of the same passage. A lone single paragraph stays a "paragraph" block. A "heading" is OPTIONAL: include a short title only when the passage has one or clearly suggests one — never invent, never force it (practice mode shows the essay heading as the writing prompt).
 - Title, headings, and separators are kept as-is in order.
 
 ENRICHMENT (all text, French → English)
@@ -37,7 +37,7 @@ OUTPUT SHAPES (JSON array, in document order — the only shapes allowed)
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
 {"type":"separator"}
 
@@ -47,6 +47,7 @@ NEVER
 - Never add questions or content that was not in the input.
 - Never force prose into Q&A blocks — a paragraph stays a paragraph.
 - Never split one essay into per-paragraph blocks or per-paragraph enrichment — an essay is one block, one translation, one vocab set.
+- Never invent an essay "heading" — include it only when the passage has a natural title or short label (optional, never forced).
 - Never auto-rewrite a question or answer — correct text is reported in "suggestions" only, never edited in place.
 
 ---

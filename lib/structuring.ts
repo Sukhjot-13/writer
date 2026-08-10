@@ -57,6 +57,7 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("essay"),
+      heading: z.string().optional(), // 2026-08-10 #5: optional essay title
       paragraphs: z.array(z.string()),
       translation: z.string().optional(),
       analysis: z.string().optional(),
@@ -161,6 +162,7 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
         if (paragraphs.length) {
           blocks.push(
             setBlockContent(createBlock("essay"), {
+              heading: opt(d.heading), // 2026-08-10 #5: optional essay title
               paragraphs,
               translation: opt(d.translation),
               analysis: opt(d.analysis),

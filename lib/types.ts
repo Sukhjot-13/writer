@@ -56,6 +56,11 @@ export interface ParagraphContent {
  * per-paragraph. The AI groups consecutive prose paragraphs into an essay.
  */
 export interface EssayContent {
+  /** Optional short heading/title for the essay (2026-08-10 #5) — the AI
+   *  adds one only when the passage has a natural title; never invented,
+   *  never forced. In practice mode the essay shows ONLY this heading (the
+   *  passage is the writing task, not reading material). */
+  heading?: string;
   paragraphs: string[];
   translation?: string; // ONE target-language translation of the whole essay (AI)
   analysis?: string; // ONE short explanation of the essay (AI)

@@ -51,8 +51,10 @@ export function serializeBlocksForAI(doc: Document): string {
         // Essay (2026-08-10): paragraphs serialized as <P> lines inside one
         // <ESSAY>…</ESSAY> marker — the AI sees one continuous piece of
         // writing, never per-paragraph parts. USER_ANSWER never serialized.
+        // 2026-08-10 #5: an optional <HEADING>…</HEADING> first line carries
+        // the essay's title when one exists.
         parts.push(
-          `<ESSAY>\n${block.content.paragraphs.map((p) => `<P>${p}</P>`).join("\n")}\n</ESSAY>`,
+          `<ESSAY>\n${block.content.heading ? `<HEADING>${block.content.heading}</HEADING>\n` : ""}${block.content.paragraphs.map((p) => `<P>${p}</P>`).join("\n")}\n</ESSAY>`,
         );
         break;
       case "separator":
@@ -85,10 +87,10 @@ Convert the content above into structured document blocks following the system i
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
 {"type":"separator"}
-Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts.
+Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one.
 CORRECTIONS: for every qa block's "question" and "modelAnswer", check spelling (accents included), grammar, and punctuation (commas, full stops, French spacing — no space before , . ; and a space before : ; ! ?). NEVER rewrite the text — keep the user's wording verbatim. When a mistake exists, add "suggestions" (one object per distinct mistake: {"kind":"spelling"|"grammar"|"punctuation","field":"question"|"modelAnswer","original":"exact text as written, accents included","suggestion":"corrected replacement","reason":"short reason"}); "original" must match the field text verbatim; omit "suggestions" when the text is correct; max 10 per block. All text you write must be typographically correct.
 Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.`;
   return { system: instructions, user };
@@ -107,10 +109,10 @@ export function buildAICopyText(doc: Document): string {
 {"type":"title","text":"…"}
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"essay","heading":"…","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"separator"}
-Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.
+Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Give an essay a "heading" only when the passage has a natural title or short label — never invent one, never force one. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.
 
 === CONTENT ===
 ${serializeBlocksForAI(doc)}`;
@@ -131,7 +133,7 @@ export function serializePlainText(doc: Document): string {
         parts.push(block.content.text);
         break;
       case "essay":
-        parts.push(block.content.paragraphs.join("\n\n"));
+        parts.push([block.content.heading, ...block.content.paragraphs].filter(Boolean).join("\n\n"));
         break;
       case "separator":
         parts.push("─".repeat(20));

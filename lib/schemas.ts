@@ -84,6 +84,7 @@ export const blockSchema = z.discriminatedUnion("type", [
     tags: tagSchema,
     content: z
       .object({
+        heading: z.string().optional(), // 2026-08-10 #5: optional essay title
         paragraphs: z.array(z.string()),
         translation: z.string().optional(),
         analysis: z.string().optional(),

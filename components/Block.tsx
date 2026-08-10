@@ -64,11 +64,14 @@ function PracticeParagraphCard({
   );
 }
 
-// Essay (2026-08-10): practice view of a continuous passage. ALL paragraphs
-// render as one piece of text and the user gets exactly ONE "My answer" field
-// — an essay is written as a single thing, never per-paragraph (unlike q/a,
-// there is nothing to answer separately). French leads at 17px, the English
-// reference is secondary at 13px (2026-08-10 #2, same as paragraphs).
+// Essay (2026-08-10): practice view of a continuous passage. The user gets
+// exactly ONE "My answer" field — an essay is written as a single thing, never
+// per-paragraph (unlike q/a, there is nothing to answer separately).
+// 2026-08-10 #5: practice shows ONLY the essay's heading (the passage is the
+// WRITING task, not reading material — user: "in practice it should only show
+// the heading for the essay"); the heading reads as the prompt at 17px with
+// the answer field flowing beneath. The English reference stays secondary at
+// 13px (2026-08-10 #2, same as paragraphs).
 function PracticeEssayCard({
   content,
   checked,
@@ -80,12 +83,10 @@ function PracticeEssayCard({
 }) {
   return (
     <div className="mt-1">
-      <div className="space-y-3 py-1.5 text-[17px] leading-relaxed text-zinc-900">
-        {content.paragraphs.map((p, i) => (
-          <p key={i}>
-            {p || <span className="text-zinc-300">(empty paragraph)</span>}
-          </p>
-        ))}
+      <div className="py-1.5 text-[17px] font-semibold leading-relaxed text-zinc-900">
+        {content.heading || (
+          <span className="font-normal text-zinc-300">(essay title)</span>
+        )}
       </div>
 
       <AutoGrowTextarea
@@ -379,10 +380,19 @@ export default function Block({
             // Title / heading — read-only context in practice.
             <div className={`py-1.5 leading-relaxed ${textAreaCls}`}>{text}</div>
           ) : block.type === "essay" ? (
-            // Essay editor: one auto-grow textarea per paragraph (Enter just
-            // adds a newline inside it — essays are continuous), an "add
-            // paragraph" button, and the shared enrichment fields below.
+            // Essay editor: an optional heading field (2026-08-10 #5 — practice
+            // shows only the heading, so a title makes the task prompt clear),
+            // one auto-grow textarea per paragraph (Enter just adds a newline
+            // inside it — essays are continuous), an "add paragraph" button,
+            // and the shared enrichment fields below.
             <div>
+              <AutoGrowTextarea
+                value={block.content.heading ?? ""}
+                onChange={(e) => onUpdate({ ...block.content, heading: e.target.value })}
+                rows={1}
+                placeholder="Essay title (optional)…"
+                className="block w-full rounded-md border border-transparent bg-transparent py-1.5 text-[15px] font-semibold leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 placeholder:font-normal focus:border-zinc-200 focus:bg-white focus:shadow-sm"
+              />
               {block.content.paragraphs.map((p, i) => (
                 <AutoGrowTextarea
                   key={i}

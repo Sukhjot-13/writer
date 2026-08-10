@@ -85,6 +85,9 @@ p.block-paragraph { font-size: 1.15em; margin: 0 0 0.9em; }
 /* Essay (2026-08-10): one continuous passage — paragraphs render as
    .block-paragraph inside a .block-essay wrapper, sharing ONE enrichment set. */
 .block-essay { margin: 0 0 0.9em; }
+/* Essay heading (2026-08-10 #5): optional short title above the passage —
+   navy, bold, small (0.95em), sits between the block margin and the prose. */
+.block-essay-heading { margin: 0 0 0.5em; font-weight: bold; color: ${t.colors.heading}; font-size: 0.95em; }
 p.p-translation { font-style: italic; font-size: 0.9em; color: ${t.colors.mainText}; opacity: 0.8; margin: -0.5em 0 0.5em; }
 .p-analyse { font-size: 0.88em; color: ${t.colors.mainText}; opacity: 0.9; margin: 0 0 0.5em; }
 .p-analyse strong { color: ${t.colors.mainText}; opacity: 1; }
@@ -182,12 +185,15 @@ function qaBlockHtml(
     ? `<div class="qa-analyse"><strong>Analyse :</strong> ${md(content.analysis)}</div>`
     : "";
   // 2026-08-10 field order (user request): question → translation → analysis →
-  // answer → answer translation → practice answer → grammar note / label → grid.
+  // answer → answer translation → practice answer → grammar note → grid.
+  // 2026-08-10 #5: the response label ("RÉPONSE") moved ABOVE the answer — it
+  // labels the answer area, so it sits between the analysis and the answer
+  // (user: "reponse text is shown below the answer why?").
   const grid = hidden.vocab ? "" : vocabGridHtml(content.vocab, content.expressions);
 
   return `<section class="${wrapper}"><div class="qa-block">
 <div class="qa-question"><span class="qa-num">${number}</span><p class="qa-question-text">${md(content.question)}${translation}</p></div>
-${analysis}${modelAnswer}${answerTranslation}${userAnswer}${grammarNote}${responseLabel}${grid}
+${analysis}${responseLabel}${modelAnswer}${answerTranslation}${userAnswer}${grammarNote}${grid}
 </div></section>`;
 }
 
@@ -230,9 +236,13 @@ function blockToHtml(
       return `<p class="${wrapper}">${text}</p>${userAnswer}${translation}${analysis}${grid}`;
     }
     case "essay": {
-      // One continuous passage: each paragraph as its own <p>, then the ONE
-      // shared enrichment set (translation/analysis/vocab) + practice answer.
+      // One continuous passage: an optional heading, each paragraph as its own
+      // <p>, then the ONE shared enrichment set (translation/analysis/vocab)
+      // + practice answer.
       const c = block.content;
+      const heading = c.heading
+        ? `<h3 class="block-essay-heading">${escapeHtml(c.heading)}</h3>`
+        : "";
       const paragraphs = c.paragraphs
         .map((p) => `<p class="block-paragraph">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
         .join("");
@@ -246,7 +256,7 @@ function blockToHtml(
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
       const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
-      return `<div class="${wrapper}">${paragraphs}${userAnswer}${translation}${analysis}${grid}</div>`;
+      return `<div class="${wrapper}">${heading}${paragraphs}${userAnswer}${translation}${analysis}${grid}</div>`;
     }
     case "separator":
       return `<hr class="${wrapper}">`;

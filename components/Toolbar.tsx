@@ -50,8 +50,7 @@ interface ToolbarProps {
   onShowAllTranslations: () => void;
   onHideAllAnswers: () => void;
   onShowAllAnswers: () => void;
-  onCopyPrompt: (part: "user" | "system" | "plainText") => void;
-  onOpenCopyDialog: () => void;
+  onOpenCopyDialog: () => void; // 2026-08-10 #5: the ONLY copy action (FR-50 dialog)
   onPasteQuestions: () => void;
   onPasteBlocks: () => void; // M6: paste the JSON block array from Copy for AI
   onPasteHtml: () => void;
@@ -164,7 +163,6 @@ export default function Toolbar({
   onShowAllTranslations,
   onHideAllAnswers,
   onShowAllAnswers,
-  onCopyPrompt,
   onOpenCopyDialog,
   onPasteQuestions,
   onPasteBlocks,
@@ -404,17 +402,14 @@ export default function Toolbar({
               : []),
           ]}
         />
-        <Dropdown
-          label={busy === "copy" ? "Copying…" : "Copy"}
-          disabled={busy !== null}
-          title="Copy for an external AI or for sharing"
-          items={[
-            { label: "Copy for AI (type markers)", onClick: () => onCopyPrompt("user"), hint: "The document as type-marked text, ready for any external AI" },
-            { label: "Copy instructions (system prompt)", onClick: () => onCopyPrompt("system"), hint: "The active instructions as a ready-made system prompt" },
-            { label: "Copy plain text", onClick: () => onCopyPrompt("plainText"), hint: "Paragraphs and Q&A flattened to plain text" },
-            { label: "Copy for sharing…", onClick: onOpenCopyDialog, hint: "Select exactly what to copy as clean text" },
-          ]}
-        />
+        {/* Copy (2026-08-10 #5, user request): exactly ONE option — the copy
+            dialog. The AI-instruction copies moved into the paste sections
+            ("Copy for AI" lives in Paste ▾ → Paste blocks (AI); the other AI
+            gets its instructions from the paste-box copy buttons), so the old
+            three FR-39 items were removed. */}
+        <ActionButton onClick={onOpenCopyDialog} disabled={busy !== null} title="Copy parts of this document as clean text">
+          Copy…
+        </ActionButton>
         <Dropdown
           label="Paste"
           disabled={busy !== null}

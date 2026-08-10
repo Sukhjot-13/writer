@@ -4,6 +4,11 @@
 // jitter) and a no-deps effect that re-measures on EVERY render — typing,
 // mount, AND programmatic value changes (AI convert, suggestion Apply) that
 // fire no onInput event.
+//
+// 2026-08-10 #5: capped at max-h-[45vh] with overflow-y-auto — very long
+// content (e.g. a big paste in the paste modals) scrolls inside the box
+// instead of pushing the modal out of the window ("the text box goes out of
+// limit").
 
 "use client";
 
@@ -29,7 +34,7 @@ export default function AutoGrowTextarea({
         autoGrow(e.currentTarget);
         onInput?.(e);
       }}
-      className={`resize-none overflow-hidden ${className ?? ""}`}
+      className={`resize-none overflow-y-auto max-h-[45vh] ${className ?? ""}`}
     />
   );
 }
