@@ -93,27 +93,31 @@ body {
 
 /*
  * Dark mode (M7 round 7): the runtime vars behind every UI token. Dark is a
- * navy-tinted inversion of the spec ramps — canvas #0d141f, surfaces #141d2b,
- * text #e6ebf2; the primary blue and accent green shift LIGHTER so they read
- * on dark surfaces. Text that must stay light on colored buttons is a literal
- * (#fff via text-[#fff] — swept 2026-08-10) so the surface remap of --white
- * never breaks button labels. Semantic ramps (red/amber/rose/orange, used for
- * banners, confirms, suggestion badges) keep their Tailwind defaults — they
- * read fine on dark. Placed AFTER :root so the overrides win (equal
- * specificity, later source order).
+ * PURE-BLACK inversion (user: "the background should be black so that it saves
+ * battery" — 2026-08-10) — OLED/AMOLED pixels are off at #000, so the canvas
+ * AND the dominant surfaces (--white: toolbar, cards, modals, content area)
+ * are #000000; only the smallest tints (hover fills, input fills) are
+ * near-black #0a0e15/#11161f so hover feedback stays visible. Text #e6ebf2;
+ * the primary blue and accent green shift LIGHTER so they read on black. Text
+ * that must stay light on colored buttons is a literal (#fff via text-[#fff] —
+ * swept 2026-08-10) so the surface remap of --white never breaks button
+ * labels. Semantic ramps (red/amber/rose/orange, used for banners, confirms,
+ * suggestion badges) keep their Tailwind defaults — they read fine on dark.
+ * Placed AFTER :root so the overrides win (equal specificity, later source
+ * order).
  */
 .dark {
-  --bg: #0d141f;
+  --bg: #000000;
   --fg: #e6ebf2;
   --ring: #5b8ac9;
   --sel: #2a3e63;
-  --white: #141d2b;
-  --zinc-50: #141d2b;
-  --zinc-100: #1a2433;
-  --zinc-200: #223043;
-  --zinc-300: #31445e;
-  --zinc-400: #4a5d7e;
-  --zinc-500: #64779a;
+  --white: #000000;
+  --zinc-50: #0a0e15;
+  --zinc-100: #11161f;
+  --zinc-200: #1c2431;
+  --zinc-300: #2a3444;
+  --zinc-400: #42506b;
+  --zinc-500: #586a8a;
   --zinc-600: #8fa3c0;
   --zinc-700: #b4c3d8;
   --zinc-800: #d3deea;
