@@ -87,8 +87,18 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [status, setStatus] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState(false); // M6 master key
   const [checked, setChecked] = useState(false); // M6: practice "Check"
+  const [focusMode, setFocusMode] = useState(false); // 2026-08-10: main content only
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  // 2026-08-10: preview field toggles — omitted enrichment for qa/paragraph/
+  // essay blocks. Main content (headings, questions, paragraph text) is never
+  // hidden; the master toggle turns every extra off at once.
+  const [previewHidden, setPreviewHidden] = useState({
+    translations: false,
+    analyses: false,
+    vocab: false,
+    modelAnswers: false,
+  });
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [aiModel, setAiModel] = useState<string | null>(null); // FR-28: model name in status bar
   const [instructionsVersion, setInstructionsVersion] = useState<string | null>(null); // FR-28
@@ -463,7 +473,7 @@ function essayAnswerFromParagraphs(
       const res = await fetch("/api/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc: current }),
+        body: JSON.stringify({ doc: current, hidden: previewHidden }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -720,6 +730,8 @@ function essayAnswerFromParagraphs(
         checked={checked}
         onToggleChecked={() => setChecked((v) => !v)}
         onResetPractice={() => resetPractice()}
+        focusMode={focusMode}
+        onToggleFocus={() => setFocusMode((v) => !v)}
         onDownloadPdf={(variant) => void downloadPdf(variant)}
         onDownloadHtml={() => void downloadHtml()}
         counts={counts}
@@ -791,6 +803,7 @@ function essayAnswerFromParagraphs(
               onUpdateTags={updateBlockTags}
               practiceMode={practiceMode}
               checked={checked}
+              focusMode={focusMode}
             />
           </div>
         </div>
@@ -800,6 +813,11 @@ function essayAnswerFromParagraphs(
         <PreviewSheet
           html={previewHtml}
           busy={busy === "preview"}
+          hidden={previewHidden}
+          onHiddenChange={(next) => {
+            setPreviewHidden(next);
+            void openPreview(); // re-render with the new visibility
+          }}
           onRefresh={() => void openPreview()}
           onClose={() => setPreviewOpen(false)}
         />

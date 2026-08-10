@@ -94,6 +94,28 @@ Omit any optional field you cannot fill with confidence. Never invent an answer 
   return { system: instructions, user };
 }
 
+/**
+ * "Copy AI instructions" (2026-08-10, user request): ONE clipboard payload —
+ * an instruction for any external AI (explaining the exact JSON block format
+ * the app parses) followed by the document content in the type-marker
+ * serialization. The user pastes this + their material into another AI; the
+ * AI returns a JSON block array; PasteBlocksModal recognizes it without any
+ * AI call in this app.
+ */
+export function buildAICopyText(doc: Document): string {
+  return `You are helping prepare French practice material. Convert the content below into structured document blocks. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes:
+{"type":"title","text":"…"}
+{"type":"heading","text":"…","level":2}
+{"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"separator"}
+Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.
+
+=== CONTENT ===
+${serializeBlocksForAI(doc)}`;
+}
+
 /** Plain-text flattening for quick sharing (FR-39 third option). */
 export function serializePlainText(doc: Document): string {
   const parts: string[] = [];

@@ -36,6 +36,10 @@ interface ToolbarProps {
   onPreview: () => void; // M6: open the full-screen preview sheet
   practiceMode: boolean;
   onTogglePractice: () => void;
+  // 2026-08-10: Focus mode — only the main content (question+answer, paragraph
+  // text, essay paragraphs); all enrichment hidden.
+  focusMode: boolean;
+  onToggleFocus: () => void;
   checked: boolean; // M6: practice "Check" — reveals model answers
   onToggleChecked: () => void;
   onResetPractice: () => void;
@@ -148,6 +152,8 @@ export default function Toolbar({
   onPreview,
   practiceMode,
   onTogglePractice,
+  focusMode,
+  onToggleFocus,
   checked,
   onToggleChecked,
   onResetPractice,
@@ -178,12 +184,19 @@ export default function Toolbar({
 
   return (
     <div className="border-b border-zinc-200 bg-white">
-      {/* Title row: brand · title · tags · nav */}
+      {/* Title row: brand · title · tags · nav. The brand links home (2026-08-10:
+          clicking the Writer icon/text returns to the dashboard). */}
       <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm text-white">
-          ✎
-        </span>
-        <span className="hidden text-sm font-semibold text-zinc-800 sm:inline">Writer</span>
+        <Link
+          href="/"
+          title="Writer — go to the home page"
+          className="flex shrink-0 items-center gap-2 rounded-lg transition-colors hover:bg-zinc-100"
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-sm text-white">
+            ✎
+          </span>
+          <span className="hidden text-sm font-semibold text-zinc-800 sm:inline">Writer</span>
+        </Link>
 
         <input
           value={title}
@@ -210,11 +223,10 @@ export default function Toolbar({
           <Link href="/instructions" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
             Instructions
           </Link>
-          <Link href="/library" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-            Library
-          </Link>
+          {/* Home = Library (2026-08-10): /library redirects here, so one nav
+              item only. */}
           <Link href="/" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-            Home
+            Library
           </Link>
         </nav>
       </div>
@@ -306,6 +318,21 @@ export default function Toolbar({
             className="h-3.5 w-3.5 accent-blue-600"
           />
           Practice
+        </label>
+
+        {/* 2026-08-10 Focus mode: main content only — question+answer for
+            qa, text for paragraphs/essays. No translations/analysis/vocab. */}
+        <label
+          className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
+          title="Focus mode: only the main content — question and answer, paragraph text. All enrichment hidden."
+        >
+          <input
+            type="checkbox"
+            checked={focusMode}
+            onChange={onToggleFocus}
+            className="h-3.5 w-3.5 accent-blue-600"
+          />
+          Focus
         </label>
 
         {practiceMode && (

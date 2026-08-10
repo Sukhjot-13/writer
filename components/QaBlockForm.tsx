@@ -32,12 +32,14 @@ type QaField =
   | "vocab"
   | "expressions";
 
+// Display order (2026-08-10, user request): question → translation → analysis →
+// answer → answer translation → grammar note → label → vocab → expressions.
 const OPTIONAL_FIELDS: { key: QaField; label: string }[] = [
   { key: "questionTranslation", label: "Question translation" },
+  { key: "analysis", label: "Analysis" },
+  { key: "answerTranslation", label: "Answer translation" },
   { key: "grammarNote", label: "Grammar note" },
   { key: "responseLabel", label: "Answer label" },
-  { key: "answerTranslation", label: "Answer translation" },
-  { key: "analysis", label: "Analysis" },
   { key: "vocab", label: "Vocabulary" },
   { key: "expressions", label: "Expressions" },
 ];
@@ -140,10 +142,11 @@ interface QaBlockFormProps {
   autoFocus?: boolean;
   mode: "normal" | "practice";
   checked: boolean; // practice only: reveal the model answer
+  focusMode?: boolean; // 2026-08-10: question + answer only, nothing else
   onUpdate: (content: QaContent) => void;
 }
 
-export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdate }: QaBlockFormProps) {
+export default function QaBlockForm({ content, autoFocus, mode, checked, focusMode, onUpdate }: QaBlockFormProps) {
   const [revealed, setRevealed] = useState<Set<QaField>>(() => usedFields(content));
 
   useEffect(() => {
@@ -216,6 +219,36 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
     );
   }
 
+  // Focus mode (2026-08-10, user request): ONLY the main content — the
+  // question and the answer. No translations, no analysis, no vocab, no
+  // suggestions, no chips. Same fields, nothing hidden data-wise.
+  if (focusMode) {
+    return (
+      <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
+        <div>
+          <label className={labelCls}>Question</label>
+          <input
+            autoFocus={autoFocus}
+            className={`${inputCls} font-medium text-zinc-900`}
+            value={content.question}
+            placeholder="Type the question in the primary language…"
+            onChange={(e) => set("question", e.target.value)}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Answer</label>
+          <AutoGrowTextarea
+            className={inputCls}
+            rows={2}
+            value={content.modelAnswer ?? ""}
+            placeholder="Reference answer… (leave empty for a question without a provided answer)"
+            onChange={(e) => set("modelAnswer", e.target.value)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
       {/* Question — required (FR-4) */}
@@ -229,6 +262,58 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
           onChange={(e) => set("question", e.target.value)}
         />
       </div>
+
+      {/* 2026-08-10 field order (user request, mirrored in preview + PDF):
+          question → translation → analysis → answer → answer translation → … */}
+      {is("questionTranslation") && (
+        <div>
+          <div className={labelCls}>
+            <span>Question translation</span>
+            <EyeToggle
+              on={!content.hideTranslation}
+              onToggle={() => set("hideTranslation", !content.hideTranslation)}
+              title={content.hideTranslation ? "Show question translation in output" : "Hide question translation in output"}
+            />
+            <button
+              type="button"
+              onClick={() => hideField("questionTranslation")}
+              className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500"
+              title="Remove field"
+            >
+              ✕
+            </button>
+          </div>
+          <input
+            className={inputCls}
+            value={content.questionTranslation ?? ""}
+            placeholder="English translation of the question…"
+            onChange={(e) => set("questionTranslation", e.target.value)}
+          />
+        </div>
+      )}
+
+      {is("analysis") && (
+        <div>
+          <div className={labelCls}>
+            <span>Analysis</span>
+            <button
+              type="button"
+              onClick={() => hideField("analysis")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
+              ✕
+            </button>
+          </div>
+          <AutoGrowTextarea
+            className={inputCls}
+            rows={2}
+            value={content.analysis ?? ""}
+            placeholder="Why is this answer correct — grammar or vocabulary it uses…"
+            onChange={(e) => set("analysis", e.target.value)}
+          />
+        </div>
+      )}
 
       {/* Reference answer — always visible (M6: one answer field, clean cards) */}
       <div>
@@ -256,6 +341,28 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
         <SuggestionList content={content} onUpdate={onUpdate} />
       </div>
 
+      {is("answerTranslation") && (
+        <div>
+          <div className={labelCls}>
+            <span>Answer translation</span>
+            <button
+              type="button"
+              onClick={() => hideField("answerTranslation")}
+              className="ml-auto text-zinc-300 hover:text-red-500"
+              title="Remove field"
+            >
+              ✕
+            </button>
+          </div>
+          <input
+            className={inputCls}
+            value={content.answerTranslation ?? ""}
+            placeholder="English translation of the answer…"
+            onChange={(e) => set("answerTranslation", e.target.value)}
+          />
+        </div>
+      )}
+
       {/* Optional-field chip menu (FR-4/26: sections appear once used) — SUPER
           subtle (2026-08-10): 99% of enrichment comes from the AI, so the chips
           are invisible until the card is hovered or focused, then faint. */}
@@ -272,33 +379,6 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
               + {f.label}
             </button>
           ))}
-        </div>
-      )}
-
-      {is("questionTranslation") && (
-        <div>
-          <div className={labelCls}>
-            <span>Question translation</span>
-            <EyeToggle
-              on={!content.hideTranslation}
-              onToggle={() => set("hideTranslation", !content.hideTranslation)}
-              title={content.hideTranslation ? "Show question translation in output" : "Hide question translation in output"}
-            />
-            <button
-              type="button"
-              onClick={() => hideField("questionTranslation")}
-              className="ml-auto rounded p-0.5 text-zinc-300 transition-colors hover:text-red-500"
-              title="Remove field"
-            >
-              ✕
-            </button>
-          </div>
-          <input
-            className={inputCls}
-            value={content.questionTranslation ?? ""}
-            placeholder="English translation of the question…"
-            onChange={(e) => set("questionTranslation", e.target.value)}
-          />
         </div>
       )}
 
@@ -342,51 +422,6 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
             value={content.responseLabel ?? "RÉPONSE"}
             placeholder="RÉPONSE"
             onChange={(e) => set("responseLabel", e.target.value)}
-          />
-        </div>
-      )}
-
-      {is("answerTranslation") && (
-        <div>
-          <div className={labelCls}>
-            <span>Answer translation</span>
-            <button
-              type="button"
-              onClick={() => hideField("answerTranslation")}
-              className="ml-auto text-zinc-300 hover:text-red-500"
-              title="Remove field"
-            >
-              ✕
-            </button>
-          </div>
-          <input
-            className={inputCls}
-            value={content.answerTranslation ?? ""}
-            placeholder="English translation of the answer…"
-            onChange={(e) => set("answerTranslation", e.target.value)}
-          />
-        </div>
-      )}
-
-      {is("analysis") && (
-        <div>
-          <div className={labelCls}>
-            <span>Analysis</span>
-            <button
-              type="button"
-              onClick={() => hideField("analysis")}
-              className="ml-auto text-zinc-300 hover:text-red-500"
-              title="Remove field"
-            >
-              ✕
-            </button>
-          </div>
-          <AutoGrowTextarea
-            className={inputCls}
-            rows={2}
-            value={content.analysis ?? ""}
-            placeholder="Why is this answer correct — grammar or vocabulary it uses…"
-            onChange={(e) => set("analysis", e.target.value)}
           />
         </div>
       )}

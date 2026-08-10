@@ -10,6 +10,12 @@
 import { useState } from "react";
 import type { Document } from "@/lib/types";
 import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow paste box
+import InstructionCopyBox from "./InstructionCopyBox"; // 2026-08-10
+
+// 2026-08-10 (user request): context for the other AI so the HTML it produces
+// matches what this app renders from its own template.
+const HTML_INSTRUCTION =
+  "Write a complete, print-ready HTML worksheet for French practice, in French with English translations as secondary text. A4 layout: base font 11.5px (10.5px when printed), 18mm page margins (14mm when printed), Georgia or a similar serif for the text. French is the primary material — it must be the biggest regular text; English translations are italic, smaller (0.9em) and clearly secondary. Structure: a document title, section headings, numbered questions with their model answers, and a two-column vocabulary table (term | definition). Return ONLY the HTML — no markdown fences, no explanations.";
 
 interface PasteHtmlModalProps {
   onClose: () => void;
@@ -70,6 +76,10 @@ export default function PasteHtmlModal({ onClose, onImported }: PasteHtmlModalPr
         </div>
 
         <div className="px-5 py-4">
+          <InstructionCopyBox
+            title="Instructions for another AI"
+            instruction={HTML_INSTRUCTION}
+          />
           <AutoGrowTextarea
             value={html}
             onChange={(e) => setHtml(e.target.value)}

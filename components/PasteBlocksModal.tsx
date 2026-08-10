@@ -10,7 +10,14 @@
 import { useState } from "react";
 import type { Block } from "@/lib/types";
 import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow paste box
+import InstructionCopyBox from "./InstructionCopyBox"; // 2026-08-10
 import { parseStructuredBlocksResponse } from "@/lib/structuring";
+
+// 2026-08-10 (user request): the context to give another AI so its output
+// arrives in exactly this app's JSON block format — paste the instruction +
+// your raw material into the other AI, then paste its response below.
+const BLOCKS_INSTRUCTION =
+  'Convert the French practice material below into structured document blocks. Return ONLY a JSON array of block objects — no markdown fences, no explanations, no HTML — in document order, using exactly these shapes: {"type":"title","text":"…"} {"type":"heading","text":"…","level":2} {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]} {"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[…],"expressions":[…] } {"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[…],"expressions":[…] } {"type":"separator"} Group consecutive prose paragraphs of the same passage into ONE essay object (its "paragraphs" array) with a single shared translation/analysis/vocab/expressions set — never split an essay into per-paragraph parts. Keep every provided answer verbatim. Omit any optional field you cannot fill with confidence. Never invent an answer for an unanswered question — leave "modelAnswer" out entirely. Never include user answers.';
 
 interface PasteBlocksModalProps {
   onClose: () => void;
@@ -56,6 +63,10 @@ export default function PasteBlocksModal({ onClose, onResult }: PasteBlocksModal
         </div>
 
         <div className="px-5 py-4">
+          <InstructionCopyBox
+            title="Instructions for another AI"
+            instruction={BLOCKS_INSTRUCTION}
+          />
           <AutoGrowTextarea
             value={text}
             onChange={(e) => setText(e.target.value)}

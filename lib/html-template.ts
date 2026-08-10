@@ -8,9 +8,13 @@
 // Q&A rendering (M2): auto-numbered circular badge, translation `<em>`, grammar
 // note, response label, user-answer box (dashed left border, only when filled),
 // model answer, answer translation, analysis, vocab/expressions grid
-// (.two-col/.one-col). Omission rules (FR-36): elements hidden via
-// `hideTranslation` / `hideModelAnswer` (per block) or the document-level
-// `practice` defaults are OMITTED entirely — never blurred.
+// (.two-col/.one-col). Field order (2026-08-10, user request): question →
+// translation → analysis → answer (model answer + answer translation) → etc.
+// Omission rules (FR-36): elements hidden via `hideTranslation` /
+// `hideModelAnswer` (per block) or the document-level `practice` defaults are
+// OMITTED entirely — never blurred. Preview toggles (2026-08-10): `hidden`
+// opts omit enrichment sections for qa/paragraph/essay blocks — the main
+// content (title, headings, questions, paragraph text) is never hidden.
 //
 // Color policy (FR-47): every color value comes from the tokens object —
 // no color literals in app code. Text-shade variations (#444/#555/#333 in the
@@ -151,12 +155,14 @@ function qaBlockHtml(
   block: Extract<Block, { type: "qa" }>,
   tokens: DesignTokens,
   number: number,
+  opts: TemplateRenderOpts,
 ): string {
   const content = block.content;
   const wrapper = `block block-${block.type}${block.tags.map(tagClass).join("")}`;
   const md = renderInlineMarkdown;
+  const hidden = opts.hidden ?? {};
 
-  const translation = qaVisible(doc, content, "translation") && content.questionTranslation
+  const translation = !hidden.translations && qaVisible(doc, content, "translation") && content.questionTranslation
     ? `<em>${md(content.questionTranslation)}</em>`
     : "";
   const grammarNote = content.grammarNote ? `<p class="qa-grammar-note">${md(content.grammarNote)}</p>` : "";
@@ -166,25 +172,34 @@ function qaBlockHtml(
   const userAnswer = content.userAnswer
     ? `<div class="qa-user-answer">${md(content.userAnswer)}</div>`
     : "";
-  const modelAnswer = qaVisible(doc, content, "modelAnswer") && content.modelAnswer
+  const modelAnswer = !hidden.modelAnswers && qaVisible(doc, content, "modelAnswer") && content.modelAnswer
     ? `<div class="qa-answer">${md(content.modelAnswer)}</div>`
     : "";
-  const answerTranslation = qaVisible(doc, content, "translation") && content.answerTranslation
+  const answerTranslation = !hidden.translations && qaVisible(doc, content, "translation") && content.answerTranslation
     ? `<div class="qa-translation">${md(content.answerTranslation)}</div>`
     : "";
-  const analysis = content.analysis
+  const analysis = !hidden.analyses && content.analysis
     ? `<div class="qa-analyse"><strong>Analyse :</strong> ${md(content.analysis)}</div>`
     : "";
-  const grid = vocabGridHtml(content.vocab, content.expressions);
+  // 2026-08-10 field order (user request): question → translation → analysis →
+  // answer → answer translation → practice answer → grammar note / label → grid.
+  const grid = hidden.vocab ? "" : vocabGridHtml(content.vocab, content.expressions);
 
   return `<section class="${wrapper}"><div class="qa-block">
 <div class="qa-question"><span class="qa-num">${number}</span><p class="qa-question-text">${md(content.question)}${translation}</p></div>
-${grammarNote}${responseLabel}${userAnswer}${modelAnswer}${answerTranslation}${analysis}${grid}
+${analysis}${modelAnswer}${answerTranslation}${userAnswer}${grammarNote}${responseLabel}${grid}
 </div></section>`;
 }
 
-function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber: { n: number }): string {
+function blockToHtml(
+  doc: Document,
+  block: Block,
+  tokens: DesignTokens,
+  qaNumber: { n: number },
+  opts: TemplateRenderOpts,
+): string {
   const wrapper = `block block-${block.type}${block.tags.map(tagClass).join("")}`;
+  const hidden = opts.hidden ?? {};
   switch (block.type) {
     case "title":
       return `<h1 class="${wrapper}">${escapeHtml(block.content.text)}</h1>`;
@@ -200,14 +215,18 @@ function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber
           : escapeHtml(c.text).replace(/\n/g, "<br>");
       // M6: AI enrichment for all text — translation, analysis, vocab grid —
       // plus the practice answer (dashed box, same as qa user answers).
+      // 2026-08-10: preview toggles hide enrichment; the paragraph TEXT is main
+      // content and never hidden.
       const userAnswer = c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
-      const translation = c.translation ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>` : "";
-      const analysis = c.analysis
+      const translation = !hidden.translations && c.translation
+        ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
+        : "";
+      const analysis = !hidden.analyses && c.analysis
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
-      const grid = vocabGridHtml(c.vocab, c.expressions);
+      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
       return `<p class="${wrapper}">${text}</p>${userAnswer}${translation}${analysis}${grid}`;
     }
     case "essay": {
@@ -220,32 +239,46 @@ function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber
       const userAnswer = c.userAnswer
         ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
         : "";
-      const translation = c.translation ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>` : "";
-      const analysis = c.analysis
+      const translation = !hidden.translations && c.translation
+        ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>`
+        : "";
+      const analysis = !hidden.analyses && c.analysis
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
-      const grid = vocabGridHtml(c.vocab, c.expressions);
+      const grid = hidden.vocab ? "" : vocabGridHtml(c.vocab, c.expressions);
       return `<div class="${wrapper}">${paragraphs}${userAnswer}${translation}${analysis}${grid}</div>`;
     }
     case "separator":
       return `<hr class="${wrapper}">`;
     case "qa": {
       qaNumber.n += 1; // sequential numbering across the document (1, 2, 3…)
-      return qaBlockHtml(doc, block, tokens, qaNumber.n);
+      return qaBlockHtml(doc, block, tokens, qaNumber.n, opts);
     }
   }
 }
 
-/** Build a complete, self-contained styled HTML document from block data.
- *  `printMode` forces the print rules on screen (A4 sheet look) — used by the
- *  on-demand preview so it matches the PDF; downloads keep the screen mode. */
+/** Render options for generateTemplateHTML. `printMode` forces the print rules
+ *  on screen (A4 sheet look) — used by the on-demand preview so it matches the
+ *  PDF; downloads keep the screen mode. `hidden` (2026-08-10) are the preview
+ *  field toggles: qa/paragraph/essay enrichment sections are omitted; the main
+ *  content (title, headings, questions, paragraph text) is never hidden. */
+export interface TemplateRenderOpts {
+  printMode?: boolean;
+  hidden?: {
+    translations?: boolean;
+    analyses?: boolean;
+    vocab?: boolean;
+    modelAnswers?: boolean;
+  };
+}
+
 export function generateTemplateHTML(
   doc: Document,
   tokens: DesignTokens,
-  opts: { printMode?: boolean } = {},
+  opts: TemplateRenderOpts = {},
 ): string {
   const qaNumber = { n: 0 };
-  const body = doc.blocks.map((b) => blockToHtml(doc, b, tokens, qaNumber)).join("\n");
+  const body = doc.blocks.map((b) => blockToHtml(doc, b, tokens, qaNumber, opts)).join("\n");
   const title = escapeHtml(doc.title || "Document");
   return `<!DOCTYPE html>
 <html lang="fr">

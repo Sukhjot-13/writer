@@ -31,6 +31,8 @@ interface BlockListProps {
   // blocks get "My answer" boxes (see Block.tsx).
   practiceMode: boolean;
   checked: boolean;
+  // 2026-08-10: Focus mode — pass-through to blocks (main content only).
+  focusMode: boolean;
 }
 
 export default function BlockList({
@@ -48,6 +50,7 @@ export default function BlockList({
   onUpdateTags,
   practiceMode,
   checked,
+  focusMode,
 }: BlockListProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -131,6 +134,7 @@ export default function BlockList({
             onUpdateTags={(tags) => onUpdateTags(block.id, tags)}
             practiceMode={practiceMode}
             checked={checked}
+            focusMode={focusMode}
           />
         </div>
       ))}

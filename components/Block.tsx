@@ -151,6 +151,9 @@ interface BlockProps {
   // get "My answer" boxes, title/heading render read-only.
   practiceMode: boolean;
   checked: boolean;
+  // 2026-08-10: Focus mode — only the main content (qa: question + answer;
+  // paragraph: the text; essay: its paragraphs). All enrichment hidden.
+  focusMode: boolean;
 }
 
 export default function Block({
@@ -169,6 +172,7 @@ export default function Block({
   onUpdateTags,
   practiceMode,
   checked,
+  focusMode,
 }: BlockProps) {
   const [tagsDraft, setTagsDraft] = useState(block.tags.join(", "));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -361,6 +365,7 @@ export default function Block({
               autoFocus={autoFocus}
               mode={practiceMode ? "practice" : "normal"}
               checked={checked}
+              focusMode={focusMode}
               onUpdate={onUpdate}
             />
           ) : practiceMode && block.type === "paragraph" ? (
@@ -399,7 +404,7 @@ export default function Block({
               >
                 + Add paragraph
               </button>
-              <ParagraphFields content={block.content} onUpdate={onUpdate} />
+              {!focusMode && <ParagraphFields content={block.content} onUpdate={onUpdate} />}
             </div>
           ) : (
             <div className="relative">
@@ -418,8 +423,10 @@ export default function Block({
                 }
                 className={`block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm ${textAreaCls}`}
               />
-              {/* M6: AI enrichment for paragraphs (translation/analysis/vocab) — hidden in practice */}
-              {block.type === "paragraph" && !practiceMode && (
+              {/* M6: AI enrichment for paragraphs (translation/analysis/vocab) —
+                  hidden in practice AND focus mode (2026-08-10: focus shows the
+                  main content only). */}
+              {block.type === "paragraph" && !practiceMode && !focusMode && (
                 <ParagraphFields content={block.content} onUpdate={onUpdate} />
               )}
               {slashOpen && (

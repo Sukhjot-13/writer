@@ -262,17 +262,14 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
         </Text>
       </View>
 
-      {variant !== "my-answers" && content.grammarNote ? (
-        <Text style={styles.grammarNote}>{content.grammarNote}</Text>
-      ) : null}
-      {variant !== "my-answers" && content.responseLabel ? (
-        <Text style={styles.responseLabel}>{content.responseLabel}</Text>
-      ) : null}
-
-      {showUser && content.userAnswer ? (
-        <View style={styles.userAnswer}>
-          <Text>{content.userAnswer}</Text>
-        </View>
+      {/* 2026-08-10 field order (user request, mirrored in the HTML template
+          and the editor): question → translation → analysis → answer →
+          answer translation → practice answer → grammar note / label → grid. */}
+      {showExtras && content.analysis ? (
+        <Text style={styles.analysis}>
+          <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
+          {content.analysis}
+        </Text>
       ) : null}
 
       {showModelAnswer && content.modelAnswer ? (
@@ -289,11 +286,17 @@ function QABlockPDF({ block, doc, tokens, number, variant }: QABlockProps) {
         <Text style={styles.answerTranslation}>{content.answerTranslation}</Text>
       ) : null}
 
-      {showExtras && content.analysis ? (
-        <Text style={styles.analysis}>
-          <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
-          {content.analysis}
-        </Text>
+      {showUser && content.userAnswer ? (
+        <View style={styles.userAnswer}>
+          <Text>{content.userAnswer}</Text>
+        </View>
+      ) : null}
+
+      {variant !== "my-answers" && content.grammarNote ? (
+        <Text style={styles.grammarNote}>{content.grammarNote}</Text>
+      ) : null}
+      {variant !== "my-answers" && content.responseLabel ? (
+        <Text style={styles.responseLabel}>{content.responseLabel}</Text>
       ) : null}
 
       {showExtras ? (

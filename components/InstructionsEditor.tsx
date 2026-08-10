@@ -105,14 +105,14 @@ export default function InstructionsEditor() {
   }
 
   function previewHistory(entry: HistoryEntry) {
-    setDraft(entry.content);
+    setDraft(entry.content ?? "");
     setStatus(`Previewing v${entry.version} from ${formatDate(entry.savedAt)} — Save to make it active.`);
   }
 
   async function restoreVersion(entry: HistoryEntry) {
     if (busy) return;
     if (!confirm(`Make v${entry.version} (${formatDate(entry.savedAt)}) the active instructions?`)) return;
-    setDraft(entry.content);
+    setDraft(entry.content ?? "");
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -120,7 +120,7 @@ export default function InstructionsEditor() {
       const res = await fetch("/api/instructions", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: entry.content }),
+        body: JSON.stringify({ content: entry.content ?? "" }),
       });
       const body = (await res.json().catch(() => ({}))) as { version?: string; error?: string };
       if (!res.ok) throw new Error(body.error ?? "Could not restore version");
@@ -208,7 +208,7 @@ export default function InstructionsEditor() {
               >
                 <span className="font-mono text-xs text-zinc-500">v{entry.version}</span>
                 <span className="text-zinc-600">{formatDate(entry.savedAt)}</span>
-                <span className="text-zinc-400">{entry.content.length} chars</span>
+                <span className="text-zinc-400">{(entry.content ?? "").length} chars</span>
                 <div className="ml-auto flex gap-2">
                   <button
                     type="button"
