@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Block as BlockModel, BlockType } from "@/lib/types";
+import QaBlockForm from "./QaBlockForm";
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   title: "Title",
@@ -16,10 +17,11 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   separator: "Separator",
 };
 
-/** Block types the M1 slash menu can convert to (QA lands in M2). */
+/** Block types the slash menu can convert to (FR-2: /para /h2 /qa /title). */
 export const SLASH_TYPES: { type: BlockType; label: string; hint: string }[] = [
   { type: "paragraph", label: "Paragraph", hint: "/para" },
   { type: "heading", label: "Heading", hint: "/h2" },
+  { type: "qa", label: "Question & Answer", hint: "/qa" },
   { type: "title", label: "Title", hint: "/title" },
   { type: "separator", label: "Separator", hint: "divider" },
 ];
@@ -178,6 +180,8 @@ export default function Block({
             <div className="py-3">
               <hr className="border-t border-zinc-300" />
             </div>
+          ) : block.type === "qa" ? (
+            <QaBlockForm content={block.content} autoFocus={autoFocus} onUpdate={onUpdate} />
           ) : (
             <div className="relative">
               <textarea

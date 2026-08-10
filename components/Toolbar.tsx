@@ -1,10 +1,18 @@
-// components/Toolbar.tsx — primary actions (FR-29/30/46):
-// Convert (Template), Save, Download PDF (gated by FR-46), Download HTML,
+// components/Toolbar.tsx — primary actions (FR-29/30/35/37/46):
+// Convert (Template), Save, Download PDF (gated by FR-46, with practice-mode
+// checkbox FR-16), Download HTML, global visibility buttons (FR-35),
 // preview toggle, and the document title input.
 
 "use client";
 
 import Link from "next/link";
+
+export interface VisibilityCounts {
+  translationsHidden: number;
+  translationsTotal: number;
+  answersHidden: number;
+  answersTotal: number;
+}
 
 interface ToolbarProps {
   title: string;
@@ -14,8 +22,15 @@ interface ToolbarProps {
   onConvert: () => void;
   onSave: () => void;
   canDownloadPdf: boolean;
+  practiceMode: boolean;
+  onTogglePractice: () => void;
   onDownloadPdf: () => void;
   onDownloadHtml: () => void;
+  counts: VisibilityCounts;
+  onHideAllTranslations: () => void;
+  onShowAllTranslations: () => void;
+  onHideAllAnswers: () => void;
+  onShowAllAnswers: () => void;
   showPreview: boolean;
   onTogglePreview: () => void;
 }
@@ -53,11 +68,22 @@ export default function Toolbar({
   onConvert,
   onSave,
   canDownloadPdf,
+  practiceMode,
+  onTogglePractice,
   onDownloadPdf,
   onDownloadHtml,
+  counts,
+  onHideAllTranslations,
+  onShowAllTranslations,
+  onHideAllAnswers,
+  onShowAllAnswers,
   showPreview,
   onTogglePreview,
 }: ToolbarProps) {
+  const noQa = counts.translationsTotal === 0;
+  const allTranslationsHidden = counts.translationsTotal > 0 && counts.translationsHidden === counts.translationsTotal;
+  const allAnswersHidden = counts.answersTotal > 0 && counts.answersHidden === counts.answersTotal;
+
   return (
     <div className="border-b border-zinc-200 bg-white px-4 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -76,6 +102,18 @@ export default function Toolbar({
           <ActionButton onClick={onSave} disabled={busy !== null} title="Cmd/Ctrl+S">
             {busy === "saving" ? "Saving…" : "Save"}
           </ActionButton>
+          <label
+            className="flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            title="Practice mode: translations and model answers omitted, blank answer areas (FR-16/49)"
+          >
+            <input
+              type="checkbox"
+              checked={practiceMode}
+              onChange={onTogglePractice}
+              className="h-3.5 w-3.5 accent-blue-600"
+            />
+            Practice PDF
+          </label>
           <ActionButton
             onClick={onDownloadPdf}
             disabled={!canDownloadPdf || busy !== null}
@@ -85,6 +123,20 @@ export default function Toolbar({
           </ActionButton>
           <ActionButton onClick={onDownloadHtml} disabled={busy !== null}>
             Download HTML
+          </ActionButton>
+          <ActionButton
+            onClick={allTranslationsHidden ? onShowAllTranslations : onHideAllTranslations}
+            disabled={noQa || busy !== null}
+            title="FR-35: hide or show every question translation in one click"
+          >
+            {allTranslationsHidden ? "Show all translations" : "Hide all translations"}
+          </ActionButton>
+          <ActionButton
+            onClick={allAnswersHidden ? onShowAllAnswers : onHideAllAnswers}
+            disabled={noQa || busy !== null}
+            title="FR-35: hide or show every model answer in one click"
+          >
+            {allAnswersHidden ? "Show all answers" : "Hide all answers"}
           </ActionButton>
           <ActionButton onClick={onTogglePreview}>
             {showPreview ? "Hide preview" : "Show preview"}

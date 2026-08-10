@@ -1,7 +1,7 @@
 # Architecture — Writer App
 
 > **Project root:** `/Users/sukhjot/Desktop/untitled folder 2/writer-app` — Next.js (App Router, TypeScript, Tailwind v4) writer/practice app per `docs/writer_app_requirements.md` (v1.4, FR-1…FR-50) and `docs/Plan.md`.
-> **Status:** Milestone M1 (Skeleton + Offline Loop) **DONE** — production build passes; template conversion, CRUD, HTML + PDF download verified end-to-end against the running server. M2 (Q&A blocks + practice controls) is next. This file is updated after every change; it is the latest and current state of the app.
+> **Status:** Milestone M2 (Q&A Blocks + Practice Controls) **DONE** — full Q&A editing (FR-4), visibility toggles (FR-33–35), omission rules (FR-36), practice-mode PDFs with blank answer areas (FR-49), library Regenerate (FR-20). M1 also complete. M3 (DeepSeek + question import + copy/paste) is next. This file is updated after every change; it is the latest and current state of the app.
 
 **Locked decisions (never revisit):** PDF engine = `@react-pdf/renderer` only (no Puppeteer/Chrome anywhere) · design tokens parsed at runtime from the instructions file `TOKENS` block (changing colors = editing `docs/html_instructions.md` only) · storage pluggable (filesystem now, MongoDB + Vercel Blob later) · no auth in v1, `ownerId` seams kept (FR-45) · one-change-one-file (AI → `lib/ai.ts`, PDF → `lib/pdf.ts`, storage → `lib/storage.ts`, design → instructions file, FR-48) · preview before PDF is mandatory (FR-46).
 
@@ -66,19 +66,25 @@ data/                          # gitignored runtime storage
     - `snapshotInstructions(version)` — copies current instructions to `history/<version>.md` (sanitized).
 
 ### `lib/html-template.ts` — Template-mode HTML generator (FR-9, Plan §8.1)
-- **Purpose:** Deterministic, self-contained styled HTML from block data + shared tokens — the offline converter (no AI). Follows `docs/html_instructions.md`: A4 `@page`, Georgia/Times, token colors, `.qa-block` cards, `break-inside: avoid` in print. Renders title/heading/paragraph/separator + minimal QA fallback card (full Q&A in M2).
+- **Purpose:** Deterministic, self-contained styled HTML from block data + shared tokens — the offline converter (no AI). Follows `docs/html_instructions.md`: A4 `@page`, Georgia/Times, token colors, `.qa-block` cards, `break-inside: avoid` in print. Full Q&A rendering (M2): sequential circular badges, translation `<em>`, grammar note, response label, user-answer box (dashed left border), model answer, answer translation, analysis, vocab grid (`.two-col`/`.one-col`). Color policy: every color from tokens only (FR-47); text-shade variations = mainText + opacity. Omission rules FR-36: hidden elements omitted entirely.
 - **Functions:**
   - `escapeHtml(text)` — HTML-escapes user content (XSS defense; preview iframe is also sandboxed).
   - `renderInlineMarkdown(text)` — light inline markdown: `code`, `**bold**`, `*italic*` (applied after escaping).
-  - `generateTemplateHTML(doc, tokens)` — builds the full HTML document (doctype, `<style>` from tokens, `<main class="document">` with block sections).
+  - `generateTemplateHTML(doc, tokens)` — builds the full HTML document (doctype, `<style>` from tokens, `<main class="document">` with block sections; Q&A numbering is sequential across the doc).
   - `tagClass(tag)` (private) — sanitizes user tags into CSS classes (`#past-tense` → `tag-past-tense`).
+  - `qaVisible(doc, content, kind)` (private) — visibility check: hidden when the per-block flag OR the document `practice` default is set (FR-34/35).
+  - `vocabGridHtml(vocab, expressions)` (private) — builds the vocab/expressions grid; `.two-col` when both lists exist, `.one-col` otherwise; headers + striped column bodies from tokens.
+  - `qaBlockHtml(doc, block, tokens, number)` (private) — assembles a full `.qa-block` card with all optional parts; omitted parts never emitted.
 
 ### `lib/pdf.tsx` — @react-pdf/renderer PDF generation (FR-14/15, Plan §8.2)
-- **Purpose:** The ONLY PDF engine. Generates A4 PDFs from block data (never from HTML) — no Chrome/Puppeteer anywhere. Styles come from the shared tokens (FR-43): Times-Roman, token colors, print margins (~14mm). `.tsx` because it contains JSX.
+- **Purpose:** The ONLY PDF engine. Generates A4 PDFs from block data (never from HTML) — no Chrome/Puppeteer anywhere. Styles come from the shared tokens (FR-43): Times-Roman, token colors, print margins (~14mm). `.tsx` because it contains JSX. Full Q&A rendering (M2): circular badge (View + centered Text — no SVG), question + italic translation, grammar note, response label, user-answer box, model answer, translation, analysis, vocab grid, `minPresenceAhead` keep-together hint. Note: react-pdf v4.6 has no `breakInside: "avoid"` — closest available is `minPresenceAhead` (documented limitation, see suggestions.md).
 - **Functions:**
   - `lengthToPt(value)` — converts token lengths ("14mm", "11.5px", "0.8rem") to points for react-pdf.
-  - `BlockToPDF({ block, tokens })` — maps a block to react-pdf elements (title → h1-style Text, heading → h2/h3, paragraph → Text, separator → bordered View, qa → minimal card; full Q&A in M2).
-  - `generatePDFBuffer(doc, tokens, opts?)` — renders `<PDFDocument>` via `renderToBuffer`; `opts.practice` accepted now, used in M2 (FR-16/36/49).
+  - `BlockToPDF({ block, doc, tokens, qaNumber, practice })` — maps a block to react-pdf elements; QA numbering sequential across the doc.
+  - `QABlockPDF(...)` (private) — full Q&A card; mirrors `qaBlockHtml`'s omission rules (FR-36).
+  - `BlankAnswerArea({ basePt, color })` (private) — practice-mode empty ruled dashed area ≈4 lines (FR-49); never contains answer/translation content.
+  - `qaVisible(doc, content, kind)` (private) — same visibility logic as the HTML template (FR-34/35).
+  - `generatePDFBuffer(doc, tokens, opts?)` — renders `<PDFDocument>` via `renderToBuffer`; `opts.practice` → translations + model answers always omitted (FR-36), user answers retained, blank areas for unanswered questions (FR-49).
 
 ### `lib/save.ts` — Save flow (FR-17/20, FR-46)
 - **Purpose:** Shared by POST/PUT document routes: always writes `document.json`; when a preview exists, also writes `document.html` + regenerates `document.pdf` (PDF always reflects what was previewed).
@@ -90,7 +96,8 @@ data/                          # gitignored runtime storage
 - `api/documents/route.ts` — **GET** list (optional `?owner=` filter, FR-45) → `{ documents }`; **POST** `{ doc, html? }` → creates + persists artifacts (201).
 - `api/documents/[id]/route.ts` — **GET** → `{ doc }` (404 if missing); **PUT** `{ doc, html? }` (id must match route; persists artifacts); **DELETE** → 204. `params` typed as `Promise<{ id }>` (Next 15+ convention).
 - `api/documents/[id]/html/route.ts` — **GET** download HTML (saved file, else freshly generated from block data — regenerate, FR-20); attachment filename from doc title.
-- `api/documents/[id]/pdf/route.ts` — **GET** download PDF, always generated from block data via `generatePDFBuffer` (FR-15); accepts `?practice=true` (used in M2).
+- `api/documents/[id]/pdf/route.ts` — **GET** download PDF, always generated from block data via `generatePDFBuffer` (FR-15); `?practice=true` → practice-mode PDF (FR-16/36/49).
+- `api/documents/[id]/regenerate/route.ts` — **POST** re-convert from JSON (template mode) + re-render PDF (FR-20); 404 when missing.
 
 ### `next.config.ts`
 - **Purpose:** `serverExternalPackages: ["@react-pdf/renderer"]` so the PDF engine works in route handlers (FR-14/15).
@@ -99,31 +106,36 @@ data/                          # gitignored runtime storage
 - **Purpose:** `/data` runtime storage ignored; `.env*` ignored except the committed example; env vars per requirements §12 (DEEPSEEK_*, DATA_DIR, MONGODB_URI, BLOB_READ_WRITE_TOKEN).
 
 ### `components/Editor.tsx` — Main editor (client, two-pane)
-- **Purpose:** All document state + flows: init by `?id=` (else localStorage draft, else fresh doc with one paragraph block — FR-24), debounced localStorage draft autosave (FR-6), convert → preview → save → download with FR-46 gating, Cmd/Ctrl+S + Cmd/Ctrl+Enter shortcuts (FR-7), status bar (FR-28 partial: dirty, mode, last-converted), block operations (update/convert-type/remove/move/insert-after/append).
-- **Functions:** `mutateDoc(fn)` (marks dirty + invalidates preview), `updateBlock`/`convertBlock`/`removeBlock`/`moveBlock`/`insertAfter`/`appendBlock`/`setTitle` (useCallback ops), `convert()` (POST /api/convert/template), `save()` (POST create or PUT update, html only when preview exists & fresh), `downloadPdf()` (FR-46-gated, auto-saves first), `downloadHtml()`, `ensureSaved()`, `loadDraft()`/`downloadBlob()`/`safeFilename()` helpers.
+- **Purpose:** All document state + flows: init by `?id=` (else localStorage draft, else fresh doc with one paragraph block — FR-24), debounced localStorage draft autosave (FR-6), convert → preview → save → download with FR-46 gating, Cmd/Ctrl+S + Cmd/Ctrl+Enter shortcuts (FR-7), practice-mode state for PDF download (`?practice=true`), global visibility buttons (FR-35), status bar (FR-28 partial: dirty, mode, last-converted, hidden counts FR-37, practice indicator), block operations (update/convert-type/remove/move/insert-after/append).
+- **Functions:** `mutateDoc(fn)` (marks dirty + invalidates preview), `updateBlock`/`convertBlock`/`removeBlock`/`moveBlock`/`insertAfter`/`appendBlock`/`setTitle` (useCallback ops), `setAllQaFlags(key, value)` (writes per-question flags + document `practice` defaults — FR-35), `convert()` (POST /api/convert/template), `save()` (POST create or PUT update, html only when preview exists & fresh), `downloadPdf()` (FR-46-gated, auto-saves first, practice flag appended), `downloadHtml()`, `ensureSaved()`, `loadDraft()`/`downloadBlob()`/`safeFilename()` helpers; computed `counts` (FR-37).
 
 ### `components/BlockList.tsx` — Block list (client)
 - **Purpose:** Renders blocks in order with per-block controls and the bottom add-block affordance.
 - **Functions:** maps blocks → `Block` rows (passes index/total for reorder bounds), bottom `AddBlockMenu`.
 
 ### `components/Block.tsx` — Single block editor row (client, FR-1/3/25)
-- **Purpose:** Text editing for title/heading/paragraph (auto-grow textarea), separator render, per-block ↑/↓/＋/✕ controls on hover, `/` slash-command popup (FR-2) to convert block type.
-- **Exports:** `BLOCK_LABELS`, `SLASH_TYPES` (paragraph/heading/title/separator; QA lands in M2).
+- **Purpose:** Text editing for title/heading/paragraph (auto-grow textarea), Q&A form (renders `QaBlockForm`), separator render, per-block ↑/↓/＋/✕ controls on hover, `/` slash-command popup (FR-2) to convert block type.
+- **Exports:** `BLOCK_LABELS`, `SLASH_TYPES` (paragraph/heading/**qa**/title/separator — FR-2 `/para` `/h2` `/qa` `/title`).
 - **Functions:** `handleKeyDown` (slash menu nav: arrows/Enter/Escape), `handleChange` (content update, closes menu when "/" edited away), `applySlash(type)`.
 
+### `components/QaBlockForm.tsx` — Q&A block form (client, FR-4/26/33/34/37)
+- **Purpose:** Guided Q&A editing: required `question` + optional fields revealed only once used (chips "Add: …" — FR-4/26); `userAnswer` is the primary practice field (FR-33); 👁/🙈 toggles on translation + model answer set `hideTranslation`/`hideModelAnswer` (FR-34) with a visible "hidden/shown in output" chip (FR-37); vocab/expressions row editors.
+- **Functions:** `usedFields(content)` (module-level — which optionals have content), `EyeToggle` (module component), `RowEditor` (module component — term/def row list), default export form; `hideField(key)` clears + hides, `reveal(key)` shows.
+
 ### `components/AddBlockMenu.tsx` — "+" menu (client, FR-2)
-- **Purpose:** Floating + button with block-type menu (QA listed, disabled until M2).
+- **Purpose:** Floating + button with the full block-type menu (paragraph/heading/qa/title/separator).
 - **Exports:** `ITEMS` list; default component `onAdd(type)`.
 
-### `components/Toolbar.tsx` — Primary actions (client, FR-29/30/46)
-- **Purpose:** Title input, Convert (Template), Save, Download PDF (disabled until preview — FR-46, tooltip explains), Download HTML, preview toggle, Library/New links, inline error display.
+### `components/Toolbar.tsx` — Primary actions (client, FR-29/30/35/37/46)
+- **Purpose:** Title input, Convert (Template), Save, Practice PDF checkbox (FR-16), Download PDF (disabled until preview — FR-46, tooltip explains), Download HTML, Hide/Show all translations + Hide/Show all answers (FR-35, labels reflect all-hidden state), preview toggle, Library/New links, inline error display.
+- **Exports:** `VisibilityCounts` interface (translationsHidden/Total, answersHidden/Total — FR-37).
 
 ### `components/PreviewPane.tsx` — Live preview (client, FR-13/27/46)
 - **Purpose:** A4-ish iframe preview of generated HTML. Fully sandboxed (`sandbox=""` — no scripts, per suggestions.md). Placeholder when no preview; "Stale" badge after edits; green "Preview · time" chip when fresh.
 
-### `components/LibraryList.tsx` — Library cards (client, FR-18/19)
-- **Purpose:** Document cards (title → editor `/?id=`, updated date, block count, tags) + Delete with confirm (DELETE route + `router.refresh()`).
-- **Functions:** `remove(doc)`, `formatDate(iso)`.
+### `components/LibraryList.tsx` — Library cards (client, FR-18/19/20)
+- **Purpose:** Document cards (title → editor `/?id=`, updated date, block count, tags) + Regenerate (FR-20: POST regenerate route, per-card busy state) + Delete with confirm (DELETE route + `router.refresh()`); client-side sort control (updated/created/title).
+- **Functions:** `remove(doc)`, `regenerate(doc)`, `formatDate(iso)`; `useMemo` sorted list by `sort` key.
 
 ### `app/page.tsx` — Editor route
 - **Purpose:** `/` — client page; reads `?id=` via `useSearchParams` inside `<Suspense>` (Next 16 requirement), renders `Editor`.
@@ -151,8 +163,7 @@ data/                          # gitignored runtime storage
 
 ## Planned Changes
 
-- **M2:** `QaBlockForm` (FR-4), full Q&A rendering in template + PDF (badges, numbering, vocab grids, omission rules FR-36), `userAnswer` field, per-question 👁 toggles + global hide/show (FR-33–35), practice-mode PDF with blank answer boxes (FR-16/36/49), `?practice=true` wiring, library "Regenerate".
-- **M3:** `lib/ai.ts` DeepSeek client + `/api/convert/ai`; `lib/prompt.ts`; paste-questions import (AI + local parser); copy-for-AI + paste-HTML-back; selective copy dialog (FR-50).
+- **M3 (next):** `lib/ai.ts` DeepSeek client + `/api/convert/ai`; `lib/prompt.ts`; paste-questions import (AI + local parser); copy-for-AI + paste-HTML-back; selective copy dialog (FR-50).
 - **M4:** instructions management (seed `active.md`, edit UI, history, per-document snapshots, token cache invalidation on save).
 - **M5:** polish (slash-command polish, drag-reorder, tags UI, backup zip), HTML→blocks parse-back (FR-41), Mongo/Blob storage.
 
@@ -161,6 +172,7 @@ data/                          # gitignored runtime storage
 - `npm run build` passes (all routes compiled; `/` static shell, `/library` + API routes dynamic).
 - Smoke tests: TOKENS parsing (18 checks incl. XSS escaping + defaults fallback), react-pdf buffer generation (`%PDF` magic).
 - End-to-end against `next start`: convert/template (200 + invalid-payload 400), document create/list/get/update/delete, `document.html` + `document.pdf` written to disk on save, PDF + HTML download routes (correct attachment filenames), library page listing, missing-doc 404.
+- M2 smoke (22/22): QA HTML — sequential numbering, translation/grammar/response label, dashed user-answer box, model answer, answer translation, analysis, two-col vocab grid (vocab+expr), wrapper + tag classes, hidden elements omitted (FR-36), XSS escaping; PDF normal + practice mode — `%PDF` magic, blank-area path renders, practice PDF omits model answers.
 - **M3:** DeepSeek integration + question import + copy/paste for any external AI.
 - **M4:** instructions management (seed `active.md`, edit UI, history, snapshots).
 - **M5:** polish (slash commands, shortcuts, drag-reorder, tags, backup), HTML→blocks parse-back, Mongo/Blob storage.

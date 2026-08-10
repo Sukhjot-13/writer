@@ -70,6 +70,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [practiceMode, setPracticeMode] = useState(false); // FR-16: practice-mode PDF
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
 
   const docRef = useRef(doc);
@@ -215,6 +216,32 @@ export default function Editor({ docId }: { docId: string | null }) {
     mutateDoc((d) => ({ ...d, title: value }));
   }, []);
 
+  // ---- global visibility (FR-35): write per-question flags + document defaults ----
+  const setAllQaFlags = useCallback(
+    (key: "hideTranslation" | "hideModelAnswer", value: boolean) => {
+      mutateDoc((d) => ({
+        ...d,
+        practice:
+          key === "hideTranslation"
+            ? { hideTranslations: value, hideModelAnswers: d.practice?.hideModelAnswers ?? false }
+            : { hideTranslations: d.practice?.hideTranslations ?? false, hideModelAnswers: value },
+        blocks: d.blocks.map((b) =>
+          b.type === "qa" ? setBlockContent(b, { ...b.content, [key]: value }) : b,
+        ),
+      }));
+    },
+    [],
+  );
+
+  // ---- visibility counts for the status bar / toolbar labels (FR-37) ----
+  const qaBlocks = doc ? doc.blocks.filter((b) => b.type === "qa") : [];
+  const counts = {
+    translationsTotal: qaBlocks.length,
+    translationsHidden: qaBlocks.filter((b) => b.content.hideTranslation || doc?.practice?.hideTranslations).length,
+    answersTotal: qaBlocks.length,
+    answersHidden: qaBlocks.filter((b) => b.content.hideModelAnswer || doc?.practice?.hideModelAnswers).length,
+  };
+
   // ---- conversion (template mode, FR-9) ----
   async function convert() {
     const current = docRef.current;
@@ -292,7 +319,9 @@ export default function Editor({ docId }: { docId: string | null }) {
     setError(null);
     try {
       if (!(await ensureSaved())) return;
-      const res = await fetch(`/api/documents/${current.id}/pdf`);
+      // ?practice=true → blank answer areas, answers/translations omitted (FR-16/49)
+      const qs = practiceMode ? "?practice=true" : "";
+      const res = await fetch(`/api/documents/${current.id}/pdf${qs}`);
       if (!res.ok) throw new Error("PDF generation failed");
       downloadBlob(await res.blob(), safeFilename(current.title, "pdf"));
     } catch (e) {
@@ -339,8 +368,15 @@ export default function Editor({ docId }: { docId: string | null }) {
         onConvert={() => void convert()}
         onSave={() => void save()}
         canDownloadPdf={canDownloadPdf}
+        practiceMode={practiceMode}
+        onTogglePractice={() => setPracticeMode((v) => !v)}
         onDownloadPdf={() => void downloadPdf()}
         onDownloadHtml={() => void downloadHtml()}
+        counts={counts}
+        onHideAllTranslations={() => setAllQaFlags("hideTranslation", true)}
+        onShowAllTranslations={() => setAllQaFlags("hideTranslation", false)}
+        onHideAllAnswers={() => setAllQaFlags("hideModelAnswer", true)}
+        onShowAllAnswers={() => setAllQaFlags("hideModelAnswer", false)}
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
       />
@@ -384,6 +420,15 @@ export default function Editor({ docId }: { docId: string | null }) {
         </span>
         {convertedAt && (
           <span>Last converted: {new Date(convertedAt).toLocaleTimeString()}</span>
+        )}
+        {counts.translationsTotal > 0 && (
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5">
+            {counts.translationsHidden}/{counts.translationsTotal} translations hidden ·{" "}
+            {counts.answersHidden}/{counts.answersTotal} answers hidden
+          </span>
+        )}
+        {practiceMode && (
+          <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">Practice PDF on</span>
         )}
         {status && <span className="text-zinc-400">{status}</span>}
         <span className="ml-auto">Design tokens: instructions file (TOKENS block)</span>

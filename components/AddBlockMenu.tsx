@@ -1,6 +1,5 @@
 // components/AddBlockMenu.tsx — "+" button and slash-command menu (FR-2).
-// M1 offers paragraph / heading / title / separator; Q&A is listed but
-// disabled until M2.
+// Full block-type menu: paragraph / heading / Q&A / title / separator.
 
 "use client";
 
@@ -10,9 +9,9 @@ import type { BlockType } from "@/lib/types";
 const ITEMS: { type: BlockType; label: string; available: boolean }[] = [
   { type: "paragraph", label: "Paragraph", available: true },
   { type: "heading", label: "Heading", available: true },
+  { type: "qa", label: "Question & Answer", available: true },
   { type: "title", label: "Title", available: true },
   { type: "separator", label: "Separator", available: true },
-  { type: "qa", label: "Question & Answer", available: false }, // M2
 ];
 
 export default function AddBlockMenu({ onAdd }: { onAdd: (type: BlockType) => void }) {
@@ -46,7 +45,6 @@ export default function AddBlockMenu({ onAdd }: { onAdd: (type: BlockType) => vo
               className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-zinc-300 disabled:hover:bg-transparent"
             >
               <span>{item.label}</span>
-              {!item.available && <span className="text-[10px] uppercase text-zinc-300">M2</span>}
             </button>
           ))}
         </div>

@@ -8,6 +8,7 @@
 - **2026-08-09 — Testable block markers in generated HTML:** the M1 e2e "library shows block count" check failed as a grep artifact (React SSR inserts `<!-- -->` comment nodes between text children). Give the template generator stable `data-*` hooks (e.g. `data-block-type="paragraph"` per section) so tests and future HTML→blocks parse-back (FR-41) can locate blocks structurally instead of string-matching rendered text.
 - **2026-08-09 — "Draft restored" indicator:** the editor silently restores a localStorage draft on load (FR-24). Surface a small toast/chip ("Restored draft from <time>") so the user knows stale content was recovered, with an explicit "discard draft" affordance.
 - **2026-08-09 — Embed a print-matched serif font in the PDF:** PDF uses Times-Roman while HTML print uses Georgia (per tokens). Intended for M1, but embedding Georgia (or a metric-compatible open serif) into the react-pdf bundle would make PDF and print preview pixel-identical — a natural M5 polish candidate.
+- **2026-08-10 — react-pdf has no `break-inside: avoid`:** react-pdf v4.6 exposes no `pageBreakInside`/`breakInside` style (only `break` = page-break-before and `minPresenceAhead`). QA cards use `minPresenceAhead={150}` as a keep-together approximation; a long card can still split across pages. Candidate future fix: a per-card `break` toggle in the editor for cards the user wants on their own page.
 
 ## 🟡 New Features
 
