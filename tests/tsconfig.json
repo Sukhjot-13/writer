@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "outDir": "./build",
+    "rootDir": "..",
+    "baseUrl": "..",
+    "paths": { "@/*": ["*"] },
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "typeRoots": ["../node_modules/@types"]
+  },
+  "include": [
+    "./smoke-m2.ts",
+    "./smoke-m3.ts",
+    "../lib/**/*.ts",
+    "../components/CopyDialog.tsx",
+    "../app/api/documents/import-html/route.ts"
+  ]
+}

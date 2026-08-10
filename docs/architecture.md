@@ -2,7 +2,7 @@
 
 Project root: `/Users/sukhjot/Desktop/untitled folder 2` — home to the HTML→PDF pipeline (CLI script + Express web app), the shared style instructions, and the Next.js writer/practice app.
 
-> **Status:** HTML→PDF pipeline (2 projects) is working. The Next.js writer app (**`writer-app/`**, separate git repo) has **Milestone M1 complete** (skeleton + offline loop: block editor, template HTML, react-pdf PDF, filesystem storage, library). **The writer app's detailed, always-current architecture doc lives at `writer-app/architecture.md`** — this file covers the parent folder; the writer app section below stays at milestone level. This file is updated whenever the codebase changes.
+> **Status:** HTML→PDF pipeline (2 projects) is working. The Next.js writer app (**`writer-app/`**, separate git repo) has **Milestones M1–M3 complete** (offline loop; Q&A blocks + practice controls; DeepSeek AI conversion, paste-questions import, copy-for-AI / paste-HTML-back, selective copy — FR-38/39/40/50). **The writer app's detailed, always-current architecture doc lives at `writer-app/architecture.md`** — this file covers the parent folder; the writer app section below stays at milestone level. This file is updated whenever the codebase changes.
 
 ---
 
@@ -58,7 +58,7 @@ Project root: `/Users/sukhjot/Desktop/untitled folder 2` — home to the HTML→
 
 ### `Plan.md` — Implementation plan for the writer app
 - **Purpose:** Concrete build plan derived from `writer_app_requirements.md` v1.4 (FR-1…FR-50). Contains locked decisions, tech stack, project structure, data model, pluggable storage interface, design-token pipeline (runtime parsing of the instructions TOKENS block — no source-file rewriting), HTML/PDF rendering spec (`@react-pdf/renderer`), DeepSeek integration, API route table, component/state design, practice-mode visibility logic, auth-ready seams, milestones M1–M5 with task checklists, env vars, success criteria, and an FR → section alignment matrix.
-- **Functions:** none (documentation). Sections are cross-referenced by FR IDs. **Status: M1 of the milestone checklists is complete in `writer-app/`.**
+- **Functions:** none (documentation). Sections are cross-referenced by FR IDs. **Status: M1–M3 of the milestone checklists are complete in `writer-app/`.**
 
 ### `suggestions.md` — Improvement / feature / vulnerability log
 - **Purpose:** Dated log of improvement ideas, feature proposals, and vulnerability notes for the project (per project workflow). See file for entries.
@@ -74,9 +74,9 @@ Project root: `/Users/sukhjot/Desktop/untitled folder 2` — home to the HTML→
 |---|---|---|
 | `PORT` | HTTP port for the Express html→pdf server (default 3000) | `html2pdf/server.js` |
 | `PUPPETEER_CACHE_DIR` | Puppeteer Chrome cache location used at launch | `html2pdf/server.js` |
-| `DEEPSEEK_API_KEY` | *(planned)* DeepSeek API key for AI text→HTML conversion in the writer app | `writer_app_requirements.md` §12 |
-| `DEEPSEEK_BASE_URL` | *(planned)* DeepSeek endpoint override (default `https://api.deepseek.com`) | `writer_app_requirements.md` §12 |
-| `DEEPSEEK_MODEL` | *(planned)* Model id override (default `deepseek-chat`) | `writer_app_requirements.md` §12 |
+| `DEEPSEEK_API_KEY` | **implemented in M3** — DeepSeek API key for AI text→HTML conversion (missing → 400 with actionable message) | `writer-app/lib/ai.ts`, `writer-app/api/convert/ai`, `writer-app/api/convert/structure`, `writer-app/api/config` |
+| `DEEPSEEK_BASE_URL` | **implemented in M3** — DeepSeek endpoint override (default `https://api.deepseek.com`) | `writer-app/lib/ai.ts` |
+| `DEEPSEEK_MODEL` | **implemented in M3** — Model id override (default `deepseek-chat`), shown in the editor status bar | `writer-app/lib/ai.ts`, `writer-app/api/config` |
 | `DATA_DIR` | Writer-app storage root (default `./data`) — **implemented in M1** | `writer-app/lib/storage.ts`, `writer-app/.env.local.example` |
 | `MONGODB_URI` | *(planned, Vercel deploy)* MongoDB connection string for document/block storage (ResumeBuilder pattern) | `writer_app_requirements.md` §12 |
 | `BLOB_READ_WRITE_TOKEN` | *(planned, Vercel deploy)* Vercel Blob token for html/pdf file storage | `writer_app_requirements.md` §12 |
@@ -87,10 +87,8 @@ Notes: `CHROME_VERSION` and `CACHE_DIR` in `html2pdf/server.js` are hard-coded c
 
 ## Planned Changes
 
-- **Writer app (`writer-app/`, separate git repo) — M1 is complete** (skeleton + offline loop). Remaining milestones:
-  - **M2:** Q&A blocks (`QaBlockForm`), full Q&A rendering (badges, vocab grids, omission rules), per-question 👁 toggles + global hide/show, practice-mode PDF with blank answers, library Regenerate.
-  - **M3:** DeepSeek AI conversion (`lib/ai.ts`), paste-questions import, copy-for-AI / paste-HTML-back, selective copy.
+- **Writer app (`writer-app/`, separate git repo) — M1–M3 are complete** (offline loop; Q&A blocks + practice; DeepSeek conversion, question import, copy/paste). Remaining milestones:
   - **M4:** instructions management (seed `active.md`, edit UI, history, snapshots, token cache invalidation).
   - **M5:** polish (slash-command polish, drag-reorder, tags UI, backup zip), HTML→blocks parse-back (FR-41), MongoDB + Vercel Blob storage.
 
-> **Status: Milestone M1 complete** — see `writer-app/architecture.md` for the full, current file/function inventory and env vars.
+> **Status: Milestones M1–M3 complete** — see `writer-app/architecture.md` for the full, current file/function inventory and env vars.

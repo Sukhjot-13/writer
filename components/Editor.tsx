@@ -18,9 +18,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Block as BlockModel, BlockType, Document } from "@/lib/types";
 import { createBlock, createDocument, replaceBlockType, setBlockContent } from "@/lib/types";
 
-import Toolbar from "./Toolbar";
+import Toolbar, { type ConvertMode } from "./Toolbar";
 import BlockList from "./BlockList";
 import PreviewPane from "./PreviewPane";
+import PasteQuestionsModal from "./PasteQuestionsModal";
+import PasteHtmlModal from "./PasteHtmlModal";
+import CopyDialog from "./CopyDialog";
 
 const DRAFT_KEY = "writer-app:draft";
 const AUTOSAVE_MS = 800;
@@ -58,6 +61,30 @@ function safeFilename(title: string, ext: string): string {
   return (clean || "document") + "." + ext;
 }
 
+/** Copy text to the clipboard, falling back to a hidden textarea (non-secure contexts). */
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+}
+
+/** True when a block carries any real content (used by paste-questions import). */
+function blockHasContent(b: BlockModel): boolean {
+  const c = b.content as Record<string, unknown>;
+  return Object.entries(c).some(([key, value]) => {
+    if (key === "hideTranslation" || key === "hideModelAnswer") return false;
+    if (Array.isArray(value)) return (value as { term?: string; def?: string }[]).some((x) => x.term || x.def);
+    return typeof value === "string" && value.trim().length > 0;
+  });
+}
+
 export default function Editor({ docId }: { docId: string | null }) {
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(docId !== null);
@@ -72,11 +99,18 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [showPreview, setShowPreview] = useState(true);
   const [practiceMode, setPracticeMode] = useState(false); // FR-16: practice-mode PDF
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const [convertMode, setConvertMode] = useState<ConvertMode>("ai"); // FR-29: AI primary, template offline
+  const [aiModel, setAiModel] = useState<string | null>(null); // FR-28: model name in status bar
+  const [showPasteQuestions, setShowPasteQuestions] = useState(false); // FR-38
+  const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
+  const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
 
   const docRef = useRef(doc);
   docRef.current = doc;
   const persistedRef = useRef(persisted);
   persistedRef.current = persisted;
+  const convertModeRef = useRef(convertMode);
+  convertModeRef.current = convertMode;
 
   // ---- init: load by id, else restore draft, else a fresh document ----
   useEffect(() => {
@@ -120,6 +154,14 @@ export default function Editor({ docId }: { docId: string | null }) {
     };
   }, [docId]);
 
+  // ---- runtime config: AI model name for the status bar (FR-28) ----
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { model?: string } | null) => setAiModel(body?.model ?? null))
+      .catch(() => setAiModel(null));
+  }, []);
+
   // ---- draft autosave (debounced, FR-6) ----
   useEffect(() => {
     if (!doc || loading) return;
@@ -139,7 +181,7 @@ export default function Editor({ docId }: { docId: string | null }) {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        void convert();
+        void convert(convertModeRef.current, null);
       } else if (e.key === "s") {
         e.preventDefault();
         void save();
@@ -242,19 +284,21 @@ export default function Editor({ docId }: { docId: string | null }) {
     answersHidden: qaBlocks.filter((b) => b.content.hideModelAnswer || doc?.practice?.hideModelAnswers).length,
   };
 
-  // ---- conversion (template mode, FR-9) ----
-  async function convert() {
+  // ---- conversion (FR-8/9/29): AI via DeepSeek, or local template ----
+  async function convert(mode: ConvertMode, goal: string | null) {
     const current = docRef.current;
     if (!current || busy) return;
     setBusy("converting");
     setError(null);
     try {
-      const res = await fetch("/api/convert/template", {
+      const url = mode === "ai" ? "/api/convert/ai" : "/api/convert/template";
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc: current }),
+        body: JSON.stringify(mode === "ai" ? { doc: current, goal } : { doc: current }),
       });
       if (!res.ok) {
+        // FR-30: inline, actionable server errors (e.g. missing API key) pass through
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Conversion failed (${res.status})`);
       }
@@ -262,12 +306,63 @@ export default function Editor({ docId }: { docId: string | null }) {
       setHtml(generated);
       setPreviewStale(false);
       setConvertedAt(Date.now());
-      setStatus("Preview generated (template mode)");
+      setStatus(mode === "ai" ? "Preview generated (AI mode)" : "Preview generated (template mode)");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conversion failed");
     } finally {
       setBusy(null);
     }
+  }
+
+  // ---- copy for external AI (FR-39): user markers / system / plain text ----
+  async function copyPrompt(part: "user" | "system" | "plainText") {
+    if (busy) return;
+    setBusy("copy");
+    setError(null);
+    try {
+      if (!(await ensureSaved())) return;
+      const current = docRef.current;
+      if (!current) return;
+      const res = await fetch(`/api/export/prompt?docId=${encodeURIComponent(current.id)}`);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not build prompt (${res.status})`);
+      }
+      const body = (await res.json()) as { user?: string; system?: string; plainText?: string };
+      const text = body[part];
+      if (!text) throw new Error("Prompt is empty");
+      await copyToClipboard(text);
+      const label =
+        part === "user" ? "AI prompt (type markers)" : part === "system" ? "system instructions" : "plain text";
+      setStatus(`Copied ${label} to clipboard`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // ---- paste questions (FR-38): replace an empty document, else append ----
+  function applyImportedBlocks(blocks: BlockModel[]) {
+    const current = docRef.current;
+    if (!current || blocks.length === 0) return;
+    const isEmpty = !current.blocks.some(blockHasContent);
+    mutateDoc((d) => ({ ...d, blocks: isEmpty ? blocks : [...d.blocks, ...blocks] }));
+    setShowPasteQuestions(false);
+    setStatus(`Imported ${blocks.length} question${blocks.length === 1 ? "" : "s"}`);
+  }
+
+  // ---- paste HTML back (FR-40): new document previews immediately ----
+  function applyImportedHtml(doc: Document, html: string) {
+    setDoc(doc);
+    setHtml(html);
+    setPreviewStale(false);
+    setPersisted(true);
+    setIsDirty(false);
+    setConvertedAt(Date.now());
+    setShowPreview(true);
+    setShowPasteHtml(false);
+    setStatus("Imported HTML document — preview ready (FR-40)");
   }
 
   // ---- save (FR-17) ----
@@ -365,7 +460,9 @@ export default function Editor({ docId }: { docId: string | null }) {
         onTitleChange={setTitle}
         busy={busy}
         error={error}
-        onConvert={() => void convert()}
+        convertMode={convertMode}
+        onConvertModeChange={setConvertMode}
+        onConvert={(mode, goal) => void convert(mode, goal)}
         onSave={() => void save()}
         canDownloadPdf={canDownloadPdf}
         practiceMode={practiceMode}
@@ -377,9 +474,24 @@ export default function Editor({ docId }: { docId: string | null }) {
         onShowAllTranslations={() => setAllQaFlags("hideTranslation", false)}
         onHideAllAnswers={() => setAllQaFlags("hideModelAnswer", true)}
         onShowAllAnswers={() => setAllQaFlags("hideModelAnswer", false)}
+        onCopyPrompt={(part) => void copyPrompt(part)}
+        onOpenCopyDialog={() => setShowCopyDialog(true)}
+        onPasteQuestions={() => setShowPasteQuestions(true)}
+        onPasteHtml={() => setShowPasteHtml(true)}
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
       />
+
+      {showPasteQuestions && (
+        <PasteQuestionsModal
+          onClose={() => setShowPasteQuestions(false)}
+          onResult={applyImportedBlocks}
+        />
+      )}
+      {showPasteHtml && (
+        <PasteHtmlModal onClose={() => setShowPasteHtml(false)} onImported={applyImportedHtml} />
+      )}
+      {showCopyDialog && <CopyDialog doc={doc} onClose={() => setShowCopyDialog(false)} />}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-white">
@@ -416,7 +528,10 @@ export default function Editor({ docId }: { docId: string | null }) {
           </span>
         )}
         <span>
-          Mode: <strong>Template (offline)</strong>
+          Mode:{" "}
+          <strong>
+            {convertMode === "ai" ? `AI (${aiModel ?? "DeepSeek"})` : "Template (offline)"}
+          </strong>
         </span>
         {convertedAt && (
           <span>Last converted: {new Date(convertedAt).toLocaleTimeString()}</span>

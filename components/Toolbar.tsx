@@ -1,11 +1,15 @@
-// components/Toolbar.tsx — primary actions (FR-29/30/35/37/46):
-// Convert (Template), Save, Download PDF (gated by FR-46, with practice-mode
-// checkbox FR-16), Download HTML, global visibility buttons (FR-35),
-// preview toggle, and the document title input.
+// components/Toolbar.tsx — primary actions (FR-29/30/35/37/38/39/46/50):
+// Convert (AI) with a "Template (offline)" dropdown option + optional goal,
+// Save, Download PDF (gated by FR-46, with practice-mode checkbox FR-16),
+// Download HTML, global visibility buttons (FR-35), Copy for AI / sharing
+// (FR-39/50), Paste questions / HTML (FR-38/40), preview toggle, title input.
 
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+
+export type ConvertMode = "ai" | "template";
 
 export interface VisibilityCounts {
   translationsHidden: number;
@@ -19,7 +23,9 @@ interface ToolbarProps {
   onTitleChange: (value: string) => void;
   busy: string | null;
   error: string | null;
-  onConvert: () => void;
+  convertMode: ConvertMode;
+  onConvertModeChange: (mode: ConvertMode) => void;
+  onConvert: (mode: ConvertMode, goal: string | null) => void;
   onSave: () => void;
   canDownloadPdf: boolean;
   practiceMode: boolean;
@@ -31,6 +37,10 @@ interface ToolbarProps {
   onShowAllTranslations: () => void;
   onHideAllAnswers: () => void;
   onShowAllAnswers: () => void;
+  onCopyPrompt: (part: "user" | "system" | "plainText") => void;
+  onOpenCopyDialog: () => void;
+  onPasteQuestions: () => void;
+  onPasteHtml: () => void;
   showPreview: boolean;
   onTogglePreview: () => void;
 }
@@ -60,11 +70,57 @@ function ActionButton({
   );
 }
 
+/** Small dropdown menu — closes on outside click via a fixed overlay. */
+function Dropdown({
+  label,
+  disabled,
+  items,
+  title,
+}: {
+  label: string;
+  disabled?: boolean;
+  items: { label: string; onClick: () => void; check?: boolean; hint?: string }[];
+  title?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <ActionButton onClick={() => setOpen((o) => !o)} disabled={disabled} title={title}>
+        {label} <span className="ml-0.5 text-xs opacity-60">▾</span>
+      </ActionButton>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 min-w-56 rounded-md border border-zinc-200 bg-white py-1 shadow-lg">
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+                title={item.hint}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                <span className="w-4 text-emerald-600">{item.check ? "✓" : ""}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Toolbar({
   title,
   onTitleChange,
   busy,
   error,
+  convertMode,
+  onConvertModeChange,
   onConvert,
   onSave,
   canDownloadPdf,
@@ -77,9 +133,16 @@ export default function Toolbar({
   onShowAllTranslations,
   onHideAllAnswers,
   onShowAllAnswers,
+  onCopyPrompt,
+  onOpenCopyDialog,
+  onPasteQuestions,
+  onPasteHtml,
   showPreview,
   onTogglePreview,
 }: ToolbarProps) {
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [goal, setGoal] = useState("");
+
   const noQa = counts.translationsTotal === 0;
   const allTranslationsHidden = counts.translationsTotal > 0 && counts.translationsHidden === counts.translationsTotal;
   const allAnswersHidden = counts.answersTotal > 0 && counts.answersHidden === counts.answersTotal;
@@ -96,9 +159,71 @@ export default function Toolbar({
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <ActionButton primary onClick={onConvert} disabled={busy !== null} title="Cmd/Ctrl+Enter">
-            {busy === "converting" ? "Converting…" : "Convert (Template)"}
-          </ActionButton>
+          {/* Convert split button: primary converts in the current mode, caret
+              opens the mode menu (FR-29: "Convert" (AI) + "Template (offline)") */}
+          <div className="relative">
+            <div className="flex">
+              <ActionButton primary onClick={() => onConvert(convertMode, goal || null)} disabled={busy !== null}>
+                {busy === "converting"
+                  ? "Converting…"
+                  : convertMode === "ai"
+                    ? "Convert (AI)"
+                    : "Convert (Template)"}
+              </ActionButton>
+              <button
+                type="button"
+                onClick={() => setConvertOpen((o) => !o)}
+                disabled={busy !== null}
+                title="Choose conversion mode and optional goal (FR-29)"
+                className="rounded-r-md border-l border-blue-700 bg-blue-600 px-2 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                ▾
+              </button>
+            </div>
+            {convertOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setConvertOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-80 rounded-md border border-zinc-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConvertOpen(false);
+                      onConvertModeChange("ai");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <span className="w-4 text-emerald-600">{convertMode === "ai" ? "✓" : ""}</span>
+                    Convert (AI) — DeepSeek
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConvertOpen(false);
+                      onConvertModeChange("template");
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+                  >
+                    <span className="w-4 text-emerald-600">{convertMode === "template" ? "✓" : ""}</span>
+                    Convert (Template, offline)
+                  </button>
+                  <div className="my-1 border-t border-zinc-100" />
+                  <div className="px-3 py-1.5">
+                    <label className="text-xs font-medium text-zinc-500" htmlFor="convert-goal">
+                      Goal (optional)
+                    </label>
+                    <input
+                      id="convert-goal"
+                      value={goal}
+                      onChange={(e) => setGoal(e.target.value)}
+                      placeholder="e.g. Make it about holidays in Paris"
+                      className="mt-1 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-300 focus:border-blue-400 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <ActionButton onClick={onSave} disabled={busy !== null} title="Cmd/Ctrl+S">
             {busy === "saving" ? "Saving…" : "Save"}
           </ActionButton>
@@ -138,6 +263,26 @@ export default function Toolbar({
           >
             {allAnswersHidden ? "Show all answers" : "Hide all answers"}
           </ActionButton>
+          <Dropdown
+            label={busy === "copy" ? "Copying…" : "Copy"}
+            disabled={busy !== null}
+            title="Copy for external AI or for sharing"
+            items={[
+              { label: "Copy for AI (type markers)", onClick: () => onCopyPrompt("user"), hint: "FR-39 — the §9 prompt's user section, ready for any external AI" },
+              { label: "Copy instructions (system prompt)", onClick: () => onCopyPrompt("system"), hint: "FR-39 — the active instructions as a ready-made system prompt" },
+              { label: "Copy plain text", onClick: () => onCopyPrompt("plainText"), hint: "FR-39 — paragraphs + Q&A flattened" },
+              { label: "Copy for sharing…", onClick: onOpenCopyDialog, hint: "FR-50 — selective clean plain text with checkboxes" },
+            ]}
+          />
+          <Dropdown
+            label="Paste"
+            disabled={busy !== null}
+            title="Paste questions or HTML from any external AI"
+            items={[
+              { label: "Paste questions…", onClick: onPasteQuestions, hint: "FR-38/32 — structure with AI or parse locally" },
+              { label: "Paste HTML…", onClick: onPasteHtml, hint: "FR-40 — import HTML from any external AI" },
+            ]}
+          />
           <ActionButton onClick={onTogglePreview}>
             {showPreview ? "Hide preview" : "Show preview"}
           </ActionButton>
