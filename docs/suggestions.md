@@ -16,7 +16,8 @@
 ## 🟡 New Features
 
 - **2026-08-09 — Offline "Template mode"** in the writer app (already specced, FR-9): build styled HTML locally from block data so conversion works with no API key and zero cost; AI mode stays as an upgrade.
-- **2026-08-09 — Instructions versioning + per-document snapshots** (FR-21–23): editing `html_instructions.md` never breaks old documents; each document remembers which rules it was generated with.
+- **2026-08-09 — Instructions versioning + per-document snapshots** (FR-21–23): editing `html_instructions.md` never breaks old documents; each document remembers which rules it was generated with. **✓ Implemented 2026-08-10 (M4):** `/instructions` editor with save/reset/history, `data/instructions/history/*.md`, per-document `instructions.snapshot.md` + "convert with snapshot rules" toggle (FR-23), TOKENS validation on save + token-cache invalidation (FR-47), version in the status bar (FR-28).
+- **2026-08-10 — Diff view between instruction versions:** the history list shows version/date/char-count but not *what changed*. A `git diff`-style view (old vs new content) before Restore/Preview would make the "why did my PDF change" question answerable at a glance — the history files are already plain markdown on disk.
 - **2026-08-09 — Batch export:** convert the whole `data/documents/` library (or a tagged subset) to PDFs in one action — a server-side loop over the react-pdf renderer (`lib/pdf.ts`).
 - **2026-08-09 — Git-friendly document storage:** keep `document.json` files in a git repo (with `data/documents/` otherwise gitignored) so every edit is diffable and restorable; plus a one-click "backup all documents" zip.
 - **2026-08-09 — Per-session focus goal:** a small "goal" field (e.g. "today: passé composé") appended to the AI prompt so practice sessions follow a theme without editing the instructions file. **✓ Implemented 2026-08-10 (M3):** goal input in the Convert dropdown (FR-29), passed as `GOAL: …` in `lib/prompt.ts`.

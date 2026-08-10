@@ -95,3 +95,11 @@ export function getTokens(): Promise<DesignTokens> {
 export function invalidateDesignTokensCache(): void {
   cache = null;
 }
+
+/**
+ * Parse tokens from an arbitrary instructions string (not the active file) —
+ * used when converting with a document's snapshot rules (FR-23).
+ */
+export function getTokensFromInstructions(instructions: string): DesignTokens {
+  return parseTokensBlock(instructions, DEFAULT_TOKENS) ?? DEFAULT_TOKENS;
+}

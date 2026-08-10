@@ -1,0 +1,123 @@
+// lib/instructions.ts — instructions management (FR-21/22/23/47).
+//
+// Owning file for everything about the active instructions file
+// (data/instructions/active.md): first-run seeding from the repo copy
+// (docs/html_instructions.md), version hashing, save-with-history, reset-to-
+// repo, per-document snapshots (FR-23), and resolving which instructions a
+// conversion should use. Every save invalidates the design-token cache so
+// design changes apply to new conversions immediately (FR-47).
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { createHash } from "node:crypto";
+
+import { ACTIVE_INSTRUCTIONS_PATH, REPO_INSTRUCTIONS_PATH } from "./tokens";
+import { invalidateDesignTokensCache } from "./design-tokens";
+import type { StorageBackend } from "./storage";
+
+/** Actionable error for instructions operations (mapped to HTTP 400 by routes). */
+export class InstructionsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InstructionsError";
+  }
+}
+
+export interface InstructionsHistoryEntry {
+  version: string;
+  savedAt: string;
+}
+
+/** Stable short content hash — used as the instructions version identifier. */
+export function hashVersion(content: string): string {
+  return createHash("sha1").update(content, "utf8").digest("hex").slice(0, 8);
+}
+
+/**
+ * Seed the active instructions file on first run (FR-21): copy the repo copy
+ * to `activePath` when it doesn't exist yet. Idempotent. Also drops the token
+ * cache so the freshly-seeded file is picked up immediately.
+ */
+export async function seedInstructionsIfMissing(activePath: string): Promise<void> {
+  try {
+    await fs.access(activePath);
+    return; // already seeded
+  } catch {
+    // not seeded yet — fall through and copy the repo file
+  }
+  const repo = await fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
+  await fs.mkdir(path.dirname(activePath), { recursive: true });
+  await fs.writeFile(activePath, repo, "utf8");
+  invalidateDesignTokensCache();
+}
+
+/** Full state for the instructions editor: content + version + history. */
+export async function getInstructionsState(storage: StorageBackend): Promise<{
+  content: string;
+  version: string;
+  source: "active";
+  history: InstructionsHistoryEntry[];
+}> {
+  const content = await storage.readInstructions(); // FS impl seeds on first read
+  return {
+    content,
+    version: hashVersion(content),
+    source: "active",
+    history: await storage.listInstructionsHistory(),
+  };
+}
+
+/**
+ * Save new instructions (FR-22/47): the TOKENS block must survive (it drives
+ * the design system), the previous version is snapshotted to history, then the
+ * active file is replaced and the token cache invalidated.
+ */
+export async function saveInstructions(storage: StorageBackend, content: string): Promise<string> {
+  if (!/<!--\s*TOKENS\s*-->/.test(content)) {
+    throw new InstructionsError(
+      "The instructions must keep the <!-- TOKENS --> block — it drives the design system (FR-47).",
+    );
+  }
+  const current = await storage.readInstructions();
+  await storage.snapshotInstructions(hashVersion(current)); // history keeps the old version
+  await storage.writeInstructions(content);
+  invalidateDesignTokensCache();
+  return hashVersion(content);
+}
+
+/** Reset the active file to the repo copy (FR-22 "reset to repo file"). */
+export async function resetInstructions(storage: StorageBackend): Promise<string> {
+  const current = await storage.readInstructions();
+  await storage.snapshotInstructions(hashVersion(current));
+  const repo = await fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
+  await storage.writeInstructions(repo);
+  invalidateDesignTokensCache();
+  return hashVersion(repo);
+}
+
+/** Read the per-document instructions snapshot (FR-23), if one exists. */
+export async function readDocumentSnapshot(
+  storage: StorageBackend,
+  docId: string,
+): Promise<{ content: string; version: string } | null> {
+  const snap = await storage.readFile(docId, "instructions.snapshot.md");
+  if (!snap) return null;
+  const content = snap.toString("utf8");
+  return { content, version: hashVersion(content) };
+}
+
+/**
+ * Which instructions a conversion uses: the document's snapshot when the
+ * "convert with the rules it was made with" toggle is on, else the active file.
+ */
+export async function resolveConversionInstructions(
+  storage: StorageBackend,
+  docId: string | null | undefined,
+  useSnapshot: boolean,
+): Promise<string> {
+  if (useSnapshot && docId) {
+    const snap = await storage.readFile(docId, "instructions.snapshot.md");
+    if (snap) return snap.toString("utf8");
+  }
+  return storage.readInstructions();
+}

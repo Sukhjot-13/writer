@@ -41,6 +41,9 @@ interface ToolbarProps {
   onOpenCopyDialog: () => void;
   onPasteQuestions: () => void;
   onPasteHtml: () => void;
+  snapshotInfo: { version: string; differs: boolean } | null; // FR-23
+  useSnapshot: boolean;
+  onToggleSnapshot: () => void;
   showPreview: boolean;
   onTogglePreview: () => void;
 }
@@ -137,6 +140,9 @@ export default function Toolbar({
   onOpenCopyDialog,
   onPasteQuestions,
   onPasteHtml,
+  snapshotInfo,
+  useSnapshot,
+  onToggleSnapshot,
   showPreview,
   onTogglePreview,
 }: ToolbarProps) {
@@ -219,6 +225,26 @@ export default function Toolbar({
                       className="mt-1 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-700 outline-none placeholder:text-zinc-300 focus:border-blue-400 focus:bg-white"
                     />
                   </div>
+                  {snapshotInfo && (
+                    <>
+                      <div className="my-1 border-t border-zinc-100" />
+                      <label className="flex cursor-pointer items-start gap-2 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50">
+                        <input
+                          type="checkbox"
+                          checked={useSnapshot}
+                          onChange={onToggleSnapshot}
+                          className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+                        />
+                        <span>
+                          Convert with this document&apos;s snapshot rules (v{snapshotInfo.version})
+                          {snapshotInfo.differs ? " — differs from active" : ""}
+                          <span className="block text-xs text-zinc-400">
+                            FR-23: uses the instructions this document was made with
+                          </span>
+                        </span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -286,6 +312,12 @@ export default function Toolbar({
           <ActionButton onClick={onTogglePreview}>
             {showPreview ? "Hide preview" : "Show preview"}
           </ActionButton>
+          <Link
+            href="/instructions"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Instructions
+          </Link>
           <Link
             href="/library"
             className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"

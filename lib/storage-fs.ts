@@ -17,7 +17,7 @@ import path from "node:path";
 
 import type { Document } from "./types";
 import type { StorageBackend } from "./storage";
-import { REPO_INSTRUCTIONS_PATH } from "./tokens";
+import { seedInstructionsIfMissing } from "./instructions";
 
 /** Filenames the storage layer is allowed to touch inside a document folder (path-traversal guard). */
 const SAFE_FILENAMES = new Set([
@@ -57,14 +57,10 @@ export function createFSStorage(dataDir: string): StorageBackend {
     }
   }
 
-  /** Active instructions: data/instructions/active.md, falling back to the repo copy. */
+  /** Active instructions: data/instructions/active.md, seeded from the repo copy on first run (FR-21). */
   async function readInstructions(): Promise<string> {
-    try {
-      return await fs.readFile(path.join(instructionsDir, "active.md"), "utf8");
-    } catch {
-      // Not seeded yet (M4) — fall back to the repo copy of the style instructions.
-      return fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
-    }
+    await seedInstructionsIfMissing(path.join(instructionsDir, "active.md"));
+    return fs.readFile(path.join(instructionsDir, "active.md"), "utf8");
   }
 
   return {
@@ -131,6 +127,33 @@ export function createFSStorage(dataDir: string): StorageBackend {
       const content = await readInstructions();
       const safeVersion = version.replace(/[^\w.-]/g, "_");
       await fs.writeFile(path.join(historyDir, `${safeVersion}.md`), content, "utf8");
+    },
+
+    async listInstructionsHistory() {
+      await ensureDirs();
+      let entries;
+      try {
+        entries = await fs.readdir(historyDir, { withFileTypes: true });
+      } catch {
+        return []; // no history yet
+      }
+      const history = [];
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+        const version = entry.name.slice(0, -3);
+        const stat = await fs.stat(path.join(historyDir, entry.name));
+        history.push({ version, savedAt: stat.mtime.toISOString() });
+      }
+      return history.sort((a, b) => b.savedAt.localeCompare(a.savedAt)); // newest first
+    },
+
+    async readInstructionsVersion(version) {
+      const safeVersion = version.replace(/[^\w.-]/g, "_");
+      try {
+        return await fs.readFile(path.join(historyDir, `${safeVersion}.md`), "utf8");
+      } catch {
+        return null;
+      }
     },
   };
 }

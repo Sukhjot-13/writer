@@ -13,6 +13,7 @@ import { getStorage } from "@/lib/storage";
 import { convertWithAI, hasAIKey, AIError } from "@/lib/ai";
 import { buildAIPrompt } from "@/lib/prompt";
 import { validateAndWrapHtml } from "@/lib/validate";
+import { resolveConversionInstructions } from "@/lib/instructions";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const payload = (body ?? {}) as { doc?: unknown; goal?: unknown };
+  const payload = (body ?? {}) as { doc?: unknown; goal?: unknown; useSnapshot?: unknown };
   const parsed = documentSchema.safeParse(payload.doc ?? body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -42,10 +43,13 @@ export async function POST(request: Request) {
   }
 
   const goal = typeof payload.goal === "string" && payload.goal.trim() ? payload.goal.trim() : undefined;
+  const useSnapshot = payload.useSnapshot === true;
 
   try {
     const storage = getStorage();
-    const instructions = await storage.readInstructions();
+    // FR-23: with the toggle on, convert with the rules this document was made
+    // with (its instructions.snapshot.md) instead of the latest active file.
+    const instructions = await resolveConversionInstructions(storage, parsed.data.id, useSnapshot);
     const { system, user } = buildAIPrompt(parsed.data, instructions, goal);
     const raw = await convertWithAI(system, user);
     const html = validateAndWrapHtml(raw);

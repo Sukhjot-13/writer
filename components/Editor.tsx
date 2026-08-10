@@ -101,6 +101,9 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [convertMode, setConvertMode] = useState<ConvertMode>("ai"); // FR-29: AI primary, template offline
   const [aiModel, setAiModel] = useState<string | null>(null); // FR-28: model name in status bar
+  const [instructionsVersion, setInstructionsVersion] = useState<string | null>(null); // FR-28
+  const [snapshotInfo, setSnapshotInfo] = useState<{ version: string; differs: boolean } | null>(null); // FR-23
+  const [useSnapshot, setUseSnapshot] = useState(false); // FR-23: convert with the doc's own rules
   const [showPasteQuestions, setShowPasteQuestions] = useState(false); // FR-38
   const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
   const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
@@ -111,6 +114,8 @@ export default function Editor({ docId }: { docId: string | null }) {
   persistedRef.current = persisted;
   const convertModeRef = useRef(convertMode);
   convertModeRef.current = convertMode;
+  const useSnapshotRef = useRef(useSnapshot);
+  useSnapshotRef.current = useSnapshot;
 
   // ---- init: load by id, else restore draft, else a fresh document ----
   useEffect(() => {
@@ -121,9 +126,10 @@ export default function Editor({ docId }: { docId: string | null }) {
         try {
           const res = await fetch(`/api/documents/${docId}`);
           if (res.ok) {
-            const { doc: saved } = await res.json();
+            const body = (await res.json()) as { doc: Document; snapshotInfo?: { version: string; differs: boolean } | null };
             if (cancelled) return;
-            setDoc(saved);
+            setDoc(body.doc);
+            setSnapshotInfo(body.snapshotInfo ?? null); // FR-23: drive the snapshot toggle
             setPersisted(true);
             setLoading(false);
             return;
@@ -154,12 +160,20 @@ export default function Editor({ docId }: { docId: string | null }) {
     };
   }, [docId]);
 
-  // ---- runtime config: AI model name for the status bar (FR-28) ----
+  // ---- runtime config: AI model + instructions version for the status bar (FR-28) ----
   useEffect(() => {
     fetch("/api/config")
       .then((r) => (r.ok ? r.json() : null))
-      .then((body: { model?: string } | null) => setAiModel(body?.model ?? null))
-      .catch(() => setAiModel(null));
+      .then(
+        (body: { model?: string; instructionsVersion?: string } | null) => {
+          setAiModel(body?.model ?? null);
+          setInstructionsVersion(body?.instructionsVersion ?? null);
+        },
+      )
+      .catch(() => {
+        setAiModel(null);
+        setInstructionsVersion(null);
+      });
   }, []);
 
   // ---- draft autosave (debounced, FR-6) ----
@@ -284,7 +298,7 @@ export default function Editor({ docId }: { docId: string | null }) {
     answersHidden: qaBlocks.filter((b) => b.content.hideModelAnswer || doc?.practice?.hideModelAnswers).length,
   };
 
-  // ---- conversion (FR-8/9/29): AI via DeepSeek, or local template ----
+  // ---- conversion (FR-8/9/23/29): AI via DeepSeek, or local template ----
   async function convert(mode: ConvertMode, goal: string | null) {
     const current = docRef.current;
     if (!current || busy) return;
@@ -292,10 +306,15 @@ export default function Editor({ docId }: { docId: string | null }) {
     setError(null);
     try {
       const url = mode === "ai" ? "/api/convert/ai" : "/api/convert/template";
+      const useSnap = useSnapshotRef.current;
+      const body =
+        mode === "ai"
+          ? { doc: current, goal, useSnapshot: useSnap }
+          : { doc: current, useSnapshot: useSnap };
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode === "ai" ? { doc: current, goal } : { doc: current }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         // FR-30: inline, actionable server errors (e.g. missing API key) pass through
@@ -306,7 +325,9 @@ export default function Editor({ docId }: { docId: string | null }) {
       setHtml(generated);
       setPreviewStale(false);
       setConvertedAt(Date.now());
-      setStatus(mode === "ai" ? "Preview generated (AI mode)" : "Preview generated (template mode)");
+      setStatus(
+        `${mode === "ai" ? "AI" : "template"} mode${useSnap ? " · snapshot rules v" + snapshotInfo?.version : ""} — preview generated`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conversion failed");
     } finally {
@@ -362,6 +383,8 @@ export default function Editor({ docId }: { docId: string | null }) {
     setConvertedAt(Date.now());
     setShowPreview(true);
     setShowPasteHtml(false);
+    setSnapshotInfo(null); // fresh import has no recorded rules (FR-23)
+    setUseSnapshot(false);
     setStatus("Imported HTML document — preview ready (FR-40)");
   }
 
@@ -478,6 +501,9 @@ export default function Editor({ docId }: { docId: string | null }) {
         onOpenCopyDialog={() => setShowCopyDialog(true)}
         onPasteQuestions={() => setShowPasteQuestions(true)}
         onPasteHtml={() => setShowPasteHtml(true)}
+        snapshotInfo={snapshotInfo}
+        useSnapshot={useSnapshot}
+        onToggleSnapshot={() => setUseSnapshot((v) => !v)}
         showPreview={showPreview}
         onTogglePreview={() => setShowPreview((v) => !v)}
       />
@@ -546,7 +572,15 @@ export default function Editor({ docId }: { docId: string | null }) {
           <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">Practice PDF on</span>
         )}
         {status && <span className="text-zinc-400">{status}</span>}
-        <span className="ml-auto">Design tokens: instructions file (TOKENS block)</span>
+        {useSnapshot && snapshotInfo && (
+          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">
+            Snapshot rules v{snapshotInfo.version}
+          </span>
+        )}
+        <span className="ml-auto">
+          {instructionsVersion ? <>Instructions v{instructionsVersion} · </> : ""}
+          Design tokens: instructions file (TOKENS block)
+        </span>
       </div>
     </div>
   );

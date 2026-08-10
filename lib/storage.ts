@@ -24,10 +24,12 @@ export interface StorageBackend {
   writeFile(docId: string, filename: string, data: Buffer): Promise<void>;
   deleteFile(docId: string, filename: string): Promise<void>;
 
-  // Instructions (FR-21/22)
+  // Instructions (FR-21/22/23)
   readInstructions(): Promise<string>;
   writeInstructions(content: string): Promise<void>;
   snapshotInstructions(version: string): Promise<void>; // → history/<version>.md
+  listInstructionsHistory(): Promise<{ version: string; savedAt: string }[]>; // newest first
+  readInstructionsVersion(version: string): Promise<string | null>; // history/<version>.md
 }
 
 let storageSingleton: StorageBackend | null = null;

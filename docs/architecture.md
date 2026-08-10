@@ -2,7 +2,7 @@
 
 Project root: `/Users/sukhjot/Desktop/untitled folder 2` — home to the HTML→PDF pipeline (CLI script + Express web app), the shared style instructions, and the Next.js writer/practice app.
 
-> **Status:** HTML→PDF pipeline (2 projects) is working. The Next.js writer app (**`writer-app/`**, separate git repo) has **Milestones M1–M3 complete** (offline loop; Q&A blocks + practice controls; DeepSeek AI conversion, paste-questions import, copy-for-AI / paste-HTML-back, selective copy — FR-38/39/40/50). **The writer app's detailed, always-current architecture doc lives at `writer-app/architecture.md`** — this file covers the parent folder; the writer app section below stays at milestone level. This file is updated whenever the codebase changes.
+> **Status:** HTML→PDF pipeline (2 projects) is working. The Next.js writer app (**`writer-app/`, separate git repo**) has **Milestones M1–M4 complete** (offline loop; Q&A blocks + practice controls; DeepSeek AI conversion, paste-questions import, copy-for-AI / paste-HTML-back, selective copy — FR-38/39/40/50; instructions management — FR-21/22/23/47). **The writer app's detailed, always-current architecture doc lives at `writer-app/architecture.md`** — this file covers the parent folder; the writer app section below stays at milestone level. This file is updated whenever the codebase changes.
 
 ---
 
@@ -58,7 +58,7 @@ Project root: `/Users/sukhjot/Desktop/untitled folder 2` — home to the HTML→
 
 ### `Plan.md` — Implementation plan for the writer app
 - **Purpose:** Concrete build plan derived from `writer_app_requirements.md` v1.4 (FR-1…FR-50). Contains locked decisions, tech stack, project structure, data model, pluggable storage interface, design-token pipeline (runtime parsing of the instructions TOKENS block — no source-file rewriting), HTML/PDF rendering spec (`@react-pdf/renderer`), DeepSeek integration, API route table, component/state design, practice-mode visibility logic, auth-ready seams, milestones M1–M5 with task checklists, env vars, success criteria, and an FR → section alignment matrix.
-- **Functions:** none (documentation). Sections are cross-referenced by FR IDs. **Status: M1–M3 of the milestone checklists are complete in `writer-app/`.**
+- **Functions:** none (documentation). Sections are cross-referenced by FR IDs. **Status: M1–M4 of the milestone checklists are complete in `writer-app/`.**
 
 ### `suggestions.md` — Improvement / feature / vulnerability log
 - **Purpose:** Dated log of improvement ideas, feature proposals, and vulnerability notes for the project (per project workflow). See file for entries.
@@ -87,8 +87,7 @@ Notes: `CHROME_VERSION` and `CACHE_DIR` in `html2pdf/server.js` are hard-coded c
 
 ## Planned Changes
 
-- **Writer app (`writer-app/`, separate git repo) — M1–M3 are complete** (offline loop; Q&A blocks + practice; DeepSeek conversion, question import, copy/paste). Remaining milestones:
-  - **M4:** instructions management (seed `active.md`, edit UI, history, snapshots, token cache invalidation).
+- **Writer app (`writer-app/`, separate git repo) — M1–M4 are complete** (offline loop; Q&A blocks + practice; DeepSeek conversion, question import, copy/paste; instructions management). Remaining milestone:
   - **M5:** polish (slash-command polish, drag-reorder, tags UI, backup zip), HTML→blocks parse-back (FR-41), MongoDB + Vercel Blob storage.
 
-> **Status: Milestones M1–M3 complete** — see `writer-app/architecture.md` for the full, current file/function inventory and env vars.
+> **Status: Milestones M1–M4 complete** — see `writer-app/architecture.md` for the full, current file/function inventory and env vars.

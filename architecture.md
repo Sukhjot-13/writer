@@ -1,7 +1,7 @@
 # Architecture — Writer App
 
 > **Project root:** `/Users/sukhjot/Desktop/untitled folder 2/writer-app` — Next.js (App Router, TypeScript, Tailwind v4) writer/practice app per `docs/writer_app_requirements.md` (v1.4, FR-1…FR-50) and `docs/Plan.md`.
-> **Status:** Milestone M3 (DeepSeek + question import + copy/paste) **DONE** — AI-mode conversion via DeepSeek with the active instructions as system prompt (FR-8/12/30/31), paste-questions import with AI structuring + offline local parser (FR-32/38), Copy for AI with marker-format serialization + system prompt + plain text (FR-39), Paste HTML back with validation/wrapping (FR-40), selective plain-text copy dialog with remembered selection (FR-50), Convert (AI) / Template (offline) dropdown + optional goal (FR-29), model name in status bar (FR-28). M1 + M2 also complete. M4 (instructions management) is next. This file is updated after every change; it is the latest and current state of the app.
+> **Status:** Milestone M4 (instructions management) **DONE** — `/instructions` page with edit / save / reset / version history (FR-21/22), per-document `instructions.snapshot.md` + "convert with this document's snapshot rules" toggle (FR-23), TOKENS-block validation on save + design-token cache invalidation (FR-47), instructions version shown in the status bar (FR-28). M1–M3 also complete: editor + template/AI conversion + PDF + library (M1), Q&A blocks + practice controls (M2), DeepSeek + question import + copy/paste (M3). M5 (polish, parse-back, Mongo/Blob) is next. This file is updated after every change; it is the latest and current state of the app.
 
 **Locked decisions (never revisit):** PDF engine = `@react-pdf/renderer` only (no Puppeteer/Chrome anywhere) · design tokens parsed at runtime from the instructions file `TOKENS` block (changing colors = editing `docs/html_instructions.md` only) · storage pluggable (filesystem now, MongoDB + Vercel Blob later) · no auth in v1, `ownerId` seams kept (FR-45) · one-change-one-file (AI → `lib/ai.ts`, PDF → `lib/pdf.ts`, storage → `lib/storage.ts`, design → instructions file, FR-48) · preview before PDF is mandatory (FR-46).
 
@@ -42,15 +42,15 @@ data/                          # gitignored runtime storage
 - **Constants:** `REPO_INSTRUCTIONS_PATH` (`docs/html_instructions.md`), `ACTIVE_INSTRUCTIONS_PATH` (`data/instructions/active.md`).
 - **Functions:**
   - `parseTokensBlock(markdown, defaults)` — extracts `<!-- TOKENS -->`…`<!-- /TOKENS -->`, parses whitespace-lenient `section:`/`key: value` lines (strips quotes), merges over `defaults`; returns `DesignTokens | null` (null when the block is missing).
-  - `readActiveInstructions()` — returns `data/instructions/active.md` when present, else the repo `docs/html_instructions.md`; throws if neither exists.
+  - `readActiveInstructions()` — seeds `data/instructions/active.md` from the repo copy on first run (M4, FR-21), then reads it; throws if the repo copy is missing.
 
 ### `lib/design-tokens.ts` — Runtime design tokens (FR-43)
 - **Purpose:** Cached access to the parsed tokens + fallback defaults so the app never crashes. Both renderers (`html-template.ts`, `pdf.ts`) consume the same token object → HTML preview and PDF can never drift apart.
-- **Exports:** `DesignTokens` interface, `DEFAULT_TOKENS` (fallback, kept in sync with the instructions file), `getTokens(): Promise<DesignTokens>` (cached), `invalidateDesignTokensCache()` (dropped on instructions save — M4).
+- **Exports:** `DesignTokens` interface, `DEFAULT_TOKENS` (fallback, kept in sync with the instructions file), `getTokens(): Promise<DesignTokens>` (cached), `invalidateDesignTokensCache()` (dropped on instructions save — M4), `getTokensFromInstructions(instructions: string): DesignTokens` (parses arbitrary content — used by snapshot conversion, FR-23).
 
 ### `lib/storage.ts` — Pluggable storage interface + factory (FR-44/45)
 - **Purpose:** The only storage gateway app code uses. v1: filesystem (`DATA_DIR`); Vercel deploy: MongoDB + Vercel Blob (M5). Owner seams on every operation (v1 ignores them).
-- **Exports:** `StorageBackend` interface, `getStorage()` (factory — MongoDB when `MONGODB_URI` set, else FS), `createMongoBlobStorage()` (throws — M5).
+- **Exports:** `StorageBackend` interface (incl. M4 additions `listInstructionsHistory()` → `{ version, savedAt }[]` newest-first, `readInstructionsVersion(version)` → content or null), `getStorage()` (factory — MongoDB when `MONGODB_URI` set, else FS), `createMongoBlobStorage()` (throws — M5).
 
 ### `lib/storage-fs.ts` — Filesystem storage implementation (FR-17)
 - **Purpose:** `data/` layout per FR-17. Path-traversal guard via `SAFE_FILENAMES` allowlist.
@@ -61,9 +61,23 @@ data/                          # gitignored runtime storage
     - `saveDocument(doc)` — mkdir + writes pretty JSON.
     - `deleteDocument(id)` — recursive rm.
     - `readFile/writeFile/deleteFile(docId, filename)` — attachment files (html/pdf/snapshot).
-    - `readInstructions()` — `data/instructions/active.md` else repo copy.
+    - `readInstructions()` — seeds `active.md` from the repo copy when missing (M4, FR-21), then reads it.
     - `writeInstructions(content)` — writes `active.md`.
     - `snapshotInstructions(version)` — copies current instructions to `history/<version>.md` (sanitized).
+    - `listInstructionsHistory()` — scans `instructions/history/*.md`, newest-first by mtime.
+    - `readInstructionsVersion(version)` — sanitizes `[^\w.-]` → `_`, reads `history/<sanitized>.md`, null when missing.
+
+### `lib/instructions.ts` — Instructions management (M4, FR-21/22/23/47)
+- **Purpose:** THE owning file for the runtime instructions lifecycle: idempotent first-run seeding from the repo copy, version hashing, save-with-history (previous version snapshotted before overwrite), reset-to-repo, per-document snapshots (`documents/<id>/instructions.snapshot.md`), and resolution of which instructions a conversion uses (active vs. snapshot). Token-cache invalidation is coupled to every write so design changes take effect immediately (FR-47). The instructions↔tokens module cycle is safe: all cross-references are deferred inside functions (CJS/ESM live bindings).
+- **Functions:**
+  - `hashVersion(content)` — sha1 of the content, first 8 hex chars.
+  - `seedInstructionsIfMissing(activePath)` — idempotently copies `docs/html_instructions.md` → the given path (default `ACTIVE_INSTRUCTIONS_PATH`) + invalidates the token cache.
+  - `getInstructionsState(storage)` — `{ content, version, source: "active", history }` (history = `listInstructionsHistory()`).
+  - `saveInstructions(storage, content)` — throws `InstructionsError` when no `<!-- TOKENS -->` block (FR-47); snapshots the current version to history, writes active, invalidates the token cache; returns the new version.
+  - `resetInstructions(storage)` — restores the repo copy as active (previous kept in history); returns the new version.
+  - `readDocumentSnapshot(storage, docId)` — reads `documents/<id>/instructions.snapshot.md` → `{ content, version } | null`.
+  - `resolveConversionInstructions(storage, docId, useSnapshot)` — snapshot rules when `useSnapshot` and the doc has one, else the active instructions.
+  - `InstructionsError` — typed error (TOKENS validation, missing repo copy).
 
 ### `lib/html-template.ts` — Template-mode HTML generator (FR-9, Plan §8.1)
 - **Purpose:** Deterministic, self-contained styled HTML from block data + shared tokens — the offline converter (no AI). Follows `docs/html_instructions.md`: A4 `@page`, Georgia/Times, token colors, `.qa-block` cards, `break-inside: avoid` in print. Full Q&A rendering (M2): sequential circular badges, translation `<em>`, grammar note, response label, user-answer box (dashed left border), model answer, answer translation, analysis, vocab grid (`.two-col`/`.one-col`). Color policy: every color from tokens only (FR-47); text-shade variations = mainText + opacity. Omission rules FR-36: hidden elements omitted entirely.
@@ -86,10 +100,10 @@ data/                          # gitignored runtime storage
   - `qaVisible(doc, content, kind)` (private) — same visibility logic as the HTML template (FR-34/35).
   - `generatePDFBuffer(doc, tokens, opts?)` — renders `<PDFDocument>` via `renderToBuffer`; `opts.practice` → translations + model answers always omitted (FR-36), user answers retained, blank areas for unanswered questions (FR-49).
 
-### `lib/save.ts` — Save flow (FR-17/20, FR-46)
+### `lib/save.ts` — Save flow (FR-17/20, FR-46, FR-23)
 - **Purpose:** Shared by POST/PUT document routes: always writes `document.json`; when a preview exists, also writes `document.html` + regenerates `document.pdf` (PDF always reflects what was previewed).
 - **Functions:**
-  - `persistDocument(storage, doc, html?)` — saves JSON, then (if html) writes html file + renders and writes the PDF file.
+  - `persistDocument(storage, doc, html?)` — saves JSON, then (if html) writes html file + renders and writes the PDF file; additionally writes `instructions.snapshot.md` with the then-active instructions (FR-23) so later "convert with snapshot rules" is possible.
 
 ### `lib/ai.ts` — DeepSeek client (M3, FR-8/30/31, one-change-one-file FR-48)
 - **Purpose:** THE ONLY file that talks to the AI. Plain `fetch` against `${baseUrl}/v1/chat/completions` (OpenAI-compatible), temperature 0.3, Authorization Bearer. Env-configurable base URL + model. Actionable error messages (FR-30). Token-usage console logging per conversion (FR-31).
@@ -121,17 +135,19 @@ data/                          # gitignored runtime storage
   - `parseStructuredQaResponse(raw)` — tolerant: fences stripped, first `[`…last `]`, zod `.loose()` per entry → `QaContent[]`; empty array on garbage.
 
 ### API routes (`app/api/…`)
-- `api/convert/template/route.ts` — **POST** `{ doc }` → `{ html }` (template-mode conversion, FR-9). Zod-validated; reads tokens via `getTokens()`.
+- `api/convert/template/route.ts` — **POST** `{ doc, useSnapshot? }` → `{ html }` (template-mode conversion, FR-9). Zod-validated; tokens = `getTokensFromInstructions(await resolveConversionInstructions(storage, id, useSnapshot))` when `useSnapshot` is true, else cached `getTokens()` (FR-23).
 - `api/documents/route.ts` — **GET** list (optional `?owner=` filter, FR-45) → `{ documents }`; **POST** `{ doc, html? }` → creates + persists artifacts (201).
-- `api/documents/[id]/route.ts` — **GET** → `{ doc }` (404 if missing); **PUT** `{ doc, html? }` (id must match route; persists artifacts); **DELETE** → 204. `params` typed as `Promise<{ id }>` (Next 15+ convention).
+- `api/documents/[id]/route.ts` — **GET** → `{ doc, snapshotInfo: { version, differs } | null }` (404 if missing; `differs` = snapshot version ≠ active version — FR-23); **PUT** `{ doc, html? }` (id must match route; persists artifacts); **DELETE** → 204. `params` typed as `Promise<{ id }>` (Next 15+ convention).
 - `api/documents/[id]/html/route.ts` — **GET** download HTML (saved file, else freshly generated from block data — regenerate, FR-20); attachment filename from doc title.
 - `api/documents/[id]/pdf/route.ts` — **GET** download PDF, always generated from block data via `generatePDFBuffer` (FR-15); `?practice=true` → practice-mode PDF (FR-16/36/49).
 - `api/documents/[id]/regenerate/route.ts` — **POST** re-convert from JSON (template mode) + re-render PDF (FR-20); 404 when missing.
-- `api/convert/ai/route.ts` — **POST** `{ doc, goal? }` → `{ html }` (AI-mode conversion, FR-8/29/30). Zod-validates; missing key → 400 with actionable message; instructions from storage as system prompt; `validateAndWrapHtml` on output (FR-10); `AIError` → its status, else 502.
+- `api/convert/ai/route.ts` — **POST** `{ doc, goal?, useSnapshot? }` → `{ html }` (AI-mode conversion, FR-8/29/30). Zod-validates; missing key → 400 with actionable message; instructions via `resolveConversionInstructions` (FR-23) as system prompt; `validateAndWrapHtml` on output (FR-10); `AIError` → its status, else 502.
 - `api/convert/structure/route.ts` — **POST** `{ questions: string[] }` (1..200) → `{ blocks }` (FR-32 AI mode). Missing key → 400; instructions as system prompt + `buildStructuringUserPrompt`; `parseStructuredQaResponse`; empty result → 502.
 - `api/documents/import-html/route.ts` — **POST** `{ html, title? }` → 201 `{ doc, html }` (FR-40). `titleFromHtml` (title tag or first h1), `validateAndWrapHtml`, new document with `source: "external-html"` + empty blocks, `persistDocument`.
 - `api/export/prompt/route.ts` — **GET** `?docId=` → `{ system, user, plainText, markerText }` (FR-39 copy for external AI). 400 without docId, 404 when missing.
-- `api/config/route.ts` — **GET** → `{ model, hasAIKey }` for the status bar / UI state (FR-28), never leaks the key.
+- `api/config/route.ts` — **GET** → `{ model, hasAIKey, instructionsVersion }` for the status bar / UI state (FR-28), never leaks the key; instructions version read via storage (seeds on first run).
+- `api/instructions/route.ts` — **GET** → `getInstructionsState(storage)` (content/version/history — FR-21/22); **PUT** `{ content }` (zod min 1) → `saveInstructions`, `InstructionsError` → 400 with its message.
+- `api/instructions/reset/route.ts` — **POST** → `resetInstructions(storage)` → `{ ok, version }` (FR-22).
 
 ### `next.config.ts`
 - **Purpose:** `serverExternalPackages: ["@react-pdf/renderer"]` so the PDF engine works in route handlers (FR-14/15).
@@ -140,8 +156,8 @@ data/                          # gitignored runtime storage
 - **Purpose:** `/data` runtime storage ignored; `.env*` ignored except the committed example; env vars per requirements §12 (DEEPSEEK_*, DATA_DIR, MONGODB_URI, BLOB_READ_WRITE_TOKEN).
 
 ### `components/Editor.tsx` — Main editor (client, two-pane)
-- **Purpose:** All document state + flows: init by `?id=` (else localStorage draft, else fresh doc with one paragraph block — FR-24), debounced localStorage draft autosave (FR-6), convert (AI or template, FR-29) → preview → save → download with FR-46 gating, Cmd/Ctrl+S + Cmd/Ctrl+Enter shortcuts (FR-7), practice-mode state for PDF download (`?practice=true`), global visibility buttons (FR-35), copy-for-AI (FR-39), paste questions (FR-38) + paste HTML (FR-40) + copy-for-sharing dialogs (FR-50), status bar (FR-28: dirty, mode incl. model name from /api/config, last-converted, hidden counts FR-37, practice indicator), block operations (update/convert-type/remove/move/insert-after/append).
-- **Functions:** `mutateDoc(fn)` (marks dirty + invalidates preview), `updateBlock`/`convertBlock`/`removeBlock`/`moveBlock`/`insertAfter`/`appendBlock`/`setTitle` (useCallback ops), `setAllQaFlags(key, value)` (writes per-question flags + document `practice` defaults — FR-35), `convert(mode, goal)` (POST /api/convert/ai or /api/convert/template — FR-8/9/29), `copyPrompt(part)` (ensureSaved → GET /api/export/prompt → clipboard — FR-39), `applyImportedBlocks(blocks)` (paste-questions result: replace when the doc is empty, else append — FR-38), `applyImportedHtml(doc, html)` (paste-HTML result: adopt the new document, preview immediately — FR-40), `save()` (POST create or PUT update, html only when preview exists & fresh), `downloadPdf()` (FR-46-gated, auto-saves first, practice flag appended), `downloadHtml()`, `ensureSaved()`, `loadDraft()`/`downloadBlob()`/`safeFilename()`/`copyToClipboard()`/`blockHasContent()` helpers; computed `counts` (FR-37).
+- **Purpose:** All document state + flows: init by `?id=` (else localStorage draft, else fresh doc with one paragraph block — FR-24), debounced localStorage draft autosave (FR-6), convert (AI or template, FR-29) → preview → save → download with FR-46 gating, Cmd/Ctrl+S + Cmd/Ctrl+Enter shortcuts (FR-7), practice-mode state for PDF download (`?practice=true`), global visibility buttons (FR-35), copy-for-AI (FR-39), paste questions (FR-38) + paste HTML (FR-40) + copy-for-sharing dialogs (FR-50), instructions version + design-token source in the status bar (FR-28/47), snapshot-aware conversion toggle (FR-23), block operations (update/convert-type/remove/move/insert-after/append).
+- **Functions:** `mutateDoc(fn)` (marks dirty + invalidates preview), `updateBlock`/`convertBlock`/`removeBlock`/`moveBlock`/`insertAfter`/`appendBlock`/`setTitle` (useCallback ops), `setAllQaFlags(key, value)` (writes per-question flags + document `practice` defaults — FR-35), `convert(mode, goal)` (POST /api/convert/ai or /api/convert/template with `useSnapshot` from ref — FR-8/9/23/29; status text includes "· snapshot rules v<version>" when used), `copyPrompt(part)` (ensureSaved → GET /api/export/prompt → clipboard — FR-39), `applyImportedBlocks(blocks)` (paste-questions result: replace when the doc is empty, else append — FR-38), `applyImportedHtml(doc, html)` (paste-HTML result: adopt the new document, preview immediately; resets snapshot info — FR-40), `save()` (POST create or PUT update, html only when preview exists & fresh), `downloadPdf()` (FR-46-gated, auto-saves first, practice flag appended), `downloadHtml()`, `ensureSaved()`, `loadDraft()`/`downloadBlob()`/`safeFilename()`/`copyToClipboard()`/`blockHasContent()` helpers; computed `counts` (FR-37). State: `convertMode`, `aiModel`, `instructionsVersion` (from /api/config), `snapshotInfo` + `useSnapshot` (from GET /api/documents/[id], FR-23), modal flags; refs `docRef`/`persistedRef`/`convertModeRef`/`useSnapshotRef`.
 
 ### `components/BlockList.tsx` — Block list (client)
 - **Purpose:** Renders blocks in order with per-block controls and the bottom add-block affordance.
@@ -161,9 +177,9 @@ data/                          # gitignored runtime storage
 - **Exports:** `ITEMS` list; default component `onAdd(type)`.
 
 ### `components/Toolbar.tsx` — Primary actions (client, FR-29/30/35/37/38/39/46/50)
-- **Purpose:** Title input, Convert split button — primary converts in the current mode, caret opens the mode menu ("Convert (AI) — DeepSeek" / "Convert (Template, offline)") with an optional goal input (FR-29), Save, Practice PDF checkbox (FR-16), Download PDF (disabled until preview — FR-46), Download HTML, Hide/Show all translations + answers (FR-35), Copy ▾ dropdown (Copy for AI type markers / Copy instructions system prompt / Copy plain text — FR-39, Copy for sharing… dialog — FR-50), Paste ▾ dropdown (Paste questions… FR-38 / Paste HTML… FR-40), preview toggle, Library/New links, inline error display.
+- **Purpose:** Title input, Convert split button — primary converts in the current mode, caret opens the mode menu ("Convert (AI) — DeepSeek" / "Convert (Template, offline)") with an optional goal input (FR-29) and, when the document has a snapshot, the "Convert with this document's snapshot rules (v…)" checkbox (FR-23), Save, Practice PDF checkbox (FR-16), Download PDF (disabled until preview — FR-46), Download HTML, Hide/Show all translations + answers (FR-35), Copy ▾ dropdown (Copy for AI type markers / Copy instructions system prompt / Copy plain text — FR-39, Copy for sharing… dialog — FR-50), Paste ▾ dropdown (Paste questions… FR-38 / Paste HTML… FR-40), preview toggle, Instructions/Library/New links, inline error display.
 - **Exports:** `ConvertMode` type (`"ai" | "template"`), `VisibilityCounts` interface (translationsHidden/Total, answersHidden/Total — FR-37).
-- **Functions:** `ActionButton` (module component), `Dropdown` (module component — fixed overlay for outside-click close), default export; convert-mode + goal state.
+- **Functions:** `ActionButton` (module component), `Dropdown` (module component — fixed overlay for outside-click close), default export; convert-mode + goal state; props `snapshotInfo: { version, differs } | null`, `useSnapshot`, `onToggleSnapshot` (FR-23).
 
 ### `components/PasteQuestionsModal.tsx` — Paste-questions import (client, FR-32/38)
 - **Purpose:** Single-step flow: paste a question list → live count of detected questions → "Structure with AI" (POST /api/convert/structure) or "Parse locally (offline)" (`questionsToQaBlocks`) → `onResult(blocks)`.
@@ -178,9 +194,9 @@ data/                          # gitignored runtime storage
 - **Exports:** `CopySelection` interface, `DEFAULT_SELECTION`, `buildCopyText(doc, sel)` (pure — covered by smoke tests).
 - **Functions:** `joinVocab` (private), `loadSelection` (private), `toggle(key)`, `copy()`.
 
-### `tests/` — Smoke tests (M2 + M3)
-- **Purpose:** In-project verification harness. `smoke-m2.ts` (22 checks: QA HTML + practice PDF) and `smoke-m3.ts` (36 checks: fences/validation, splitQuestions, structuring parser, prompt serialization, buildCopyText, titleFromHtml). Compiled with `tests/tsconfig.json` (outDir `tests/build`, `rootDir ..`, `@/*` alias via `paths`), run with `node --require tests/alias-hook.js tests/build/tests/smoke-*.js` + `NODE_PATH`. `tests/build` is gitignored.
-- **Files:** `smoke-m2.ts`, `smoke-m3.ts`, `tsconfig.json`, `alias-hook.js` (resolves `@/` to the emitted build tree at runtime).
+### `tests/` — Smoke tests (M2 + M3 + M4)
+- **Purpose:** In-project verification harness. `smoke-m2.ts` (22 checks: QA HTML + practice PDF), `smoke-m3.ts` (36 checks: fences/validation, splitQuestions, structuring parser, prompt serialization, buildCopyText, titleFromHtml), `smoke-m4.ts` (24 checks: hashVersion, seeding idempotence, save→history→cache-invalidate, TOKENS validation, reset, per-doc snapshot write via persistDocument, resolveConversionInstructions active-vs-snapshot, history ordering/content). Compiled with `tests/tsconfig.json` (outDir `tests/build`, `rootDir ..`, `@/*` alias via `paths`), run with `node --require tests/alias-hook.js tests/build/tests/smoke-*.js` + `NODE_PATH`. `tests/build` and `tests/.tmp-*` (scratch data dirs) are gitignored.
+- **Files:** `smoke-m2.ts`, `smoke-m3.ts`, `smoke-m4.ts`, `tsconfig.json`, `alias-hook.js` (resolves `@/` to the emitted build tree at runtime).
 
 ### `components/PreviewPane.tsx` — Live preview (client, FR-13/27/46)
 - **Purpose:** A4-ish iframe preview of generated HTML. Fully sandboxed (`sandbox=""` — no scripts, per suggestions.md). Placeholder when no preview; "Stale" badge after edits; green "Preview · time" chip when fresh.
@@ -194,6 +210,13 @@ data/                          # gitignored runtime storage
 
 ### `app/library/page.tsx` — Library route
 - **Purpose:** `/library` — server component listing documents via `getStorage()`; `export const dynamic = "force-dynamic"` (fs read at request time — never prerendered). Metadata "Library — Writer App".
+
+### `app/instructions/page.tsx` — Instructions route (M4, FR-21/22)
+- **Purpose:** `/instructions` — server page shell (`force-dynamic`), renders `InstructionsEditor`. Metadata "Instructions — Writer App".
+
+### `components/InstructionsEditor.tsx` — Instructions editor (client, M4, FR-21/22/47)
+- **Purpose:** Edit the active instructions (the ONE place the design system + AI rules live): loads GET /api/instructions, textarea with dirty tracking, Save (PUT — rejected client-side/server-side when the TOKENS block is missing, FR-47), Reset to repo copy (confirm dialog → POST /api/instructions/reset), version history list (version hash, date, char count; Preview → fills the editor as draft, Restore → PUT), status/error banners; explains the `<!-- TOKENS -->` block + FR-47.
+- **Functions:** `load()` (initial GET), `save()` (PUT, dirty-gated), `reset()` (confirm + POST), `previewVersion(entry)`, `restoreVersion(entry)`; dirty state via `useState`. Status line "Design tokens: instructions file (TOKENS block)" mirrors the editor status bar (FR-28/47).
 
 ### `app/layout.tsx` / `app/globals.css` / `public/`
 - **Purpose:** Root layout (`LayoutProps<"/">` — Next 16.3 global helper), Tailwind v4 global styles, static assets. Metadata: "Writer App — Online Writer + Practice".
@@ -215,8 +238,7 @@ data/                          # gitignored runtime storage
 
 ## Planned Changes
 
-- **M4 (next):** instructions management (seed `active.md`, edit UI, history, per-document snapshots, token cache invalidation on save — FR-21–23/47).
-- **M5:** polish (slash-command polish, drag-reorder, tags UI, backup zip), HTML→blocks parse-back (FR-41), Mongo/Blob storage.
+- **M5 (next):** polish (slash-command polish, drag-reorder, tags UI + library filter, backup zip), HTML→blocks parse-back (FR-41), Mongo/Blob storage (FR-44).
 
 ## Verified (M1)
 
@@ -225,5 +247,4 @@ data/                          # gitignored runtime storage
 - End-to-end against `next start`: convert/template (200 + invalid-payload 400), document create/list/get/update/delete, `document.html` + `document.pdf` written to disk on save, PDF + HTML download routes (correct attachment filenames), library page listing, missing-doc 404.
 - M2 smoke (22/22): QA HTML — sequential numbering, translation/grammar/response label, dashed user-answer box, model answer, answer translation, analysis, two-col vocab grid (vocab+expr), wrapper + tag classes, hidden elements omitted (FR-36), XSS escaping; PDF normal + practice mode — `%PDF` magic, blank-area path renders, practice PDF omits model answers.
 - **M3 smoke (36/36):** fence stripping; validateAndWrapHtml (full-doc pass-through, fragment wrap with h1 title, fenced fragment); splitQuestions (numbered `.`/`)`, bullets, continuation merge, blank-line separated); questionsToQaBlocks; buildStructuringUserPrompt; parseStructuredQaResponse (fences+prose tolerance, vocab/expressions mapping, garbage → empty); buildAIPrompt (system verbatim, GOAL line, markers, HIDE flags, HTML-only instruction); serializeBlocksForAI; serializePlainText; buildCopyText (numbering, defaults exclude translations/model answers, RÉPONSE label, analysis/vocab/expressions, all-on, numbering survives partial selection); titleFromHtml (title tag, h1 fallback, null).
-- **M4:** instructions management (seed `active.md`, edit UI, history, snapshots).
-- **M5:** polish (slash commands, shortcuts, drag-reorder, tags, backup), HTML→blocks parse-back, Mongo/Blob storage.
+- **M4 smoke (24/24):** hashVersion stability/uniqueness/length; seed idempotence (same mtime on re-seed, repo TOKENS intact); storage.readInstructions seeds; getInstructionsState (version + empty history); saveInstructions rejects missing TOKENS (InstructionsError), returns new hash, replaces active, snapshots previous version, history content readable; resetInstructions restores repo + keeps modified version in history; getTokensFromInstructions parses arbitrary content + falls back to defaults; persistDocument writes instructions.snapshot.md matching active content; resolveConversionInstructions (no toggle → active, toggle → snapshot, snapshot survives active changes). Full build green with all 17 routes.

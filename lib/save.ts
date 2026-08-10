@@ -21,5 +21,9 @@ export async function persistDocument(
     const tokens = await getTokens();
     const pdf = await generatePDFBuffer(doc, tokens);
     await storage.writeFile(doc.id, "document.pdf", pdf);
+    // FR-23: record which instructions this conversion was made with, so
+    // re-converting later can use the same rules (or the latest, per toggle).
+    const instructions = await storage.readInstructions();
+    await storage.writeFile(doc.id, "instructions.snapshot.md", Buffer.from(instructions, "utf8"));
   }
 }

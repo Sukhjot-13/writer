@@ -11,6 +11,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { DesignTokens } from "./design-tokens";
+import { seedInstructionsIfMissing } from "./instructions";
 
 /** Repo copy of the style instructions (fallback until M4 seeds data/instructions/active.md). */
 export const REPO_INSTRUCTIONS_PATH = path.join(
@@ -98,15 +99,11 @@ export function parseTokensBlock(markdown: string, defaults: DesignTokens): Desi
 }
 
 /**
- * Read the active instructions: data/instructions/active.md when present
- * (editable copy, seeded in M4), else the repo docs/html_instructions.md.
- * Throws if neither exists.
+ * Read the active instructions: data/instructions/active.md, seeded from the
+ * repo docs/html_instructions.md on first run (FR-21). Throws if the repo
+ * copy is missing.
  */
 export async function readActiveInstructions(): Promise<string> {
-  try {
-    return await fs.readFile(ACTIVE_INSTRUCTIONS_PATH, "utf8");
-  } catch {
-    // fall through to the repo copy
-  }
-  return fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
+  await seedInstructionsIfMissing(ACTIVE_INSTRUCTIONS_PATH);
+  return fs.readFile(ACTIVE_INSTRUCTIONS_PATH, "utf8");
 }
