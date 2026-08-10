@@ -5,11 +5,18 @@
 // of a question" — the toolbar's Detailed toggle scrolls away with the toolbar,
 // so a fixed bottom-right copy of it follows the user down the document.
 //
-// Behavior: appears (fade + slide-in) only once the scroll container has been
-// scrolled far enough that the toolbar is out of view; hides again when the
-// user returns to the top. It drives the SAME `detailed` state as the toolbar
-// toggle — no new state, no divergence. Hidden while the preview sheet is open
-// (the sheet is a fixed inset-0 z-50 overlay above the pill's z-40).
+// Behavior: appears (fade + slide-in) only once the document has been scrolled
+// far enough that the toolbar is out of view; hides again when the user returns
+// to the top. It drives the SAME `detailed` state as the toolbar toggle — no
+// new state, no divergence. Hidden while the preview sheet is open (the sheet
+// is a fixed inset-0 z-50 overlay above the pill's z-40).
+//
+// Scroll detection listens to BOTH the window and the container: the editor is
+// structured as an app shell (inner `overflow-y-auto` div) but the height chain
+// resolves against `min-h-full` on <body>, so in practice the DOCUMENT scrolls
+// at the window level and the container's scrollTop stays 0 — the pill must
+// appear on either scroller (2026-08-10 M7 round 7 fix, user: "there is no
+// floating togle").
 
 "use client";
 
@@ -36,11 +43,15 @@ export default function FloatingDetailedToggle({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
-    const onScroll = () => setScrolled(el.scrollTop > SHOW_AFTER_SCROLL);
+    const onScroll = () =>
+      setScrolled((el ? el.scrollTop > SHOW_AFTER_SCROLL : false) || window.scrollY > SHOW_AFTER_SCROLL);
     onScroll(); // initial state without waiting for the first scroll event
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    el?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      el?.removeEventListener("scroll", onScroll);
+    };
   }, [containerRef]);
 
   return (
