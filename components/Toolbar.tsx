@@ -1,8 +1,8 @@
 // components/Toolbar.tsx — primary actions (M6 redesign, FR-29/30/35/37/38/39/46/50).
 //
 // Layout: a title row (brand · title · tags) and an actions row —
-// Convert with AI ▾ (primary split) · Save · Preview · Practice + Detailed +
-// Check/Hide answers · Copy… · Paste ▾.
+// Convert with AI ▾ (primary split) · Save · Preview · Autosave (M7 round 7) ·
+// Practice + Detailed + Check/Hide answers · Copy… · Paste ▾.
 //
 // M6 changes: single AI convert (template mode dropped); on-demand Preview;
 // Practice as the master key with a Check/Hide-answers button.
@@ -45,6 +45,10 @@ interface ToolbarProps {
   // checked = translations/analysis/vocab revealed.
   detailed: boolean;
   onToggleDetailed: () => void;
+  // M7 round 7: the Autosave toggle — ON by default (quiet debounced save
+  // ~1.2s after edits); off = only Save (button / Cmd+S) persists.
+  autosave: boolean;
+  onToggleAutosave: () => void;
   checked: boolean; // M6: practice "Check" — reveals model answers
   onToggleChecked: () => void;
   onResetPractice: () => void;
@@ -137,8 +141,10 @@ function Dropdown({
   );
 }
 
-/** 2026-08-10 M7 round 4: the shared checkbox pill (Practice / Detailed). */
-function TogglePill({
+/** 2026-08-10 M7 round 4: the shared checkbox pill (Practice / Detailed).
+ *  Exported 2026-08-10 (M7 round 7) so the floating Detailed toggle
+ *  (FloatingDetailedToggle) reuses the exact same pill styling. */
+export function TogglePill({
   label,
   checked,
   onChange,
@@ -183,6 +189,8 @@ export default function Toolbar({
   onTogglePractice,
   detailed,
   onToggleDetailed,
+  autosave,
+  onToggleAutosave,
   checked,
   onToggleChecked,
   onResetPractice,
@@ -322,6 +330,15 @@ export default function Toolbar({
         <ActionButton onClick={onPreview} disabled={busy !== null} title="Preview the current document — unsaved edits included">
           {busy === "preview" ? "Rendering…" : "Preview"}
         </ActionButton>
+
+        {/* M7 round 7: Autosave toggle — checked = the quiet debounced save
+            (default, M6 behavior); unchecked = only Save / Cmd+S persists. */}
+        <TogglePill
+          label="Autosave"
+          checked={autosave}
+          onChange={onToggleAutosave}
+          title="Autosave: save silently ~1s after each edit. Off = save manually with Save or ⌘S"
+        />
 
         {/* Practice group — separated from the document actions. */}
         <div className="flex flex-wrap items-center gap-2 border-l border-zinc-200 pl-2.5">

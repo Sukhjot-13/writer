@@ -29,6 +29,7 @@ import {
 } from "@/lib/types";
 
 import Toolbar from "./Toolbar";
+import FloatingDetailedToggle from "./FloatingDetailedToggle";
 import BlockList from "./BlockList";
 import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
@@ -85,6 +86,28 @@ export default function Editor({ docId }: { docId: string | null }) {
   // default — focus mode (main content only) IS the default state, and
   // checking "Detailed" reveals translations/analysis/vocab.
   const [detailed, setDetailed] = useState(false);
+  // M7 round 7: autosave toggle — ON by default (M6 behavior). Turned off, the
+  // quiet debounced save stops; only Save (button / Cmd+S) persists. Preference
+  // remembered in localStorage (`writer-app:autosave`) like add-type/copy-selection.
+  const [autosave, setAutosave] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("writer-app:autosave") === "off") setAutosave(false);
+    } catch {
+      /* storage unavailable — keep default */
+    }
+  }, []);
+  const toggleAutosave = () => {
+    setAutosave((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("writer-app:autosave", next ? "on" : "off");
+      } catch {
+        /* storage unavailable — setting is session-only */
+      }
+      return next;
+    });
+  };
   const [previewOpen, setPreviewOpen] = useState(false); // M6: on-demand sheet
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   // 2026-08-10: preview display options — field toggles (omitted enrichment
@@ -109,6 +132,9 @@ export default function Editor({ docId }: { docId: string | null }) {
   const previewOptionsRef = useRef(previewOptions);
   previewOptionsRef.current = previewOptions;
   const previewSeqRef = useRef(0); // 2026-08-10 #6: latest toggle wins the render
+  // M7 round 7: the editor's scroll container — the floating Detailed pill
+  // listens to it to appear only when the toolbar is scrolled out of view.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const persistedRef = useRef(persisted);
   persistedRef.current = persisted;
   const useSnapshotRef = useRef(useSnapshot);
@@ -577,9 +603,10 @@ function essayAnswerFromParagraphs(
   // ---- autosave (M6): quiet debounced save — practice answers and any edit
   // land on the server ~1.2s after typing stops, without touching the toolbar's
   // busy state or stealing focus. Guards: never during a busy operation, never
-  // overlapping itself, never before the doc has loaded.
+  // overlapping itself, never before the doc has loaded. M7 round 7: the
+  // toolbar "Autosave" toggle disables it entirely (manual Save still works).
   useEffect(() => {
-    if (loading || !doc || !isDirty) return;
+    if (loading || !doc || !isDirty || !autosave) return;
     const timer = setTimeout(() => {
       void (async () => {
         if (busyRef.current || savingRef.current) return;
@@ -592,7 +619,7 @@ function essayAnswerFromParagraphs(
       })();
     }, 1200);
     return () => clearTimeout(timer);
-  }, [doc, loading, isDirty]);
+  }, [doc, loading, isDirty, autosave]);
 
   // ---- downloads (2026-08-10 #6, moved into the preview sheet): the buttons
   // in Preview download EXACTLY what is currently displayed — the same
@@ -680,6 +707,8 @@ function essayAnswerFromParagraphs(
         onResetPractice={() => setConfirmingReset(true)}
         detailed={detailed}
         onToggleDetailed={() => setDetailed((v) => !v)}
+        autosave={autosave}
+        onToggleAutosave={toggleAutosave}
         onOpenCopyDialog={() => setShowCopyDialog(true)}
         onPasteQuestions={() => setShowPasteQuestions(true)}
         onPasteBlocks={() => setShowPasteBlocks(true)}
@@ -753,7 +782,7 @@ function essayAnswerFromParagraphs(
       {showCopyDialog && <CopyDialog doc={doc} onClose={() => setShowCopyDialog(false)} />}
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white">
           {/* 2026-08-10 M7 round 4 (user: "a lot of blank space around the text
               fields on laptop… on phone it is fine"): the fixed max-w-2xl
               column left huge gutters on desktop — widened to max-w-4xl.
@@ -781,6 +810,16 @@ function essayAnswerFromParagraphs(
           </div>
         </div>
       </div>
+
+      {/* M7 round 7 (user: "I have to go to the top again if I want to toggle
+          the detailed version"): the toolbar's Detailed toggle scrolls away —
+          this fixed bottom-right copy appears once the toolbar is out of view
+          and drives the SAME state (no divergence). */}
+      <FloatingDetailedToggle
+        detailed={detailed}
+        onToggleDetailed={() => setDetailed((v) => !v)}
+        containerRef={scrollRef}
+      />
 
       {previewOpen && (
         <PreviewSheet
@@ -824,6 +863,11 @@ function essayAnswerFromParagraphs(
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">Checked</span>
         )}
         {status && <span className="text-zinc-400">{status}</span>}
+        {!autosave && (
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-500">
+            Autosave off — Save manually (⌘S)
+          </span>
+        )}
         {useSnapshot && snapshotInfo && (
           <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
             Snapshot rules v{snapshotInfo.version}
