@@ -20,6 +20,15 @@ ENRICHMENT (all text, French → English)
 - Every "essay" block: ONE "translation" (English translation of the whole passage), ONE "analysis", and ONE "vocab"/"expressions" set covering the whole essay — never a separate set per paragraph.
 - "responseLabel" is always "RÉPONSE".
 - Omit any optional field you cannot fill with confidence.
+- TYPOGRAPHY RULE: every text you WRITE (translations, grammar notes, analysis, vocabulary definitions, suggestion reasons) must be typographically correct — accents (é è ê ë à â ç î ï ô ù û), commas, full stops, and French spacing (no space before "," "." ";"; a space before ":" ";" "!" "?"). Never write an accentless word when the accented form exists.
+
+CORRECTIONS (qa blocks only)
+- Review every "qa" block's "question" and "modelAnswer" for spelling mistakes (missing accents included), grammatical mistakes, and punctuation errors (commas, full stops, French spacing).
+- NEVER modify the question or answer text — the user's wording is kept exactly as written.
+- When a mistake exists, add a "suggestions" array to the qa block: one object per distinct mistake:
+  {"kind":"spelling"|"grammar"|"punctuation","field":"question"|"modelAnswer","original":"the text exactly as written (verbatim, accents included)","suggestion":"the corrected replacement, itself typographically correct","reason":"one short reason in English"}
+- "original" must match the field's text VERBATIM — same accents, same spacing — so the app can find and apply it.
+- When the text is correct, omit "suggestions" entirely. Never invent a suggestion for correct text. Max 10 suggestions per block.
 
 INPUT FLAGS
 - If the input marks HIDE_TRANSLATION: true for a question, omit its translation fields. If HIDE_MODEL_ANSWER: true, omit the model answer fields.
@@ -29,7 +38,7 @@ OUTPUT SHAPES (JSON array, in document order — the only shapes allowed)
 {"type":"heading","text":"…","level":2}
 {"type":"paragraph","text":"…","translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
 {"type":"essay","paragraphs":["…","…"],"translation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
-{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}]}
+{"type":"qa","question":"…","questionTranslation":"…","grammarNote":"…","responseLabel":"RÉPONSE","modelAnswer":"…","answerTranslation":"…","analysis":"…","vocab":[{"term":"…","def":"…"}],"expressions":[{"term":"…","def":"…"}],"suggestions":[{"kind":"spelling","field":"modelAnswer","original":"…","suggestion":"…","reason":"…"}]}
 {"type":"separator"}
 
 NEVER
@@ -38,6 +47,7 @@ NEVER
 - Never add questions or content that was not in the input.
 - Never force prose into Q&A blocks — a paragraph stays a paragraph.
 - Never split one essay into per-paragraph blocks or per-paragraph enrichment — an essay is one block, one translation, one vocab set.
+- Never auto-rewrite a question or answer — correct text is reported in "suggestions" only, never edited in place.
 
 ---
 

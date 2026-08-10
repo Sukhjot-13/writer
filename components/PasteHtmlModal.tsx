@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import type { Document } from "@/lib/types";
+import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow paste box
 
 interface PasteHtmlModalProps {
   onClose: () => void;
@@ -69,7 +70,7 @@ export default function PasteHtmlModal({ onClose, onImported }: PasteHtmlModalPr
         </div>
 
         <div className="px-5 py-4">
-          <textarea
+          <AutoGrowTextarea
             value={html}
             onChange={(e) => setHtml(e.target.value)}
             rows={10}

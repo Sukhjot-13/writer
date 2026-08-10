@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import type { Block } from "@/lib/types";
+import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow paste box
 import { parseStructuredBlocksResponse } from "@/lib/structuring";
 
 interface PasteBlocksModalProps {
@@ -55,7 +56,7 @@ export default function PasteBlocksModal({ onClose, onResult }: PasteBlocksModal
         </div>
 
         <div className="px-5 py-4">
-          <textarea
+          <AutoGrowTextarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={10}

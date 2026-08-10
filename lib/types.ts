@@ -4,6 +4,22 @@
 
 export type BlockType = "title" | "heading" | "paragraph" | "essay" | "qa" | "separator";
 
+/**
+ * AI-reported correction for a qa block (2026-08-10). The AI NEVER edits the
+ * text itself — it reports mistakes and the USER applies each one individually
+ * (one Apply button per row, only that row changes, others stay).
+ */
+export type SuggestionKind = "spelling" | "grammar" | "punctuation";
+
+export interface Suggestion {
+  id: string; // crypto.randomUUID, assigned at AI-parse time
+  kind: SuggestionKind; // default "spelling"
+  field: "question" | "modelAnswer"; // which qa field the correction targets
+  original: string; // verbatim substring as written (accents included)
+  suggestion: string; // corrected replacement
+  reason?: string; // one-line explanation (English)
+}
+
 /** Q&A block content (FR-4, FR-33, FR-34). Empty optional fields are hidden in the editor. */
 export interface QaContent {
   question: string; // primary language
@@ -18,6 +34,7 @@ export interface QaContent {
   expressions?: { term: string; def: string }[]; // → expressions column
   hideTranslation?: boolean; // per-question: omit English translation in output (FR-34)
   hideModelAnswer?: boolean; // per-question: omit model answer in output (FR-34)
+  suggestions?: Suggestion[]; // AI-reported corrections — user applies or dismisses (2026-08-10)
 }
 
 /** Paragraph block content — text plus AI enrichment (translation/analysis/vocab). */

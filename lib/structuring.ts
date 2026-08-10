@@ -13,8 +13,9 @@
 
 import { z } from "zod";
 import { stripMarkdownFences } from "./ai";
-import type { Block } from "./types";
+import type { Block, Suggestion } from "./types";
 import { createBlock, setBlockContent } from "./types";
+import { suggestionSchema } from "./schemas";
 
 /**
  * Locate the outermost JSON array in the AI response (markdown fences
@@ -75,6 +76,10 @@ const aiBlockEntrySchema = z.discriminatedUnion("type", [
       analysis: z.string().optional(),
       vocab: z.array(vocabItemSchema).optional(),
       expressions: z.array(vocabItemSchema).optional(),
+      // 2026-08-10: AI-reported corrections. .catch([]) keeps the whole qa
+      // block alive when ONE suggestion object is malformed (the module's
+      // drop-tolerant philosophy — a single bad entry never kills a block).
+      suggestions: z.array(suggestionSchema).catch([]).optional(),
     })
     .loose(),
   z.object({ type: z.literal("separator") }).loose(),
@@ -88,6 +93,27 @@ function opt(s: string | undefined): string | undefined {
 /** Normalize an optional list — undefined when empty. */
 function optList(items: { term: string; def: string }[] | undefined): { term: string; def: string }[] | undefined {
   return items && items.length ? items : undefined;
+}
+
+/** Normalize AI suggestions (2026-08-10): trim, drop empty entries, cap at 10,
+ * assign a stable id. Field mismatches are NOT dropped here — the editor's
+ * render-time filter (lib/suggestions.ts) handles them losslessly. */
+function optSuggestions(
+  items: z.infer<typeof suggestionSchema>[] | undefined,
+): Suggestion[] | undefined {
+  if (!items) return undefined;
+  const cleaned = items
+    .map((s) => ({
+      kind: s.kind,
+      field: s.field,
+      original: (s.original ?? "").trim(),
+      suggestion: (s.suggestion ?? "").trim(),
+      reason: s.reason?.trim() || undefined,
+    }))
+    .filter((s) => s.original.length > 0 && s.suggestion.length > 0)
+    .slice(0, 10)
+    .map((s) => ({ id: crypto.randomUUID(), ...s }));
+  return cleaned.length ? cleaned : undefined;
 }
 
 /**
@@ -158,6 +184,7 @@ export function parseStructuredBlocksResponse(raw: string): Block[] {
               analysis: opt(d.analysis),
               vocab: optList(d.vocab),
               expressions: optList(d.expressions),
+              suggestions: optSuggestions(d.suggestions),
               hideTranslation: false,
               hideModelAnswer: false,
             }),

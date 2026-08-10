@@ -38,6 +38,7 @@ import {
 } from "@react-pdf/renderer";
 import type { Block, Document, QaContent } from "./types";
 import type { DesignTokens } from "./design-tokens";
+import { pageNumberLabel } from "./pdf-labels"; // 2026-08-10: "1/7" page footers
 
 export type PDFVariant = "full" | "questions" | "my-answers";
 
@@ -464,6 +465,32 @@ export async function generatePDFBuffer(
         );
 
   const qaNumber = { n: 0 };
+  // 2026-08-10: "1/7" page footer — react-pdf's `render` prop gets the page
+  // number + total on every page; `fixed` repeats the footer on each page.
+  // Absolute positioning is page-relative, so `bottom` sits in the margin
+  // band below the padded content box.
+  const pageFooter = (
+    <View
+      fixed
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: lengthToPt(tokens.spacing.printMargin),
+        flexDirection: "row",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: basePt * 0.8,
+          color: tokens.colors.border,
+          fontFamily: tokens.fonts.pdf,
+        }}
+        render={({ pageNumber, totalPages }) => pageNumberLabel(pageNumber, totalPages)}
+      />
+    </View>
+  );
   const element = (
     <PDFDocument title={doc.title || "Document"} author="Writer App">
       <Page size="A4" style={pageStyles.page}>
@@ -477,6 +504,7 @@ export async function generatePDFBuffer(
             variant={variant}
           />
         ))}
+        {pageFooter}
       </Page>
     </PDFDocument>
   );

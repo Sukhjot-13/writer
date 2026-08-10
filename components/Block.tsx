@@ -15,6 +15,7 @@ import type {
 import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
 import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment (paragraphs + essays)
+import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow everywhere
 
 // M6: practice view of a paragraph — the paragraph stays a continuous piece of
 // writing: its text in normal document typography with the "My answer" space
@@ -39,12 +40,12 @@ function PracticeParagraphCard({
         {content.text || <span className="text-zinc-300">(empty paragraph)</span>}
       </div>
 
-      <textarea
+      <AutoGrowTextarea
         rows={2}
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write in French if you can…"
         onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
-        className="block w-full resize-none rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+        className="block w-full rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
       />
 
       {checked && (
@@ -87,12 +88,12 @@ function PracticeEssayCard({
         ))}
       </div>
 
-      <textarea
+      <AutoGrowTextarea
         rows={4}
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write the whole essay in French if you can…"
         onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
-        className="block w-full resize-none rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
+        className="block w-full rounded-md border border-dashed border-blue-200 bg-transparent px-3 py-2 text-[16px] leading-relaxed text-zinc-900 outline-none placeholder:text-zinc-300 focus:bg-white focus:shadow-sm"
       />
 
       {checked && (
@@ -173,14 +174,6 @@ export default function Block({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashCursor, setSlashCursor] = useState(0);
-
-  // Auto-grow a textarea to its content (FR-25). Reused as a callback ref for
-  // the essay's per-paragraph textareas (each grows independently).
-  const autoGrow = (el: HTMLTextAreaElement | null) => {
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  };
 
   // Auto-grow the primary textarea (title/heading/paragraph).
   useEffect(() => {
@@ -386,19 +379,17 @@ export default function Block({
             // paragraph" button, and the shared enrichment fields below.
             <div>
               {block.content.paragraphs.map((p, i) => (
-                <textarea
+                <AutoGrowTextarea
                   key={i}
-                  ref={autoGrow}
                   value={p}
                   onChange={(e) => {
                     const next = [...block.content.paragraphs];
                     next[i] = e.target.value;
                     onUpdate({ ...block.content, paragraphs: next });
                   }}
-                  onInput={(e) => autoGrow(e.currentTarget)}
                   rows={1}
                   placeholder={`Paragraph ${i + 1}…`}
-                  className="block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm"
+                  className="block w-full rounded-md border border-transparent bg-transparent py-1.5 leading-relaxed outline-none placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white focus:shadow-sm"
                 />
               ))}
               <button

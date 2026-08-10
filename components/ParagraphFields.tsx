@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import type { EssayContent, ParagraphContent } from "@/lib/types";
 import { inputCls, labelCls, RowEditor } from "./RowEditor";
+import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow
 
 type ParagraphField = "translation" | "analysis" | "vocab" | "expressions";
 
@@ -121,7 +122,7 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
               ✕
             </button>
           </div>
-          <textarea
+          <AutoGrowTextarea
             className={inputCls}
             rows={2}
             value={content.analysis ?? ""}

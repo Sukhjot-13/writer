@@ -16,6 +16,12 @@
 import { useEffect, useState } from "react";
 import type { QaContent } from "@/lib/types";
 import { inputCls, labelCls, RowEditor } from "./RowEditor";
+import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow
+import {
+  applySuggestion,
+  dismissSuggestion,
+  visibleSuggestions,
+} from "@/lib/suggestions"; // 2026-08-10: AI corrections — never auto-applied
 
 type QaField =
   | "questionTranslation"
@@ -63,6 +69,69 @@ function EyeToggle({ on, onToggle, title }: { on: boolean; onToggle: () => void;
     >
       {on ? "👁" : "🙈"}
     </button>
+  );
+}
+
+// AI-reported corrections (2026-08-10). The AI never edits text — each row has
+// an Apply button that changes ONLY that suggestion (first occurrence) and a ✕
+// that dismisses it. visibleSuggestions() hides rows whose text the user has
+// already changed; dismissed rows are removed from content and stay gone.
+function SuggestionList({
+  content,
+  onUpdate,
+}: {
+  content: QaContent;
+  onUpdate: (content: QaContent) => void;
+}) {
+  const suggestions = visibleSuggestions(content);
+  if (suggestions.length === 0) return null;
+  return (
+    <div className="mt-1.5 space-y-1.5 rounded-md border border-amber-200 bg-amber-50/60 p-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+        Suggested corrections — nothing changes until you apply
+      </p>
+      {suggestions.map((s) => (
+        <div key={s.id} className="flex items-start gap-2 text-[12px] leading-snug">
+          <span
+            className={`mt-0.5 shrink-0 rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide ${
+              s.kind === "spelling"
+                ? "bg-amber-100 text-amber-800"
+                : s.kind === "grammar"
+                  ? "bg-orange-100 text-orange-800"
+                  : "bg-rose-100 text-rose-800"
+            }`}
+          >
+            {s.kind}
+          </span>
+          <span className="mt-0.5 shrink-0 text-zinc-400">
+            {s.field === "question" ? "Question" : "Answer"}:
+          </span>
+          <span className="mt-0.5 line-through decoration-zinc-400 text-zinc-400">
+            {s.original}
+          </span>
+          <span className="mt-0.5 text-zinc-400">→</span>
+          <span className="mt-0.5 font-medium text-emerald-700">{s.suggestion}</span>
+          {s.reason && <span className="mt-0.5 italic text-zinc-400">{s.reason}</span>}
+          <button
+            type="button"
+            onClick={() => onUpdate(applySuggestion(content, s))}
+            title="Apply only this correction to the text"
+            className="ml-auto shrink-0 rounded-md border border-emerald-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            onClick={() => onUpdate(dismissSuggestion(content, s.id))}
+            title="Dismiss this suggestion"
+            aria-label="Dismiss suggestion"
+            className="shrink-0 rounded p-0.5 text-zinc-400 transition-colors hover:text-red-500"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -118,8 +187,8 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
 
         <div>
           <label className={labelCls}>My answer</label>
-          <textarea
-            className={`${inputCls} resize-none border-dashed border-blue-200`}
+          <AutoGrowTextarea
+            className={`${inputCls} border-dashed border-blue-200`}
             rows={3}
             value={content.userAnswer ?? ""}
             placeholder="Write your own answer…"
@@ -171,7 +240,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
             title={content.hideModelAnswer ? "Show answer in output" : "Hide answer in output"}
           />
         </div>
-        <textarea
+        <AutoGrowTextarea
           className={inputCls}
           rows={2}
           value={content.modelAnswer ?? ""}
@@ -183,6 +252,8 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
             A practice answer is saved for this question — turn on Practice to view or edit it.
           </p>
         ) : null}
+        {/* 2026-08-10: AI-reported corrections — user applies or dismisses each */}
+        <SuggestionList content={content} onUpdate={onUpdate} />
       </div>
 
       {/* Optional-field chip menu (FR-4/26: sections appear once used) — SUPER
@@ -310,7 +381,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, onUpdat
               ✕
             </button>
           </div>
-          <textarea
+          <AutoGrowTextarea
             className={inputCls}
             rows={2}
             value={content.analysis ?? ""}

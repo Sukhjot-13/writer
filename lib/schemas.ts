@@ -6,6 +6,26 @@ import { z } from "zod";
 
 const tagSchema = z.array(z.string());
 
+/**
+ * AI-reported correction for a qa block (2026-08-10) — see lib/types.ts.
+ * `id` is optional on the wire (AI output has no ids — lib/structuring.ts
+ * assigns them) but the transform guarantees one, so the inferred type IS a
+ * Suggestion and saved docs round-trip with their ids intact.
+ * Tolerance: per-field .catch() degrades a malformed entry to an empty
+ * original/suggestion, which lib/structuring.ts drops — ONE bad suggestion
+ * never kills the list or the qa block.
+ */
+export const suggestionSchema = z
+  .object({
+    id: z.string().optional(),
+    kind: z.enum(["spelling", "grammar", "punctuation"]).default("spelling"),
+    field: z.enum(["question", "modelAnswer"]).catch("modelAnswer"),
+    original: z.string().min(1).max(500).catch(""), // verbatim substring as written
+    suggestion: z.string().min(1).max(500).catch(""), // corrected replacement
+    reason: z.string().optional(),
+  })
+  .transform((s) => ({ ...s, id: s.id ?? crypto.randomUUID() }));
+
 const qaContentSchema = z
   .object({
     question: z.string(),
@@ -20,6 +40,7 @@ const qaContentSchema = z
     expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
     hideTranslation: z.boolean().optional(),
     hideModelAnswer: z.boolean().optional(),
+    suggestions: z.array(suggestionSchema).optional(), // AI corrections (2026-08-10)
   })
   .loose();
 
