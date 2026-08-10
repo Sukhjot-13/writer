@@ -28,6 +28,7 @@ export interface ParagraphContent {
   analysis?: string; // short explanation (AI enrichment)
   vocab?: { term: string; def: string }[]; // vocabulary found in the text
   expressions?: { term: string; def: string }[]; // expressions found in the text
+  userAnswer?: string; // practice answer written by the user (M6, FR-33 parity with qa)
 }
 
 export type Block =

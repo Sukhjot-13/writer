@@ -176,13 +176,17 @@ function blockToHtml(doc: Document, block: Block, tokens: DesignTokens, qaNumber
         c.format === "markdown"
           ? renderInlineMarkdown(c.text)
           : escapeHtml(c.text).replace(/\n/g, "<br>");
-      // M6: AI enrichment for all text — translation, analysis, vocab grid.
+      // M6: AI enrichment for all text — translation, analysis, vocab grid —
+      // plus the practice answer (dashed box, same as qa user answers).
+      const userAnswer = c.userAnswer
+        ? `<div class="qa-user-answer">${renderInlineMarkdown(c.userAnswer)}</div>`
+        : "";
       const translation = c.translation ? `<p class="p-translation">${renderInlineMarkdown(c.translation)}</p>` : "";
       const analysis = c.analysis
         ? `<div class="p-analyse"><strong>Analyse :</strong> ${renderInlineMarkdown(c.analysis)}</div>`
         : "";
       const grid = vocabGridHtml(c.vocab, c.expressions);
-      return `<p class="${wrapper}">${text}</p>${translation}${analysis}${grid}`;
+      return `<p class="${wrapper}">${text}</p>${userAnswer}${translation}${analysis}${grid}`;
     }
     case "separator":
       return `<hr class="${wrapper}">`;

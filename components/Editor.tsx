@@ -4,8 +4,8 @@
 //   doc          — the editable document (blocks + metadata)
 //   persisted    — whether the server knows this doc id
 //   isDirty      — unsaved changes indicator (status bar)
-//   practiceMode — the Practice master key: questions-only view, "My answer"
-//                  boxes, and the Check/Hide-answers cycle
+//   practiceMode — the Practice master key: every block shown, "My answer"
+//                  boxes for questions and paragraphs, Check/Hide-answers cycle
 //   checked      — practice: model answers revealed side-by-side
 //   previewOpen  — the full-screen on-demand preview sheet (stateless render)
 //
@@ -103,6 +103,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   useSnapshotRef.current = useSnapshot;
   const lastConvertRef = useRef<string | null>(null);
   const busyRef = useRef<string | null>(null);
+  const savingRef = useRef(false); // M6: quiet autosave in flight — no busy state
   const convertRef = useRef<(goal: string | null) => Promise<void>>(async () => {});
   const saveRef = useRef<() => Promise<boolean>>(async () => false);
 
@@ -484,11 +485,11 @@ export default function Editor({ docId }: { docId: string | null }) {
   }
 
   // ---- save (FR-17, M6): blocks + the instructions version that structured them ----
-  async function save(): Promise<boolean> {
+  // The server round-trip lives in `persist()` (shared by the Save button /
+  // Cmd+S and the quiet autosave); `save()` wraps it with the busy state.
+  async function persist(): Promise<boolean> {
     const current = docRef.current;
-    if (!current || busyRef.current) return false;
-    beginBusy("saving");
-    setError(null);
+    if (!current) return false;
     try {
       const payload = {
         doc: current,
@@ -508,16 +509,48 @@ export default function Editor({ docId }: { docId: string | null }) {
         throw new Error(body?.error ?? `Save failed (${res.status})`);
       }
       setPersisted(true);
-      setIsDirty(false);
-      setStatus("Saved");
+      // Only clear the dirty flag when no edits landed while the request was
+      // in flight (mutateDoc always builds a fresh document object).
+      if (docRef.current === current) setIsDirty(false);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
       return false;
+    }
+  }
+
+  async function save(): Promise<boolean> {
+    if (busyRef.current) return false;
+    beginBusy("saving");
+    setError(null);
+    try {
+      const ok = await persist();
+      if (ok && docRef.current) setStatus("Saved");
+      return ok;
     } finally {
       endBusy();
     }
   }
+
+  // ---- autosave (M6): quiet debounced save — practice answers and any edit
+  // land on the server ~1.2s after typing stops, without touching the toolbar's
+  // busy state or stealing focus. Guards: never during a busy operation, never
+  // overlapping itself, never before the doc has loaded.
+  useEffect(() => {
+    if (loading || !doc || !isDirty) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (busyRef.current || savingRef.current) return;
+        savingRef.current = true;
+        try {
+          if (await persist()) setStatus("Saved automatically");
+        } finally {
+          savingRef.current = false;
+        }
+      })();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [doc, loading, isDirty]);
 
   // ---- downloads (M6): instant, from the current doc — no save, no gating ----
   async function ensureSaved(): Promise<boolean> {
@@ -566,13 +599,16 @@ export default function Editor({ docId }: { docId: string | null }) {
     }
   }
 
-  // ---- practice (M6): clear every "My answer" so the doc can be re-practiced ----
+  // ---- practice (M6): clear every "My answer" (qa + paragraph) so the doc can
+  // be re-practiced ----
   function resetPractice() {
     if (!window.confirm("Clear every 'My answer' so you can practice this document again?")) return;
     mutateDoc((d) => ({
       ...d,
       blocks: d.blocks.map((b) =>
-        b.type === "qa" && b.content.userAnswer ? setBlockContent(b, { ...b.content, userAnswer: undefined }) : b,
+        (b.content as { userAnswer?: string }).userAnswer
+          ? setBlockContent(b, { ...b.content, userAnswer: undefined })
+          : b,
       ),
     }));
     setChecked(false);
@@ -644,7 +680,7 @@ export default function Editor({ docId }: { docId: string | null }) {
 
       {practiceMode && (
         <div className="border-b border-blue-100 bg-blue-50/60 px-4 py-1.5 text-xs text-blue-800">
-          Practice mode — questions only, with a “My answer” box under each. Your answers are kept
+          Practice mode — every question and paragraph has a “My answer” box. Your answers are kept
           separate from the reference answers; Check reveals them side-by-side.
         </div>
       )}

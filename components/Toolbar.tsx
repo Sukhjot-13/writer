@@ -7,7 +7,7 @@
 //
 // M6 changes: single AI convert (template mode dropped); on-demand Preview;
 // Practice as the master key with a Check/Hide-answers button; three PDF
-// variants (full · questions-only · questions + my answers).
+// variants (full · questions · questions + my answers).
 
 "use client";
 
@@ -292,11 +292,12 @@ export default function Toolbar({
           {busy === "preview" ? "Rendering…" : "Preview"}
         </ActionButton>
 
-        {/* Practice master key: toggles the questions-only view. Check reveals
-            the model answers side-by-side (M6: Answer → check → save). */}
+        {/* Practice master key: every question + paragraph gets a "My answer"
+            box. Check reveals the reference answers side-by-side (M6:
+            Answer → check → save). */}
         <label
           className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
-          title="Practice mode: show questions only, with a 'My answer' box under each"
+          title="Practice mode: write 'My answer' under every question and paragraph"
         >
           <input
             type="checkbox"
@@ -312,7 +313,7 @@ export default function Toolbar({
             type="button"
             onClick={onToggleChecked}
             disabled={busy !== null}
-            title={checked ? "Hide the model answers again" : "Reveal the model answer for every question"}
+            title={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question and paragraph"}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               checked
                 ? "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"

@@ -20,7 +20,9 @@
 //   "my-answers"  — after practice: questions + the user's own answers, for
 //                   sending to somebody for checking; reference answers and
 //                   enrichment omitted.
-// Non-full variants render title + qa blocks only.
+// Non-full variants render title + qa blocks; "my-answers" additionally
+// includes paragraphs (each with the user's written answer, or blank rules
+// when unanswered) so mixed documents practice every block (M6).
 //
 // Note: react-pdf v4.6 has no `breakInside: "avoid"` equivalent — the closest
 // is the `minPresenceAhead` hint (keeps following siblings on the same page
@@ -323,6 +325,15 @@ function BlockToPDF({
     p: { fontSize: basePt, marginBottom: 8 },
     pTranslation: { fontStyle: "italic", fontSize: basePt * 0.9, opacity: 0.8, marginBottom: 8 },
     pAnalysis: { fontSize: basePt * 0.88, opacity: 0.9, marginBottom: 8 },
+    userAnswer: {
+      backgroundColor: t.colors.highlightBg,
+      borderLeftWidth: 3,
+      borderLeftStyle: "dashed",
+      borderLeftColor: t.colors.accentGreen,
+      padding: 6,
+      marginTop: 5,
+      marginBottom: 8,
+    },
     separator: { borderBottomWidth: 1, borderBottomColor: t.colors.border, marginVertical: 10 },
   });
 
@@ -336,19 +347,35 @@ function BlockToPDF({
         </Text>
       );
     case "paragraph": {
-      // M6: paragraphs carry AI enrichment (translation, analysis, vocab grid).
+      // M6: paragraphs carry AI enrichment (translation, analysis, vocab grid)
+      // plus a practice answer (userAnswer). Enrichment renders only in "full";
+      // "my-answers" shows the user's written answer (or blank rules), matching
+      // the QA omission matrix (hideAnswers/showUser).
       const c = block.content;
+      const showUser = variant !== "questions";
       return (
         <View>
           <Text style={styles.p}>{c.text}</Text>
-          {c.translation ? <Text style={styles.pTranslation}>{c.translation}</Text> : null}
-          {c.analysis ? (
+          {showUser && c.userAnswer ? (
+            <View style={styles.userAnswer}>
+              <Text>{c.userAnswer}</Text>
+            </View>
+          ) : null}
+          {variant !== "full" && !(showUser && c.userAnswer) ? (
+            <BlankAnswerArea basePt={basePt} color={t.colors.border} />
+          ) : null}
+          {variant === "full" && c.translation ? (
+            <Text style={styles.pTranslation}>{c.translation}</Text>
+          ) : null}
+          {variant === "full" && c.analysis ? (
             <Text style={styles.pAnalysis}>
               <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
               {c.analysis}
             </Text>
           ) : null}
-          <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+          {variant === "full" ? (
+            <VocabGridPDF tokens={tokens} vocab={c.vocab} expressions={c.expressions} />
+          ) : null}
         </View>
       );
     }
@@ -381,9 +408,15 @@ export async function generatePDFBuffer(
     },
   });
 
-  // Practice variants are worksheet sheets: title + questions only.
+  // Practice variants are worksheet sheets: title + questions always;
+  // "my-answers" also includes paragraphs (the user's written answers).
   const blocks =
-    variant === "full" ? doc.blocks : doc.blocks.filter((b) => b.type === "title" || b.type === "qa");
+    variant === "full"
+      ? doc.blocks
+      : doc.blocks.filter(
+          (b) =>
+            b.type === "title" || b.type === "qa" || (variant === "my-answers" && b.type === "paragraph"),
+        );
 
   const qaNumber = { n: 0 };
   const element = (

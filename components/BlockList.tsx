@@ -23,7 +23,8 @@ interface BlockListProps {
   onSplitBelow: (id: string, rest: string) => void; // M5: Enter splits (FR-3)
   onRemoveFocusUp: (id: string) => void; // M5: backspace merge-up (FR-3)
   onUpdateTags: (id: string, tags: string[]) => void; // M5: FR-5
-  // M6 redesign: Practice master key — the list shows questions (+ title) only.
+  // M6 redesign: Practice master key — every block is shown; qa/paragraph
+  // blocks get "My answer" boxes (see Block.tsx).
   practiceMode: boolean;
   checked: boolean;
 }
@@ -47,11 +48,10 @@ export default function BlockList({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
-  // Practice shows questions only — paragraphs/headings/separators stay in the
-  // document but are hidden from the practice view.
-  const visible = practiceMode
-    ? blocks.filter((b) => b.type === "qa" || b.type === "title")
-    : blocks;
+  // Practice shows every block (M6): qa + paragraph blocks get a "My answer"
+  // box, title/heading read as context, separators render as dividers. The
+  // add-block affordance below is hidden so practice can't change structure.
+  const visible = blocks;
 
   return (
     <div className="flex flex-col gap-1">

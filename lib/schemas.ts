@@ -50,6 +50,7 @@ export const blockSchema = z.discriminatedUnion("type", [
         analysis: z.string().optional(),
         vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
         expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+        userAnswer: z.string().optional(), // practice answer (M6, FR-33 parity with qa)
       })
       .loose(),
   }),

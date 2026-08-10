@@ -6,10 +6,63 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Block as BlockModel, BlockType } from "@/lib/types";
+import type { Block as BlockModel, BlockType, ParagraphContent } from "@/lib/types";
 import { parseTags } from "@/lib/tags"; // M5 (FR-5)
 import QaBlockForm from "./QaBlockForm";
 import ParagraphFields from "./ParagraphFields"; // M6: AI enrichment for paragraphs
+import { inputCls, labelCls } from "./RowEditor"; // M6: practice card styling
+
+// M6: practice view of a paragraph — read-only text + "My answer" box, and a
+// green Reference box (the AI translation) once answers are checked. Mirrors
+// QaBlockForm's practice card so questions and paragraphs behave identically.
+function PracticeParagraphCard({
+  content,
+  checked,
+  onUpdate,
+}: {
+  content: ParagraphContent;
+  checked: boolean;
+  onUpdate: (content: ParagraphContent) => void;
+}) {
+  return (
+    <div className="mt-1 space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
+      <div>
+        <label className={labelCls}>Paragraph</label>
+        <div className="rounded-md bg-white px-3 py-2 text-[15px] leading-relaxed text-zinc-800">
+          {content.text || <span className="text-zinc-300">(empty paragraph)</span>}
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>My answer</label>
+        <textarea
+          className={`${inputCls} resize-none border-dashed border-blue-200`}
+          rows={3}
+          value={content.userAnswer ?? ""}
+          placeholder="Write your own answer…"
+          onChange={(e) => onUpdate({ ...content, userAnswer: e.target.value })}
+        />
+      </div>
+
+      {checked && (
+        <div>
+          <label className={labelCls}>
+            <span className="text-emerald-700">Reference</span>
+          </label>
+          {content.translation ? (
+            <div className="rounded-md border-l-[3px] border-emerald-600 bg-emerald-50 px-2.5 py-1.5 text-[14px] leading-relaxed text-zinc-800">
+              {content.translation}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-emerald-300 px-2.5 py-1.5 text-[13px] text-zinc-400">
+              No reference translation saved for this paragraph.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   title: "Title",
@@ -44,7 +97,8 @@ interface BlockProps {
   onRemoveFocusUp: () => void;
   // M5 (FR-5): per-block tags become CSS classes in the output HTML.
   onUpdateTags: (tags: string[]) => void;
-  // M6 redesign: Practice master key — questions-only view, answers separated.
+  // M6 redesign: Practice master key — answers separated; qa + paragraph blocks
+  // get "My answer" boxes, title/heading render read-only.
   practiceMode: boolean;
   checked: boolean;
 }
@@ -251,6 +305,12 @@ export default function Block({
               checked={checked}
               onUpdate={onUpdate}
             />
+          ) : practiceMode && block.type === "paragraph" ? (
+            // M6: practice gives paragraphs the same answer flow as questions.
+            <PracticeParagraphCard content={block.content} checked={checked} onUpdate={onUpdate} />
+          ) : practiceMode ? (
+            // Title / heading — read-only context in practice.
+            <div className={`py-1.5 leading-relaxed ${textAreaCls}`}>{text}</div>
           ) : (
             <div className="relative">
               <textarea
