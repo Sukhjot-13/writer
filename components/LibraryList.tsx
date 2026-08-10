@@ -1,6 +1,7 @@
 // components/LibraryList.tsx — document cards: title, date, block count, tags;
-// open (→ editor at /doc/<id>, M6), Regenerate (FR-20), delete (FR-19), and a
-// client-side sort control (updated / created / title).
+// open (→ editor at /doc/<id>, M6), download-all-fields ⬇ (2026-08-10 M7
+// round 6b), delete (FR-19), a client-side sort control (updated / created /
+// title), and the folder bar.
 //
 // 2026-08-10 M7 round 6 (user feedback): no more browser popups — deleting a
 // document is a two-step IN-APP confirm inside the card (Delete → red confirm
@@ -9,11 +10,27 @@
 // with create / rename / delete (deleting a folder only unfiles its
 // documents), a per-card "move to folder" select, and a folder filter.
 //
+// 2026-08-10 M7 round 6b (user: "folder shows as a tag… when I click on it
+// and make a document in there it doesn't automatically move it there…
+// Document card should be the same on the home and the library page"):
+//   - the folder bar renders on HOME too (not just the library);
+//   - every card carries the same "move to folder" select on both pages;
+//   - with a folder selected, "+ New document in 'folder'" files the new
+//     document into it from the very first save;
+//   - ↻ Regenerate left the card (the editor still offers it) and the card
+//     gained ⬇, which downloads the document with ALL its fields as JSON.
+//
 // Props:
-//   documents — the documents to show (home passes the 10 most recent)
-//   folders   — library folders (library page only; home passes none)
-//   recent    — home mode: hides sort/tags/backup/folder controls, shows a
+//   documents — the documents to show. Home passes the FULL list (counts and
+//               folder chips are then accurate) plus limit/total; the library
+//               page passes everything.
+//   folders   — library folders.
+//   recent    — home mode: hides the sort/tags/backup toolbar, shows a
 //               "view all in the Library" link when there are more documents.
+//               The folder bar and the per-card move control DO render here
+//               (2026-08-10 M7 round 6b — cards identical on home and library).
+//   limit     — when `recent`, only the first `limit` documents become cards
+//               (they arrive sorted by updatedAt desc); counts still use all.
 //   total     — full document count when `recent` (the list is a slice).
 
 "use client";
@@ -42,16 +59,17 @@ export default function LibraryList({
   documents,
   folders = [],
   recent = false,
+  limit,
   total,
 }: {
   documents: Document[];
   folders?: Folder[];
   recent?: boolean;
+  limit?: number;
   total?: number;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<SortKey>("updated");
-  const [regenerating, setRegenerating] = useState<string | null>(null);
   const [filterTag, setFilterTag] = useState<string | null>(null); // M5: tag filter
   const [filterFolder, setFilterFolder] = useState<string | "none" | null>(null); // M7 r6: folder filter
   const [downloadingBackup, setDownloadingBackup] = useState(false); // M5: backup zip
@@ -86,13 +104,22 @@ export default function LibraryList({
     return counts;
   }, [documents]);
 
+  // M7 round 6b: on home (`recent`) the CARD GRID is the first `limit` docs
+  // (they arrive sorted by updatedAt desc) — but the folder/tag chips and
+  // counts above it always describe the FULL list, so home can show both
+  // "All · 9" and a folder's true count even when a recent isn't a card.
+  const gridSource = useMemo(
+    () => (recent && limit ? documents.slice(0, limit) : documents),
+    [documents, recent, limit],
+  );
+
   const filtered = useMemo(() => {
-    let docs = documents;
+    let docs = gridSource;
     if (filterTag) docs = docs.filter((d) => d.tags.includes(filterTag));
     if (filterFolder === "none") docs = docs.filter((d) => !d.folderId);
     else if (filterFolder) docs = docs.filter((d) => d.folderId === filterFolder);
     return docs;
-  }, [documents, filterTag, filterFolder]);
+  }, [gridSource, filterTag, filterFolder]);
 
   const sorted = useMemo(() => {
     const docs = [...filtered];
@@ -140,20 +167,35 @@ export default function LibraryList({
     router.refresh();
   }
 
-  async function regenerate(doc: Document) {
-    if (regenerating) return;
-    setRegenerating(doc.id);
+  /** M7 round 6b: ⬇ on the card — download the document with ALL its fields
+   *  (title, tags, folder, every block with translations/analyses/vocab/
+   *  expressions/practice answers/suggestions, practice settings) as JSON.
+   *  The editor's "Download PDF" still covers the printable rendering. */
+  async function downloadDoc(doc: Document) {
     setError(null);
-    try {
-      const res = await fetch(`/api/documents/${doc.id}/regenerate`, { method: "POST" });
-      if (!res.ok) {
-        setError("Regenerate failed — see server logs.");
-        return;
-      }
-      router.refresh();
-    } finally {
-      setRegenerating(null);
+    const res = await fetch(`/api/documents/${doc.id}`);
+    if (!res.ok) {
+      setError("Could not download the document — see server logs.");
+      return;
     }
+    const body = (await res.json()) as { doc?: Document };
+    if (!body.doc) {
+      setError("Could not download the document — unexpected response.");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(body.doc, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const clean = (doc.title || "document")
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    a.download = `${clean || "document"}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   // ---- M7 round 6: folders ----
@@ -317,8 +359,10 @@ export default function LibraryList({
       )}
 
       {/* Folder bar (M7 round 6): All + per-folder chips (create / rename /
-          delete) + unfiled count. Deleting a folder only unfiles documents. */}
-      {!recent && (
+          delete) + unfiled count. Deleting a folder only unfiles documents.
+          Renders on home too (M7 round 6b: "folder shows as a tag… click on
+          it" — the chips are the same clickable folder UI everywhere). */}
+      {(folders.length > 0 || (folderCounts.get("none") ?? 0) > 0 || newFolderOpen) && (
         <div className="mb-4 flex flex-wrap items-center gap-1.5">
           <button
             type="button"
@@ -494,6 +538,17 @@ export default function LibraryList({
               + New folder
             </button>
           )}
+
+          {/* M7 round 6b: with a folder selected, "make a document in there"
+              — the new document is filed into that folder from the first save
+              (no "go to the library and move it" step afterwards). */}
+          {filterFolder && filterFolder !== "none" && (
+            <NewDocumentButton
+              folderId={filterFolder}
+              label={`+ New document in “${folders.find((f) => f.id === filterFolder)?.name ?? "folder"}”`}
+              className="ml-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+            />
+          )}
         </div>
       )}
 
@@ -592,31 +647,32 @@ export default function LibraryList({
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* M7 round 6b: ⬇ replaced ↻ Regenerate — the card
+                        downloads the document (all fields) instead of
+                        re-rendering it; the editor still has Regenerate. */}
                     <button
                       type="button"
-                      onClick={() => void regenerate(doc)}
-                      disabled={regenerating === doc.id}
-                      title="Re-convert from JSON and re-render the PDF"
-                      className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-50"
+                      onClick={() => void downloadDoc(doc)}
+                      title={`Download "${doc.title || "document"}" with all fields (JSON)`}
+                      className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50"
                     >
-                      {regenerating === doc.id ? "Regenerating…" : "↻ Regenerate"}
+                      ⬇
                     </button>
-                    {!recent && (
-                      <select
-                        value={doc.folderId ?? ""}
-                        disabled={pendingMove === doc.id}
-                        onChange={(e) => void moveDoc(doc, e.target.value)}
-                        title="Move to folder"
-                        className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-600 outline-none transition-colors focus:border-blue-500 disabled:opacity-50"
-                      >
-                        <option value="">Move to… (no folder)</option>
-                        {folders.map((folder) => (
-                          <option key={folder.id} value={folder.id}>
-                            📁 {folder.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    {/* Same move control on home and library cards (M7 round 6b). */}
+                    <select
+                      value={doc.folderId ?? ""}
+                      disabled={pendingMove === doc.id}
+                      onChange={(e) => void moveDoc(doc, e.target.value)}
+                      title="Move to folder"
+                      className="rounded-lg border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-600 outline-none transition-colors focus:border-blue-500 disabled:opacity-50"
+                    >
+                      <option value="">Move to… (no folder)</option>
+                      {folders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          📁 {folder.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

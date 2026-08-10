@@ -17,8 +17,9 @@
 // now "Detailed", UNCHECKED by default (focus mode IS the default) — it
 // reveals translations/analysis/vocab when checked (user: "it should show the
 // other way around like the detailed or something that fits the theme").
-// Instructions moved to the home screen; Library link removed (the Writer
-// brand links home).
+// Instructions moved to the home screen; the Library link was removed (the
+// Writer brand links home) but came back in the title row 2026-08-10 M7
+// round 6b (user: "add library on navbar too").
 
 "use client";
 
@@ -200,10 +201,10 @@ export default function Toolbar({
 
   return (
     <div className="border-b border-zinc-200 bg-white">
-      {/* Title row: brand · title · tags. The brand links home (2026-08-10:
-          clicking the Writer icon/text returns to the dashboard — the Library
-          link was removed as redundant, and Instructions lives on the home
-          screen now). */}
+      {/* Title row: brand · Library · title · tags. The brand links home
+          (2026-08-10 M7 round 6b, user: "add library on navbar too"): the
+          Library link is back in the navbar — the real /library page with
+          folders needs a doorway from the editor (the brand only goes home). */}
       <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5">
         <Link
           href="/"
@@ -214,6 +215,16 @@ export default function Toolbar({
             ✎
           </span>
           <span className="hidden text-sm font-semibold text-zinc-800 sm:inline">Writer</span>
+        </Link>
+
+        {/* M7 round 6b (user: "add library on navbar too"): the Library is a
+            real page with folders now — link it from the editor's navbar. */}
+        <Link
+          href="/library"
+          title="Library — every document and folder"
+          className="flex shrink-0 items-center rounded-lg px-2.5 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
+        >
+          Library
         </Link>
 
         <input

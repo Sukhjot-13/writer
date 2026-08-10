@@ -25,12 +25,13 @@ export const dynamic = "force-dynamic";
 const RECENT_LIMIT = 10;
 
 export default async function HomePage() {
-  // listDocuments already sorts by updatedAt desc — recents are the first 10.
+  // listDocuments already sorts by updatedAt desc. LibraryList takes the FULL
+  // list plus limit — the card grid shows the first 10, while the folder
+  // chips and their counts describe everything (2026-08-10 M7 round 6b).
   const [documents, folders] = await Promise.all([
     getStorage().listDocuments(null),
-    getStorage().listFolders(), // card folder names on the home list too
+    getStorage().listFolders(), // folder bar + card folder names on home too
   ]);
-  const recent = documents.slice(0, RECENT_LIMIT);
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
@@ -67,7 +68,13 @@ export default async function HomePage() {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Recent documents
         </h2>
-        <LibraryList documents={recent} folders={folders} recent total={documents.length} />
+        <LibraryList
+          documents={documents}
+          folders={folders}
+          recent
+          limit={RECENT_LIMIT}
+          total={documents.length}
+        />
       </section>
     </div>
   );
