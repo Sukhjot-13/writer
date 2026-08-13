@@ -77,5 +77,6 @@ MongoDB-only (FR-44, since 2026-08-13): local dev and Vercel both use the MongoD
 - `docs/writer_app_requirements.md` — product requirements (v1.4, FR-1…FR-50)
 - `docs/Plan.md` — implementation plan (milestones M1–M5)
 - `docs/html_instructions.md` — the design system + AI rules, with the machine-readable `TOKENS` block (FR-47)
-- `architecture.md` — always-current file/function inventory + env vars (update on every change)
+- `docs/architecture.md` — always-current file/function inventory + env vars (update on every change)
 - `docs/suggestions.md` — improvement / feature / vulnerability log
+- `docs/to-do.md` — task list / session handoff

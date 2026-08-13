@@ -479,7 +479,7 @@ BLOB_READ_WRITE_TOKEN=
 - Client-side PDF fallback: if the server route is ever too heavy, `usePDF` renders in the browser — same `pdf.ts` components.
 - `data/` is gitignored; the seed instructions copy is created by a first-run check.
 - `validate.ts`: strips markdown fences, checks `<html>`/`<body>`, wraps fragments, prepends `<!DOCTYPE html>` (FR-10).
-- Preview iframe stays sandboxed; strip executable content from AI/pasted HTML before saving (see suggestions.md).
+- Preview iframe stays sandboxed; strip executable content from AI/pasted HTML before saving (see docs/suggestions.md).
 
 ## 18. Success Criteria (from requirements §15)
 

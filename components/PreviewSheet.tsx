@@ -5,7 +5,7 @@
 // unsaved edits included, no convert-first gating). Toggling re-renders
 // immediately (no Refresh button — 2026-08-10: it was redundant).
 // The iframe is fully sandboxed (sandbox="" → no scripts, no same-origin)
-// so generated HTML can never execute (see suggestions.md).
+// so generated HTML can never execute (see docs/suggestions.md).
 //
 // 2026-08-10: field toggles — per-field + overall ("All extras") checkboxes
 // hide translations/analyses/vocab/model answers for qa + paragraph/essay
