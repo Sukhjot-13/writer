@@ -114,6 +114,10 @@ export const documentSchema = z.object({
   /** Library folder (2026-08-10 M7 round 6) — optional so older documents
    *  validate unchanged; undefined = unfiled. */
   folderId: z.string().optional(),
+  /** Test document (2026-08-13): the editor auto-opens it in practice mode
+   *  (answers hidden until Check). Optional so older documents validate
+   *  unchanged; `.loose()` would keep it anyway, but explicit is better. */
+  opensInPractice: z.boolean().optional(),
   blocks: z.array(blockSchema),
   practice: z
     .object({ hideTranslations: z.boolean(), hideModelAnswers: z.boolean() })

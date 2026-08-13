@@ -102,6 +102,11 @@ export interface Document {
    *  undefined = unfiled ("All documents"). Storage clears it when the folder
    *  is deleted, so it never dangles. */
   folderId?: string;
+  /** Test document (2026-08-13): set by the Test generator — the editor opens
+   *  it in practice mode by default, so answers are hidden until Check reveals
+   *  them (a test is practice with a teacher's key). Optional — absent on all
+   *  normal documents. Never persisted from the editor UI. */
+  opensInPractice?: boolean;
   blocks: Block[]; // may be empty for external-html docs — HTML is the source
   practice?: {
     // document-level practice defaults (FR-35)

@@ -258,6 +258,12 @@ export default function Editor({ docId }: { docId: string | null }) {
             const body = (await res.json()) as { doc: Document; snapshotInfo?: { version: string; differs: boolean } | null };
             if (cancelled) return;
             setDoc(body.doc);
+            // 2026-08-13 (test mode): a test document (opensInPractice, set by
+            // the Test generator) opens in practice mode — questions only, all
+            // answers hidden until Check reveals them (the teacher's key).
+            // Toggling off returns to normal editing for this session; a
+            // reload of a test doc always starts in practice again.
+            if (body.doc.opensInPractice) setPracticeMode(true);
             setSnapshotInfo(body.snapshotInfo ?? null); // FR-23: drive the snapshot toggle
             setPersisted(true);
             setLoading(false);

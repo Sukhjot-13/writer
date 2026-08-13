@@ -8,6 +8,7 @@
 
 import { createDocument, createBlock, setBlockContent } from "../lib/types";
 import type { Block, Document, QaContent } from "../lib/types";
+import { documentSchema } from "../lib/schemas"; // 2026-08-13: opensInPractice round-trip
 import {
   buildTestDocument,
   testTitle,
@@ -96,6 +97,15 @@ async function run() {
   const tiny = buildTestDocument([docs[1]], { questions: 5, essays: 2 }); // pool: 1 qa + 0 essays
   check("buildTestDocument: counts clamped to what exists",
     tiny.blocks.filter((b) => b.type === "qa").length === 1 && tiny.blocks.filter((b) => b.type === "essay").length === 0);
+
+  // ---------- opensInPractice (2026-08-13): tests open in practice mode,
+  // answers hidden until Check; normal documents never carry the flag ----------
+  check("buildTestDocument: opensInPractice set on every path",
+    test.opensInPractice === true && clamped.opensInPractice === true && tiny.opensInPractice === true);
+  check("createDocument: normal documents carry no opensInPractice flag",
+    createDocument("Normal").opensInPractice === undefined);
+  check("documentSchema: opensInPractice round-trips through validation",
+    documentSchema.parse(test).opensInPractice === true);
 
   // ---------- blank questions never picked ----------
   const blank = createDocument("Blanc");

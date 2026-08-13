@@ -73,5 +73,7 @@ export function buildTestDocument(docs: Document[], counts: TestCounts = {}): Do
 
   const doc = createDocument(testTitle());
   doc.blocks = picked;
+  // 2026-08-13: a test opens in practice mode — answers hidden until Check.
+  doc.opensInPractice = true;
   return doc;
 }

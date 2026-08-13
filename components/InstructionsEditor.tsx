@@ -1,6 +1,9 @@
 // components/InstructionsEditor.tsx — instructions edit UI (FR-22/47).
-// Textarea + Save (PUT /api/instructions), "Reset to repo file"
-// (POST /api/instructions/reset), and version history (each entry can be
+// Textarea + Save (PUT /api/instructions), "Discard my edits — restore repo
+// copy" (POST /api/instructions/reset — repo changes auto-sync since to-do
+// item 10, so the button is the manual escape hatch for discarding YOUR OWN
+// newer edits; the current version is snapshotted to history first), and
+// version history (each entry can be
 // previewed into the textarea and restored). Saving validates that the
 // TOKENS block survives (FR-47) and the server invalidates the design-token
 // cache, so design changes apply to new conversions immediately.
@@ -85,9 +88,13 @@ export default function InstructionsEditor() {
     }
   }
 
+  // 2026-08-13: relabeled — repo changes already auto-sync (to-do item 10),
+  // so the button's remaining job is DISCARDING YOUR OWN newer edits and
+  // restoring the repo copy (auto-sync never overwrites the newer writer).
+  // The current version is snapshotted to history before the overwrite.
   async function resetToRepo() {
     if (busy) return;
-    if (!confirm("Reset the active instructions to the repo copy (docs/html_instructions.md)?")) return;
+    if (!confirm("Discard your edits and restore the repo copy (docs/html_instructions.md)? The current version is kept in history.")) return;
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -95,7 +102,7 @@ export default function InstructionsEditor() {
       const res = await fetch("/api/instructions/reset", { method: "POST" });
       const body = (await res.json().catch(() => ({}))) as { version?: string; error?: string };
       if (!res.ok) throw new Error(body.error ?? "Could not reset instructions");
-      setStatus(`Reset to repo copy (v${body.version}).`);
+      setStatus(`Restored the repo copy (v${body.version}).`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not reset instructions");
@@ -180,7 +187,7 @@ export default function InstructionsEditor() {
           disabled={busy || loading}
           className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-40"
         >
-          Reset to repo file
+          Discard my edits — restore repo copy
         </button>
         {dirty && <span className="text-sm font-medium text-amber-600">Unsaved changes</span>}
       </div>

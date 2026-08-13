@@ -83,6 +83,8 @@ export async function POST(request: Request) {
 
     const doc = createDocument(testTitle());
     doc.blocks = blocks;
+    // 2026-08-13: a test opens in practice mode — answers hidden until Check.
+    doc.opensInPractice = true;
     await storage.saveDocument(doc);
     return NextResponse.json({ id: doc.id }, { status: 201 });
   } catch (e) {
