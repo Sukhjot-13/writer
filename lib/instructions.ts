@@ -116,14 +116,30 @@ export async function resetInstructions(storage: StorageBackend): Promise<string
   return hashVersion(repo);
 }
 
+/**
+ * Per-document snapshot CONTENT (FR-23): the `instructionsSnapshot` field on
+ * the document first (2026-08-13 — moved from a file so it works without
+ * Blob), with the legacy `documents/<id>/instructions.snapshot.md` file as a
+ * fallback for older documents. Returns null when neither exists.
+ */
+async function readSnapshotContent(
+  storage: StorageBackend,
+  docId: string | null | undefined,
+): Promise<string | null> {
+  if (!docId) return null;
+  const doc = await storage.getDocument(docId);
+  if (doc?.instructionsSnapshot) return doc.instructionsSnapshot;
+  const file = await storage.readFile(docId, "instructions.snapshot.md");
+  return file ? file.toString("utf8") : null;
+}
+
 /** Read the per-document instructions snapshot (FR-23), if one exists. */
 export async function readDocumentSnapshot(
   storage: StorageBackend,
   docId: string,
 ): Promise<{ content: string; version: string } | null> {
-  const snap = await storage.readFile(docId, "instructions.snapshot.md");
-  if (!snap) return null;
-  const content = snap.toString("utf8");
+  const content = await readSnapshotContent(storage, docId);
+  if (content === null) return null;
   return { content, version: hashVersion(content) };
 }
 
@@ -137,8 +153,8 @@ export async function resolveConversionInstructions(
   useSnapshot: boolean,
 ): Promise<string> {
   if (useSnapshot && docId) {
-    const snap = await storage.readFile(docId, "instructions.snapshot.md");
-    if (snap) return snap.toString("utf8");
+    const content = await readSnapshotContent(storage, docId);
+    if (content) return content;
   }
   return storage.readInstructions();
 }

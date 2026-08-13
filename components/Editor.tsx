@@ -633,8 +633,18 @@ function essayAnswerFromParagraphs(
       const { blocks: parsed, unparsedCount } = parseHtmlToBlocks(source);
       if (parsed.length === 0) throw new Error("No recognizable blocks found in the HTML");
       // Replace blocks + flip the source; the document becomes fully editable.
+      // sourceHtml: undefined — the HTML source is consumed; the blocks ARE the
+      // source now (2026-08-13: html no longer saved as a file to keep in sync).
       setDoc((prev) =>
-        prev ? { ...prev, blocks: parsed, source: "editor", updatedAt: new Date().toISOString() } : prev,
+        prev
+          ? {
+              ...prev,
+              blocks: parsed,
+              source: "editor",
+              sourceHtml: undefined,
+              updatedAt: new Date().toISOString(),
+            }
+          : prev,
       );
       setIsDirty(true);
       setStatus(

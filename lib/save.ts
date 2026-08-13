@@ -1,34 +1,31 @@
-// lib/save.ts — save flow (FR-17/20): persists a document plus its artifacts.
+// lib/save.ts — save flow (FR-17/20): persists a document and its snapshot.
 //
-// document.json is always written (the editable truth). document.html and
-// document.pdf are written only when a legacy preview exists (import-html,
-// regenerate). With block-based conversion (M6) the PDF is generated on
-// demand from current blocks — the save only records the instructions version
-// the document was converted with (FR-23 snapshot).
+// 2026-08-13 rework (user: "we can just do on request right... i dont think we
+// have to make the pdf html file in advance"): the pre-generated FILE artifacts
+// (document.html, document.pdf, instructions.snapshot.md — written to Blob on
+// the Mongo backend, which hard-failed without BLOB_READ_WRITE_TOKEN) are GONE.
+// document.json is always written (the editable truth). HTML and PDF are
+// generated ON DEMAND from current blocks (GET /html + the pdf route both
+// render fresh; the backup ZIP generates its own PDF). The one genuinely
+// load-bearing artifact — the FR-23 instructions snapshot — now rides ON THE
+// DOCUMENT as `doc.instructionsSnapshot` (plain data, works in every backend,
+// no Blob). Legacy snapshot/html files (FS + Blob) are still READ as a
+// fallback for older documents, never written.
 
 import type { StorageBackend } from "./storage";
 import type { Document } from "./types";
-import { getTokens } from "./design-tokens";
-import { generatePDFBuffer } from "./pdf";
 
 /** Shared by POST /api/documents and PUT /api/documents/[id]. */
 export async function persistDocument(
   storage: StorageBackend,
   doc: Document,
-  html?: string,
   instructionsVersion?: string,
 ): Promise<void> {
-  await storage.saveDocument(doc);
-  if (html) {
-    await storage.writeFile(doc.id, "document.html", Buffer.from(html, "utf8"));
-    const tokens = await getTokens();
-    const pdf = await generatePDFBuffer(doc, tokens);
-    await storage.writeFile(doc.id, "document.pdf", pdf);
-  }
   // FR-23: record which instructions this conversion was made with, so
   // re-converting later can use the same rules (or the latest, per toggle).
+  // 2026-08-13: stored on the document itself (was a file write).
   if (instructionsVersion) {
-    const instructions = await storage.readInstructions();
-    await storage.writeFile(doc.id, "instructions.snapshot.md", Buffer.from(instructions, "utf8"));
+    doc.instructionsSnapshot = await storage.readInstructions();
   }
+  await storage.saveDocument(doc);
 }

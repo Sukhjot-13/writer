@@ -2,8 +2,10 @@
 //
 // Receives { html, title? } → validates/wraps per FR-10 → creates a new
 // document (source: "external-html", empty blocks — HTML is the source) →
-// persists document.html + document.pdf → returns { doc, html } so the editor
-// can preview immediately and continue the normal pipeline (FR-17–20).
+// saves the document with the wrapped HTML on it as `sourceHtml` (2026-08-13:
+// was a document.html FILE write, which required Vercel Blob) → returns
+// { doc, html } so the editor can preview immediately and continue the normal
+// pipeline (FR-17–20).
 //
 // Best-effort "Parse to blocks" (FR-41) lands in M5 via lib/html-to-blocks.
 
@@ -14,7 +16,6 @@ import { getStorage } from "@/lib/storage";
 import { createDocument } from "@/lib/types";
 import { validateAndWrapHtml } from "@/lib/validate";
 import { persistDocument } from "@/lib/save";
-import { getTokens } from "@/lib/design-tokens";
 
 const payloadSchema = z.object({
   html: z.string().min(1),
@@ -50,8 +51,8 @@ export async function POST(request: Request) {
   doc.source = "external-html"; // blocks stay empty — HTML is the source (FR-40)
 
   const storage = getStorage();
-  const tokens = await getTokens();
-  await persistDocument(storage, doc, wrapped);
+  doc.sourceHtml = wrapped; // the HTML IS the source (FR-40) — rides on the doc
+  await persistDocument(storage, doc);
 
   return NextResponse.json({ doc, html: wrapped }, { status: 201 });
 }

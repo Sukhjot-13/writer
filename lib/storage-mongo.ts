@@ -1,18 +1,22 @@
 // lib/storage-mongo.ts — MongoDB + Vercel Blob storage backend (M5, FR-44).
 //
-// ResumeBuilder stack: documents + instructions live in MongoDB; the html/pdf/
-// snapshot attachment files live in Vercel Blob. Activated by MONGODB_URI via
+// ResumeBuilder stack: documents + instructions live in MongoDB. The html/pdf/
+// snapshot attachment files live in Vercel Blob — 2026-08-13 rework: the app
+// no longer WRITES them (html/pdf render on demand, the snapshot + imported
+// html ride on the document as plain fields), so Vercel Blob is only touched
+// on read (legacy-file fallbacks) and delete (old artifacts). BLOB_READ_WRITE_TOKEN
+// is therefore unnecessary for normal operation. Activated by MONGODB_URI via
 // the factory in lib/storage.ts — app code never talks to either directly.
 //
 // Layout:
 //   collection documents     — { _id: docId, ...Document }
-//   collection files         — { _id: "<docId>/<filename>", url, contentType }  (blob handle map)
+//   collection files         — { _id: "<docId>/<filename>", url, contentType }  (blob handle map, legacy artifacts)
 //   collection instructions  — { _id: "active" | "history:<version>", content, savedAt }
 //   collection folders       — { _id: folderId, name, createdAt, updatedAt }  (2026-08-10 M7 round 6)
 //
 // Lazy Mongo connection keeps the getStorage() factory synchronous — the
-// first storage call pays the connect. Blob read/write uses the public URL
-// from the files collection; `list`/`del` only when deleting a document.
+// first storage call pays the connect. Blob read uses the public URL from
+// the files collection; `del` only when deleting a document.
 
 import { MongoClient, type Db } from "mongodb";
 import { put, del } from "@vercel/blob";
@@ -146,6 +150,9 @@ export function createMongoBlobStorage(): StorageBackend {
       return Buffer.from(await res.arrayBuffer());
     },
 
+    // 2026-08-13: the app never WRITES attachment files anymore (html/pdf on
+    // demand, snapshot/source on the document). Kept on the interface for
+    // tests/compat — requires BLOB_READ_WRITE_TOKEN if actually called.
     async writeFile(docId, filename, data) {
       const db = await getDb();
       const key = `${docId}/${filename}`;

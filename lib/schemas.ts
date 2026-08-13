@@ -118,6 +118,13 @@ export const documentSchema = z.object({
    *  (answers hidden until Check). Optional so older documents validate
    *  unchanged; `.loose()` would keep it anyway, but explicit is better. */
   opensInPractice: z.boolean().optional(),
+  /** Per-document instructions snapshot (FR-23, 2026-08-13: moved from a file
+   *  onto the document — plain data, works without Blob). Optional so older
+   *  documents validate unchanged. */
+  instructionsSnapshot: z.string().optional(),
+  /** Raw HTML source for external-html imports (FR-40, 2026-08-13: moved from
+   *  a `document.html` file onto the document — no Blob needed). */
+  sourceHtml: z.string().optional(),
   blocks: z.array(blockSchema),
   practice: z
     .object({ hideTranslations: z.boolean(), hideModelAnswers: z.boolean() })

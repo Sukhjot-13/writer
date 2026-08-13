@@ -107,6 +107,19 @@ export interface Document {
    *  them (a test is practice with a teacher's key). Optional — absent on all
    *  normal documents. Never persisted from the editor UI. */
   opensInPractice?: boolean;
+  /** Per-document instructions snapshot (FR-23, M4 → 2026-08-13 rework): the
+   *  active instructions content recorded at the last conversion save, so
+   *  "convert with this document's snapshot rules" can reproduce the rules the
+   *  document was made with. Was a FILE (`documents/<id>/instructions.snapshot.md`)
+   *  until 2026-08-13 — it moved onto the document (plain data, works in every
+   *  backend, no Blob); legacy snapshot files are still read as a fallback. */
+  instructionsSnapshot?: string;
+  /** Raw HTML source for imported documents (FR-40, 2026-08-13 rework):
+   *  external-html docs keep empty blocks — the HTML IS the source until
+   *  "Parse to blocks". Was stored as a `document.html` FILE; now rides on the
+   *  document (plain data, no Blob). Cleared by parseToBlocks. Legacy saved
+   *  html files are still read as a fallback by the GET html route. */
+  sourceHtml?: string;
   blocks: Block[]; // may be empty for external-html docs — HTML is the source
   practice?: {
     // document-level practice defaults (FR-35)

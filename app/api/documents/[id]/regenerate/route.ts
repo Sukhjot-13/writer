@@ -1,15 +1,13 @@
-// POST /api/documents/[id]/regenerate — FR-20: re-convert a document from its
-// JSON (template mode) and re-render the PDF without any manual steps.
-//
-// Reads the document from storage, regenerates styled HTML from block data via
-// the template renderer, and persists document.html + document.pdf alongside
-// document.json. Uses the same persist path as save so artifacts stay in sync.
+// POST /api/documents/[id]/regenerate — FR-20 legacy endpoint, kept for API
+// compatibility. Its original job — re-render document.html + document.pdf
+// files from block data — is obsolete since 2026-08-13: html/pdf render ON
+// DEMAND from current blocks, so there are no files to keep in sync. The
+// route now re-saves the document (bumps updatedAt); callers wanting a fresh
+// render just fetch GET /html or the PDF route.
 
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
-import { getTokens } from "@/lib/design-tokens";
-import { generateTemplateHTML } from "@/lib/html-template";
 import { persistDocument } from "@/lib/save";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -20,9 +18,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
   const doc = await storage.getDocument(id);
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
-  const tokens = await getTokens();
-  const html = generateTemplateHTML(doc, tokens);
-  await persistDocument(storage, doc, html);
+  await persistDocument(storage, doc);
 
   return NextResponse.json({ ok: true });
 }

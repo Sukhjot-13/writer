@@ -92,18 +92,17 @@ async function run() {
   const tokensFallback = getTokensFromInstructions("no tokens here at all");
   check("getTokensFromInstructions: falls back to defaults", tokensFallback.colors.accentGreen === "#2c5f2d");
 
-  // ---------- persistDocument writes instructions.snapshot.md (FR-23) ----------
+  // ---------- persistDocument: snapshot rides on the document (FR-23, 2026-08-13) ----------
+  // Rework: the instructions snapshot moved from a FILE (instructions.snapshot.md,
+  // which required Vercel Blob on the Mongo backend) to the `instructionsSnapshot`
+  // DOCUMENT FIELD — plain data, every backend, nothing pre-generated. Legacy
+  // snapshot files are still read as a fallback for older documents.
   const doc = createDocument("Snapshot smoke");
   doc.blocks = [setBlockContent(createBlock("paragraph"), { text: "Bonjour." })];
   // M6: the snapshot is recorded only when the caller reports the instructions
   // version the document was converted with (the editor sends it after a
   // conversion) — plain saves no longer snapshot.
-  await persistDocument(
-    storage,
-    doc,
-    "<!DOCTYPE html><html><body><p>Bonjour.</p></body></html>",
-    hashVersion(repo),
-  );
+  await persistDocument(storage, doc, hashVersion(repo));
   // version-gated: a save WITHOUT the version must not snapshot
   const docPlain = createDocument("Plain save");
   docPlain.blocks = [setBlockContent(createBlock("paragraph"), { text: "Sans version." })];
@@ -111,9 +110,19 @@ async function run() {
   const snapPlain = await readDocumentSnapshot(storage, docPlain.id);
   check("persistDocument: no version → no snapshot (M6)", snapPlain === null);
   const snap = await readDocumentSnapshot(storage, doc.id);
-  check("persistDocument: instructions.snapshot.md recorded", snap !== null && snap.version === hashVersion(repo));
-  const snapFile = await storage.readFile(doc.id, "instructions.snapshot.md");
-  check("snapshot file content matches active instructions", snapFile?.toString("utf8") === repo);
+  check("persistDocument: instructionsSnapshot recorded on the document",
+    snap !== null && snap.version === hashVersion(repo) && snap.content === repo);
+  const saved = await storage.getDocument(doc.id);
+  check("persistDocument: snapshot persisted inside document.json", saved?.instructionsSnapshot === repo);
+  check("persistDocument: no snapshot FILE written anymore",
+    (await storage.readFile(doc.id, "instructions.snapshot.md")) === null);
+  // legacy fallback: no field, but an old snapshot file exists → still read
+  const docLegacy = createDocument("Legacy snapshot");
+  await persistDocument(storage, docLegacy);
+  await storage.writeFile(docLegacy.id, "instructions.snapshot.md", Buffer.from(repo, "utf8"));
+  const snapLegacy = await readDocumentSnapshot(storage, docLegacy.id);
+  check("readDocumentSnapshot: legacy file read when the field is absent",
+    snapLegacy !== null && snapLegacy.content === repo);
 
   // ---------- resolveConversionInstructions (FR-23 toggle) ----------
   const resolvedActive = await resolveConversionInstructions(storage, doc.id, false);

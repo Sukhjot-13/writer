@@ -46,7 +46,8 @@ export async function POST(request: Request) {
   try {
     const storage = getStorage();
     // FR-23: with the toggle on, convert with the rules this document was made
-    // with (its instructions.snapshot.md) instead of the latest active file.
+    // with (its instructionsSnapshot field / legacy snapshot file) instead of
+    // the latest active file.
     const instructions = await resolveConversionInstructions(storage, parsed.data.id, useSnapshot);
     const { system, user } = buildAIPrompt(parsed.data, instructions, goal);
     const raw = await convertWithAI(system, user);

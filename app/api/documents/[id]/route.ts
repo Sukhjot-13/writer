@@ -1,7 +1,8 @@
 // /api/documents/[id] — get (GET), update/save (PUT), delete (DELETE),
 // move to folder (PATCH, 2026-08-10 M7 round 6).
-// PUT accepts { doc, html? } — when a preview is present, document.html and
-// document.pdf are persisted alongside document.json (FR-17, FR-46).
+// PUT accepts { doc, html?, instructionsVersion? } — html is accepted for
+// wire compatibility only; nothing is written to files anymore (2026-08-13:
+// html/pdf render on demand, the FR-23 snapshot rides on the document).
 // PATCH accepts { folderId: string | null } — moves the document between
 // library folders without touching its content.
 
@@ -10,7 +11,7 @@ import { NextResponse } from "next/server";
 import { getStorage } from "@/lib/storage";
 import { saveDocumentPayloadSchema, moveDocumentPayloadSchema } from "@/lib/schemas";
 import { persistDocument } from "@/lib/save";
-import { readDocumentSnapshot, hashVersion } from "@/lib/instructions";
+import { hashVersion } from "@/lib/instructions";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -22,12 +23,16 @@ export async function GET(_request: Request, { params }: RouteParams) {
   // snapshot and whether it differs from the active rules (drives the
   // "convert with snapshot rules" toggle).
   const storage = getStorage();
-  const snapshot = await storage.readFile(id, "instructions.snapshot.md");
+  // 2026-08-13: the snapshot rides on the document; the legacy
+  // instructions.snapshot.md file is still read for older documents.
+  const snapshot =
+    doc.instructionsSnapshot ??
+    (await storage.readFile(id, "instructions.snapshot.md"))?.toString("utf8") ??
+    null;
   let snapshotInfo: { version: string; differs: boolean } | null = null;
   if (snapshot) {
-    const content = snapshot.toString("utf8");
     const active = await storage.readInstructions();
-    snapshotInfo = { version: hashVersion(content), differs: content !== active };
+    snapshotInfo = { version: hashVersion(snapshot), differs: snapshot !== active };
   }
   return NextResponse.json({ doc, snapshotInfo });
 }
@@ -50,7 +55,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     );
   }
 
-  const { doc, html, instructionsVersion } = parsed.data;
+  const { doc, instructionsVersion } = parsed.data;
   if (doc.id !== id) {
     return NextResponse.json(
       { error: "Document id in payload does not match route id" },
@@ -58,7 +63,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     );
   }
 
-  await persistDocument(getStorage(), doc, html, instructionsVersion);
+  await persistDocument(getStorage(), doc, instructionsVersion);
   return NextResponse.json({ doc });
 }
 

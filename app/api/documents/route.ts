@@ -30,7 +30,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { doc, html, instructionsVersion } = parsed.data;
-  await persistDocument(getStorage(), doc, html, instructionsVersion);
+  const { doc, instructionsVersion } = parsed.data;
+  // 2026-08-13: no file artifacts — html/pdf render on demand; the snapshot
+  // rides on the document. (`html` stays in the wire schema for compat.)
+  await persistDocument(getStorage(), doc, instructionsVersion);
   return NextResponse.json({ doc }, { status: 201 });
 }

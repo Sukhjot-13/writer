@@ -4,11 +4,13 @@
 //   data/
 //     folders.json                     # library folders [{id,name,createdAt,updatedAt}]
 //     documents/<id>/document.json     # source blocks (the single editable truth)
-//     documents/<id>/document.html     # generated HTML
-//     documents/<id>/document.pdf      # generated PDF
-//     documents/<id>/instructions.snapshot.md  # instructions version at last conversion
 //     instructions/active.md           # editable copy (seeded in M4)
 //     instructions/history/<timestamp>.md # versioned history (M4)
+//
+// document.html / document.pdf / instructions.snapshot.md are LEGACY (2026-08-13):
+// html/pdf render on demand and the snapshot rides on the document — the app
+// never writes those files anymore, but readFile() fallbacks still read them
+// for older documents (and writeFile stays on the interface for tests/compat).
 //
 // The repo copy docs/html_instructions.md is the read-only fallback for
 // readInstructions() until the M4 seed step creates data/instructions/active.md.
