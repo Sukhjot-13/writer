@@ -1,4 +1,4 @@
-// lib/ai.ts — DeepSeek client (FR-8/48, Plan §9.2).
+// lib/ai.ts — DeepSeek client (FR-8/48).
 //
 // The ONLY file that knows about the AI provider: endpoint, model, prompt
 // transport. One change, one file (FR-48): swapping the model or provider

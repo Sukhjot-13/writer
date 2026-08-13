@@ -1,4 +1,4 @@
-// lib/prompt.ts — prompt assembly + block serialization (FR-12, Plan §9.1).
+// lib/prompt.ts — prompt assembly + block serialization (FR-12).
 //
 // The user section serializes every block with type markers exactly as specced:
 // <TITLE>…</TITLE>, <PARAGRAPH>…</PARAGRAPH>, <QA>…</QA> with per-block

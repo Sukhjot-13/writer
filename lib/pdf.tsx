@@ -1,4 +1,4 @@
-// lib/pdf.tsx — @react-pdf/renderer PDF generation (FR-14/15, Plan §8.2).
+// lib/pdf.tsx — @react-pdf/renderer PDF generation (FR-14/15).
 //
 // The ONLY PDF engine in the app. PDFs are generated from block data
 // (document.json), NOT from HTML — HTML and PDF are two renderings of the

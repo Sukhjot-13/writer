@@ -1,4 +1,4 @@
-// lib/types.ts — shared data model for the writer app (Plan §5).
+// lib/types.ts — shared data model for the writer app.
 // Single source of truth for Block / QaContent / Document shapes.
 // zod schemas in lib/schemas.ts mirror these (used for API payload validation).
 

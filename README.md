@@ -2,7 +2,7 @@
 
 A Next.js (App Router, TypeScript, Tailwind v4) writing-and-practice app that converts French (or any-language) practice content into print-ready A4 **HTML** and **PDF** documents — offline template mode and AI-assisted conversion (DeepSeek), Q&A practice blocks with per-question and global visibility controls, question import, copy-for-AI / paste-HTML-back workflows, instructions management with version history, and a backup ZIP export.
 
-Built against `docs/writer_app_requirements.md` (v1.4, FR-1…FR-50) and `docs/Plan.md` (milestones M1–M5 — **all complete**).
+Built to requirements v1.4 (FR-1…FR-50); all milestones **complete**.
 
 ## Features
 
@@ -74,8 +74,6 @@ MongoDB-only (FR-44, since 2026-08-13): local dev and Vercel both use the MongoD
 
 ## Documentation
 
-- `docs/writer_app_requirements.md` — product requirements (v1.4, FR-1…FR-50)
-- `docs/Plan.md` — implementation plan (milestones M1–M5)
 - `docs/html_instructions.md` — the design system + AI rules, with the machine-readable `TOKENS` block (FR-47)
 - `docs/architecture.md` — always-current file/function inventory + env vars (update on every change)
 - `docs/suggestions.md` — improvement / feature / vulnerability log

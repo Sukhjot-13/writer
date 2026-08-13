@@ -1,4 +1,4 @@
-// lib/schemas.ts — zod schemas for API payload validation (Plan §3, §10).
+// lib/schemas.ts — zod schemas for API payload validation.
 // Mirrors lib/types.ts; `loose()` on content objects keeps unknown/future fields
 // intact through save/load round-trips (blocks gain fields in later milestones).
 

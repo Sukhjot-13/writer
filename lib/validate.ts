@@ -1,4 +1,4 @@
-// lib/validate.ts — HTML validation & wrapping (FR-10, Plan §17).
+// lib/validate.ts — HTML validation & wrapping (FR-10).
 //
 // Conversion output (AI or pasted HTML) is normalized before it is previewed
 // or saved: markdown fences stripped, sanity-checked to be HTML, wrapped in a

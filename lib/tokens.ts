@@ -1,4 +1,4 @@
-// lib/tokens.ts — runtime parser for the instructions file TOKENS block (FR-47, Plan §7/§20).
+// lib/tokens.ts — runtime parser for the instructions file TOKENS block (FR-47).
 // The instructions (the storage-backed active copy, seeded/synced from the repo
 // docs/html_instructions.md) are the ONE place the design system lives. This parser
 // reads them at runtime and never rewrites any source file. Since 2026-08-13 the

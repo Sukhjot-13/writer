@@ -1,4 +1,4 @@
-// lib/html-template.ts — template-mode HTML generator (FR-9, Plan §8.1).
+// lib/html-template.ts — template-mode HTML generator (FR-9).
 //
 // Deterministic, self-contained styled HTML built from block data + the shared
 // design tokens (FR-43) — the offline, always-available converter (no AI, no
