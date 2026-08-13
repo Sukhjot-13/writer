@@ -64,7 +64,7 @@ data/                          # gitignored runtime storage
 ### `lib/storage-mongo.ts` — MongoDB + Vercel Blob storage implementation (M5, FR-44)
 - **Purpose:** The remote backend behind the pluggable interface. MongoDB collections (explicitly typed rows): `documents` (`_id` = doc id, all doc fields), `files` (`_id`, `url`, `contentType` — blob URL index per attachment), `instructions` (`_id` = `"active"` | `"history:<version>"`, `content`, `savedAt`), **`folders` (`_id` = folder id, name, createdAt, updatedAt — M7 round 6)**. Lazy singleton connection (cached promise). Missing instructions seeded from the repo copy on first read (same M4 behavior as FS). **2026-08-13 (to-do item 10):** `readInstructions` calls `syncActiveFromRepo(backend)` first — if the repo file's mtime is newer than the active row's `savedAt`, the repo copy overwrites the active row (machine sync — no history snapshot); user saves after a repo change keep their content (newer writer wins).
 - **Functions:**
-  - `getDb()` (private) — lazy `MongoClient.connect` cache; throws with a clear message when `MONGODB_URI`/`BLOB_READ_WRITE_TOKEN` are absent.
+  - `getDb()` (private) — lazy `MongoClient.connect` cache; throws with a clear message when `MONGODB_URI` is absent (the ONLY guard — `BLOB_READ_WRITE_TOKEN` is never read by the code; the `@vercel/blob` SDK (line 18: `put`/`del`) reads it from the environment AUTOMATICALLY at deploy time, so a missing token surfaces as a Blob SDK error at the first file-artifact write, not a clear message).
   - `createMongoBlobStorage()` — returns a `StorageBackend`: `listDocuments` (find + sort updatedAt desc), `getDocument`, `saveDocument` (updateOne `$set` + upsert), `deleteDocument` (best-effort blob `del` + deleteMany), `readFile/writeFile/deleteFile` (Blob `put`/fetch/`del` + files index rows), instructions ops (read/write/snapshot/history/version — see `lib/instructions.ts` for the same flow; **2026-08-13 item 10:** `readInstructions` auto-syncs from the repo file, `getInstructionsEditedAt` → the `"active"` row's `savedAt`), **folder ops (M7 round 6):** `listFolders` (name-sorted), `createFolder`, `renameFolder` (findOneAndUpdate → Folder or null), `deleteFolder` (deleteOne + `$unset folderId` on the folder's documents — unfile, never delete).
 - **Note:** PUT/POST document routes keep the same `persistDocument` flow — only the backend differs; API behavior is identical between FS and Mongo/Blob.
 
@@ -392,7 +392,7 @@ data/                          # gitignored runtime storage
 | `DEEPSEEK_BASE_URL` | no | API base (default `https://api.deepseek.com`); model route is `${baseUrl}/v1/chat/completions` | `lib/ai.ts` (`getAIConfig`) |
 | `DEEPSEEK_MODEL` | no | Model name (default `deepseek-chat`); shown in the editor status bar (FR-28) via `/api/config` | `lib/ai.ts` (`getAIConfig`), `api/config/route.ts` |
 | `MONGODB_URI` | Vercel deploy | MongoDB storage switch (activates Mongo/Blob factory — M5, FR-44) | `lib/storage.ts` factory, `lib/storage-mongo.ts` |
-| `BLOB_READ_WRITE_TOKEN` | Vercel deploy | Vercel Blob token for html/pdf file storage (M5, FR-44) | `lib/storage-mongo.ts` |
+| `BLOB_READ_WRITE_TOKEN` | Vercel deploy | Vercel Blob token for html/pdf file artifacts (M5, FR-44). Never read by the code — the `@vercel/blob` SDK (`put`/`del` in `lib/storage-mongo.ts`) consumes it automatically; only the saved html/pdf *files* need it (documents, folders, instructions, backups and the on-demand PDF all work without it) | `lib/storage-mongo.ts` (implicit, via `@vercel/blob`) |
 
 ---
 
