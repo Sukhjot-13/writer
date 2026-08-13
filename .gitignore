@@ -45,3 +45,7 @@ yarn-error.log*
 next-env.d.ts
 tests/build
 tests/.tmp-*
+
+# next dev re-scaffolds these on startup (user deleted them 2026-08-13)
+AGENTS.md
+CLAUDE.md
