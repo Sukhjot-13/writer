@@ -7,10 +7,11 @@
 **Project:** Next.js (App Router, TS, Tailwind v4) French practice worksheet app. Read `AGENTS.md` at the repo root before writing any code (this Next version has breaking changes — docs live in `node_modules/next/dist/docs/`). Architecture + every file's functions: `architecture.md` (updated after every change — keep it that way). User to address as **Sukhjot**.
 
 **Current state:**
-- **Item 2 (analysis bullet points) — DONE this session** ("M7 round 10" commit). Everything else in this file is **decided but NOT built**.
-- Suggested build order: **1 → 8 → 6 → 7 → 4 → 9 → 5** (small quick wins first; test generator last).
+- All 9 original items are decided; **item 2 (analysis bullet points) is DONE** (built in the "M7 round 10" commit — details in architecture.md round 10 + git history, removed from this file per the user). **Item 10 is NEW (2026-08-13) and is the user's current pain point — the manual "Reset to repo file" must die.** Everything else is **decided but NOT built**.
+- Suggested build order: **10 first (quick standalone fix for the user's headache) → 1 → 8 → 6 → 7 → 4 → 9 → 5** (small quick wins; test generator last).
 - Latest commit at handoff: `M7 round 10: analysis bullet points — "- " lines render as lists (HTML + PDF) + AI rule + visual test document + fixed never-passing M7 synonyms check + suggestions/to-do/arch sync` (locally committed, **not pushed** — push only after Sukhjot confirms).
-- Standing notes: (1) the ACTIVE instructions (`data/instructions/active.md`) are a stale copy of `docs/html_instructions.md` — after any instructions change the user must click **"Reset to repo file" once on /instructions** (token cache invalidates automatically); (2) practice answers (`userAnswer`) are private — never in prompts/AI/copy/preview/PDF; (3) commit locally only, push after user confirms; (4) future ideas live in `suggestions.md`.
+- Standing notes: (1) **UNTIL item 10 is built**, the ACTIVE instructions (`data/instructions/active.md`) are a stale copy of `docs/html_instructions.md` — after any instructions change the user must click **"Reset to repo file" once on /instructions** (token cache invalidates automatically); the repo file `docs/html_instructions.md` is the single source for AI rules + design tokens; (2) practice answers (`userAnswer`) are private — never in prompts/AI/copy/preview/PDF; (3) commit locally only, push after user confirms; (4) future ideas live in `suggestions.md`.
+- The visual bullet-test document `data/documents/points-test-8c31f0` ("Test — Rendu des points") exists locally (gitignored) for checking bullet rendering — delete anytime.
 
 **Verification commands (run before declaring anything done):**
 ```
@@ -42,18 +43,6 @@ Latest known: M2 22/22, M3 37/37, M4 25/25, M5 32/33 (1 pre-existing deferred ch
 1. `components/CopyDialog.tsx` checkboxes: "User answers" → **"My practice answers"** (helper: "what I wrote in practice"); "Model answers" → **"Answers"** (helper: "the correct answer — the Answer field").
 2. `buildCopyText` (same file, exported pure — smoke-tested): qa model answer `Modèle : …` → **`Réponse : …`**; qa practice answer `Réponse : …` → **`Ma réponse : …`**; question translation gets **`Traduction de la question :`** (today bare); answer translation **`Traduction de la réponse :`** (today `Traduction :`); grammar note **`Grammaire :`** (today bare).
 3. Update smoke-m7 string assertions that check the copy text.
-
-## ✅ 2. Analysis = the breakdown; bullets render as lists — **DONE (M7 round 10, 2026-08-13)**
-
-**Decided (user):** no new field — the existing **analysis** is the breakdown; free-text bullet points (`- ` lines) render as real lists. The structured `analysisPoints` field alternative is documented in suggestions.md (full pipeline, ~10 files) — build only if per-point editing is ever asked for.
-
-**What was built (all verified — tsc, build, smoke M7 37/37):**
-- `lib/html-template.ts` — `renderInlineMarkdown` now splits on `\n`; lines starting with `- ` become `<li>` items grouped into `<ul class="point-list">` (consecutive bullets = one list; prose lines stay outside; inline markdown still applies inside points). CSS: `.point-list { margin: 2px 0 0 18px; padding: 0; } .point-list li { margin: 1px 0; }`.
-- `lib/pdf.tsx` — new private `bulletText(text)` (lines starting with `- ` get a `•  ` prefix) applied to the qa, paragraph and essay analysis Texts (the 3 sites; react-pdf has no list element).
-- `docs/html_instructions.md` — new rule in ENRICHMENT: "ANALYSIS POINTS: when an analysis has multiple distinct points, write each point on its own line starting with `- ` — the app renders them as bullets. Mix prose and points freely; never force points onto a single-sentence analysis." (active.md is stale — user reseed note applies.)
-- `tests/smoke-m7.ts` — +3 checks: bullets render as `<ul class="point-list">` with inline markdown inside a point; consecutive lines group into ONE list with prose outside; the hidden-analyses toggle still removes the bulleted analysis. (Also fixed the never-passing round-9 synonyms-marker check — see the handoff note.)
-- **Visual test document (local, NOT committed — `data/` is gitignored):** `data/documents/points-test-8c31f0/document.json` — title "Test — Rendu des points" with bullet analyses on a paragraph, an essay and 2 qa blocks (prose+bullets mix, bold/italic inside points, and a single-line no-bullet qa for comparison). Validated against `documentSchema` and rendered through the real template (3 lists / 9 items). Open the app → it's at the top of Home. Delete it anytime (or keep it — deleting it only removes the local folder).
-- Remaining (tiny, optional): paragraph/essay analyses also get bullets automatically (shared renderer) — no extra work needed.
 
 ## ✅ 3. Database — Atlas connection string (user supplies it; NOT built)
 
@@ -116,3 +105,23 @@ Latest known: M2 22/22, M3 37/37, M4 25/25, M5 32/33 (1 pre-existing deferred ch
 1. **Smart Paste box** — one paste area that sniffs the content: starts with `[` → blocks (AI), starts with `<` → HTML, otherwise → questions. The three existing Paste buttons stay as shortcuts.
 2. **Copy presets** — "Worksheet (no answers)" and "Questions only" one-click buttons beside the checkboxes in Copy → For sharing.
 3. Backup ZIP refinement — see item 7.
+
+## ✅ 10. Instructions live in the DB, auto-synced from the repo — NO more "Reset to repo file" (NOT built)
+
+**Pain point (user, 2026-08-13):** "i want the instruction and other things that should logically be on the db should be there and used from there… this is a headache going here and there and click reset to repo." Today the app reads `data/instructions/active.md`, which is seeded ONCE from `docs/html_instructions.md` (M4, FR-21) — every time the repo file changes (a feature adds a rule, e.g. ANALYSIS POINTS / synonyms), the app keeps serving the STALE copy and the user must manually click **"Reset to repo file"** on /instructions.
+
+**Goal:** the active instructions live in **storage** and are **read from storage** (Mongo `instructions` collection when `MONGODB_URI` is set — already true; `data/instructions/active.md` in dev); the repo file is only the *seed/source* that **auto-propagates** when it changes. Zero manual resets. Design tokens follow automatically (they're parsed from whatever instructions are active).
+
+**Design — "the newer writer wins" (one rule, no new schema):**
+1. Every read of the active instructions (the two read paths: `getInstructionsState` + `resolveConversionInstructions` in `lib/instructions.ts`; token reads flow through them or invalidate on write) calls a new shared helper, e.g. `syncActiveFromRepo(storage)`:
+   - `repoMtime = mtime(docs/html_instructions.md)` (fs.stat — the server always has the repo file, even with the Mongo backend; the repo path constant already exists in `lib/tokens.ts` as `REPO_INSTRUCTIONS_PATH`).
+   - `activeEditedAt` = when the active copy was last written: FS backend → `stat(data/instructions/active.md).mtime`; Mongo backend → the `instructions` row's `savedAt` (user saves update it; add a `getInstructionsSavedAt`/include it in the existing read if not already returned).
+   - **If `repoMtime > activeEditedAt`** → the repo file changed after the active copy was last written → copy the repo content over the active copy via the EXISTING `storage.writeInstructions(content)` (which already invalidates the design-token cache and snapshots history? — see point 3).
+   - **If `activeEditedAt >= repoMtime`** → the user (or the last seed) is newer → keep the active copy untouched. This means: a user edit made AFTER a repo change intentionally wins; the next repo change re-syncs. No clicks, no lost edits, no extra columns/files.
+2. First-run seeding (M4 behavior) stays — "file missing" is treated as `activeEditedAt = 0` so the seed happens in the same path.
+3. Auto-sync must NOT pollute the version history: the sync overwrite should go through a dedicated internal write (no snapshot-to-history for machine syncs — history is for user saves). Keep `hashVersion` semantics: after a sync, the active version = repo hash; the Instructions editor's Save/Reset still work exactly as today (Reset becomes redundant but harmless).
+4. The Instructions editor (`components/InstructionsEditor.tsx`) needs no changes (it reads/writes through the API which reads through storage). Optionally show a quiet "synced from repo" note in the status bar — NOT a button.
+5. **Verify nothing else reads `docs/` at runtime** (grep `REPO_INSTRUCTIONS_PATH` / `docs/html_instructions` / `readFileSync` across `lib/` + `app/`) — everything must go through storage after this item.
+6. **Tests (smoke-m4):** (a) repo file newer than active → next `getInstructionsState` returns the REPO content + repo version; (b) active saved by the user AFTER the repo change → user content kept; (c) after sync, history is unchanged (no phantom snapshot); (d) first-run seeding still works with no active copy; (e) Mongo path: row `savedAt` vs repo mtime — same decisions (the smoke suite runs against the real FS storage; the Mongo path is covered by the shared logic + code review).
+
+**Files touched:** `lib/instructions.ts` (the helper + wiring into the two read paths), `lib/storage.ts` interface (+1 method: `getInstructionsEditedAt()` or include the timestamp in the existing read), `lib/storage-fs.ts` + `lib/storage-mongo.ts` (implement the timestamp read), `tests/smoke-m4.ts` (new checks). ~4 files, no schema change, no UI change. Build after item 10 ships: users never click Reset again; `docs/html_instructions.md` is the single file to edit for AI rules + design.
