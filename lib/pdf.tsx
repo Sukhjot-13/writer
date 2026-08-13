@@ -24,9 +24,15 @@
 // includes paragraphs (each with the user's written answer, or blank rules
 // when unanswered) so mixed documents practice every block (M6).
 //
-// Note: react-pdf v4.6 has no `breakInside: "avoid"` equivalent — the closest
-// is the `minPresenceAhead` hint (keeps following siblings on the same page
-// within n points), applied to each QA card's question row.
+// Note: react-pdf v4.6 has no `breakInside: "avoid"` style — the equivalent is
+// the `wrap={false}` prop on a View (moves the whole element to the next page
+// instead of splitting it; oversized elements stay put and push future
+// siblings over — see @react-pdf/layout splitNodes). Applied to each QA card
+// (mirrors `.qa-block { break-inside: avoid }` in the HTML template) so a
+// question is never cut mid-card at a page boundary.
+// The `minPresenceAhead` hint stays on the question row as a fallback for the
+// (rare) card taller than a full page: it keeps the row + up to 150pt of
+// following content on the same page.
 
 import {
   Document as PDFDocument,
@@ -238,7 +244,17 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
       marginRight: 6,
       marginTop: 2,
     },
-    badgeText: { color: t.colors.badgeText, fontSize: basePt * 0.7, fontWeight: "bold" },
+    // 2026-08-13 (BADGE CENTERING, measured): flex centering alone leaves the
+    // digit ~3pt HIGH in the circle (pixel-measured at 96dpi: dy -4px on an
+    // 18pt badge). A first fix used lineHeight "18pt" (full badge height —
+    // same trick as .qa-num's line-height: 24px in the HTML template) but the
+    // download measured ~5.25pt HIGH — WORSE, because react-pdf anchors the
+    // glyph baseline high inside the line box. The correct direction is a
+    // SMALLER line box: the flex centering then pushes the line box (and with
+    // it the digit) DOWN to center. lineHeight 1.3 → 1.3 × fontSize ≈ 7.85pt
+    // line box → line-box top ≈ 5.1pt, digit lands on the 9pt circle center.
+    // Unitless multiplier so it scales with basePt.
+    badgeText: { color: t.colors.badgeText, fontSize: basePt * 0.7, fontWeight: "bold", lineHeight: 1.3 },
     // 2026-08-10 M7 round 5: the question row is badge + a flex-1 column body,
     // so the translation renders on its OWN line BELOW the question (was a
     // nested Text inside questionText — same line; mirrors the HTML template).
@@ -274,7 +290,9 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
   });
 
   return (
-    <View style={styles.card}>
+    // wrap={false} (2026-08-13): break-inside: avoid for the whole card —
+    // a question + its answer never split across a page boundary.
+    <View style={styles.card} wrap={false}>
       <View style={styles.questionRow} minPresenceAhead={150}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{number}</Text>
@@ -475,7 +493,19 @@ function BlockToPDF({
     case "qa": {
       qaNumber.n += 1;
       return (
-        <QABlockPDF block={block} doc={doc} tokens={tokens} number={qaNumber.n} variant={variant} />
+        // 2026-08-13 (BUG FIX): hidden/emptyLines MUST be forwarded — they were
+        // missing, so the display PDF always rendered QA translations/analyses/
+        // vocab/model answers even when the preview toggles hid them (paragraphs
+        // and essays honored the toggles; qa blocks silently didn't).
+        <QABlockPDF
+          block={block}
+          doc={doc}
+          tokens={tokens}
+          number={qaNumber.n}
+          variant={variant}
+          hidden={hidden}
+          emptyLines={emptyLines}
+        />
       );
     }
   }
@@ -522,6 +552,15 @@ export async function generatePDFBuffer(
   // number + total on every page; `fixed` repeats the footer on each page.
   // Absolute positioning is page-relative, so `bottom` sits in the margin
   // band below the padded content box.
+  // 2026-08-13 (BUG FIX): the footer height MUST be pinned. react-pdf 4.6.0
+  // (the latest) computes a garbage height (~1e22 pt) for bottom-anchored
+  // `fixed` elements on continuation pages of long documents (the paginator
+  // omits the page box height when splitting, which breaks yoga's bottom
+  // resolution) — pdfkit then rejects the coordinate with
+  // "unsupported number: -1.2915355457378698e+22" and the whole download
+  // 500s. Only documents long enough to paginate were affected. Pinning
+  // `height` to the footer's own line box stops yoga from inventing a height;
+  // the box is small so this is invisible.
   const pageFooter = (
     <View
       fixed
@@ -530,6 +569,7 @@ export async function generatePDFBuffer(
         left: 0,
         right: 0,
         bottom: lengthToPt(tokens.spacing.printMargin),
+        height: Math.ceil(basePt * 0.8 * 1.6), // one footer line (fontSize × lineHeight)
         flexDirection: "row",
         justifyContent: "center",
       }}
