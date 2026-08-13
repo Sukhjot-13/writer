@@ -19,6 +19,7 @@ ENRICHMENT (all text, French → English)
 - Every "paragraph" block: "translation" (English), "analysis" (short explanation of the paragraph's key point or grammar), and "vocab"/"expressions" when clearly present.
 - Every "essay" block: ONE "translation" (English translation of the whole passage), ONE "analysis", and ONE "vocab"/"expressions" set covering the whole essay — never a separate set per paragraph.
 - "synonyms" (vocab growth, 2026-08-10): when a qa/paragraph/essay uses a basic everyday word worth enriching, add 2–3 REAL French synonyms that fit the context (term = the synonym, def = its English meaning). Never invent a word; never suggest a synonym that changes the meaning; omit "synonyms" entirely when nothing worth enriching is present.
+- ANALYSIS POINTS (2026-08-13, to-do item 2): when an "analysis" has multiple distinct points, write each point on its own line starting with "- " (dash + space) — the app renders them as bullet points. Mix prose and points freely; never force points onto a single-sentence analysis.
 - "responseLabel" is always "RÉPONSE".
 - Omit any optional field you cannot fill with confidence.
 - TYPOGRAPHY RULE: every text you WRITE (translations, grammar notes, analysis, vocabulary definitions, suggestion reasons) must be typographically correct — accents (é è ê ë à â ç î ï ô ù û), commas, full stops, and French spacing (no space before "," "." ";"; a space before ":" ";" "!" "?"). Never write an accentless word when the accented form exists.

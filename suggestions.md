@@ -6,6 +6,21 @@
 
 ## 🟢 Improvements
 
+- **2026-08-13 — Structured analysis points (the full-pipeline variant — NOT built, deliberate; to-do item 2).** The user chose **free-text bullets** for the analysis/breakdown ("it can be just as answer analysis… that also works; points are just easy to understand") — `- ` lines render as a real `<ul class="point-list">` (HTML) / `•`-prefixed lines (PDF), renderer-only, no new data. This entry records the **structured alternative** in case real point data is ever wanted (independent add/remove/reorder of each point). Full-pipeline design:
+  1. `analysisPoints?: string[]` on `QaContent`/`ParagraphContent`/`EssayContent` (`lib/types.ts`; `createBlock` factories get `analysisPoints: []`).
+  2. `lib/schemas.ts` — `z.array(z.string().trim().min(1).max(500)).optional()` on all three content schemas.
+  3. `lib/structuring.ts` — `aiBlockEntrySchema` gains `analysisPoints` on qa/paragraph/essay shapes; `optList` normalization (drop empty strings/empty arrays).
+  4. `docs/html_instructions.md` — the ANALYSIS POINTS rule (2026-08-13) upgraded: "output `analysisPoints` as an array, one point per entry".
+  5. `lib/prompt.ts` — JSON shapes in the conversion demand + `BLOCK_FORMAT_SPEC` gain `analysisPoints`; `serializeQa`/`serializeBlocksForAI` emit an `ANALYSIS_POINTS: point1; point2` marker (Copy-for-AI round-trips, same pattern as VOCAB/SYNONYMS).
+  6. Editor — `ParagraphFields` + `QaBlockForm` gain a "＋ Points" chip revealing a single-column row editor (RowEditor is term/def; a simplified variant or a reused row with an empty term cell).
+  7. `lib/html-template.ts` — analysis renders its points as `<ul class="point-list">` (the free-text `- ` pass stays for hand-written bullets).
+  8. `lib/pdf.tsx` — points mapped through `bulletText` (joined with `\n`).
+  9. `lib/html-to-blocks.ts` — parse-back recovers `<li>` items under `.qa-analyse`/`.p-analyse` into `analysisPoints`.
+  10. Tests — smoke-m7 (+ smoke-m5 parse-back) extended; `buildCopyText` prints `- point` lines under `Analyse :`.
+  Why not built: ~10 files for marginal benefit — free-text bullets deliver the same rendered output with 3 files (two renderers + instructions). Build this only if the user asks for per-point editing/reordering.
+
+- **2026-08-13 — Unsaved-changes alert on tab close (later).** If there are unsaved changes and the user closes or leaves the tab, warn with a beforeunload-style prompt ("your progress is not saved"). Build AFTER the page-leave autosave flush lands (to-do item 6a — save on `visibilitychange`/`pagehide`): the flush removes most of the risk, so the alert is the last-resort net for when a save fails or the tab dies mid-edit. Keep it editor-only so it never nags on the home/library pages.
+
 - **2026-08-13 — PDF QA cards never split mid-question (done).** react-pdf v4.6 has no `breakInside: "avoid"` style; the equivalent is the `wrap={false}` View prop (moves the whole element to the next page instead of splitting it; oversized elements stay put and push future siblings over — `splitNodes` in `@react-pdf/layout`). Applied to each QA card in `lib/pdf.tsx`, mirroring `.qa-block { break-inside: avoid }` in the HTML template. Verified: 84/84 qa blocks un-split (page count 17→18 as cards moved whole). If react-pdf ever adds `breakInside`, consider switching for readability.
 
 - **2026-08-13 — PDF badge digit centering is empirical, not modeled.** The download's badge digit sat ~3pt high; the first fix (`lineHeight: "18pt"`, CSS-style line-height trick) made it worse (~5.25pt high) because react-pdf anchors the glyph baseline differently than browsers. Current fix: unitless `lineHeight: 1.3` (~7.85pt line box, flex-centering pushes the digit to the 9pt center). If a future font change (tokens.fonts.pdf) shifts the baseline, re-measure with a 96dpi pixel check rather than reasoning from font metrics — the font-metric model did not predict the measured offsets.

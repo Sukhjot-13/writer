@@ -39,12 +39,37 @@ function tagClass(tag: string): string {
   return clean ? ` tag-${clean}` : "";
 }
 
-/** Light inline markdown: `code`, **bold**, *italic* (applied after HTML escaping). */
+/** Light inline markdown: `code`, **bold**, *italic*, plus `- ` bullet lines →
+ *  a real <ul> list (2026-08-13, to-do item 2 — "points are just easy to
+ *  understand": any line starting with "- " renders as a bullet; consecutive
+ *  bullet lines group into one list; applied after HTML escaping, so the
+ *  analysis/breakdown of qa, paragraph and essay blocks reads as points). */
 export function renderInlineMarkdown(text: string): string {
-  return escapeHtml(text)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[\s>])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const inline = (s: string) =>
+    escapeHtml(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[\s>])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const lines = text.split("\n");
+  const out: string[] = [];
+  let list: string[] = [];
+  const flush = () => {
+    if (list.length) {
+      out.push(`<ul class="point-list">${list.map((l) => `<li>${l}</li>`).join("")}</ul>`);
+      list = [];
+    }
+  };
+  for (const raw of lines) {
+    const bullet = raw.match(/^\s*-\s+(.*)$/);
+    if (bullet) {
+      list.push(inline(bullet[1]));
+    } else {
+      flush();
+      out.push(inline(raw));
+    }
+  }
+  flush();
+  return out.join("\n");
 }
 
 function buildCss(tokens: DesignTokens, paper = false): string {
@@ -108,6 +133,8 @@ code { background: ${t.colors.highlightBg}; padding: 2px 5px; border-radius: 2px
 .qa-translation { margin-top: 6px; font-style: italic; font-size: 0.9em; color: ${t.colors.mainText}; opacity: 0.8; }
 .qa-analyse { margin-top: 6px; font-size: 0.88em; color: ${t.colors.mainText}; opacity: 0.9; }
 .qa-analyse strong { color: ${t.colors.mainText}; opacity: 1; }
+.point-list { margin: 2px 0 0 18px; padding: 0; }
+.point-list li { margin: 1px 0; }
 .qa-vocab-grid { margin-top: 10px; display: flex; border: 1px solid ${t.colors.border}; border-radius: 4px; overflow: hidden; }
 .qa-vocab-grid.one-col { flex-direction: column; }
 .qa-vocab-col { flex: 1; min-width: 0; }

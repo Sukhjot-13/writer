@@ -43,6 +43,7 @@ doc.blocks = [
     answerTranslation: "I ate an apple.",
     vocab: [{ term: "hier", def: "yesterday" }],
     expressions: [{ term: "manger une pomme", def: "to eat an apple" }],
+    synonyms: [{ term: "la veille", def: "the day before" }, { term: "le jour d'avant", def: "the day before" }], // 2026-08-13: qa marker check (serializeQa emits SYNONYMS for qa blocks; paragraphs serialize text-only by design — the round-9 check put the terms on the paragraph and could never pass)
     userAnswer: "J'ai regardé la télé.",
   }),
 ];
@@ -65,7 +66,7 @@ check("ai-copy: never includes practice answers (private)", !ai.includes("J'ai r
 // ---------- synonyms (2026-08-10): qa marker round-trips + template prints a
 // "Synonymes" column (the template checks need `html` — defined below) ----------
 check("synonyms: qa marker serialized (term|def list)",
-  ai.includes("SYNONYMS: se réveiller|to wake up; de bonne heure|early in the day"));
+  ai.includes("SYNONYMS: la veille|the day before; le jour d'avant|the day before"));
 
 // ---------- essay heading (2026-08-10 #5): optional title round-trips ----------
 const marker = serializeBlocksForAI(doc);
@@ -97,6 +98,28 @@ check("order: translation before analysis", anIdx > qtIdx);
 check("order: analysis before model answer", maIdx > anIdx);
 check("order: model answer before answer translation", atIdx > maIdx);
 check("order: paragraph text still first-class", html.indexOf("Je me lève tôt.") !== -1);
+
+// ---------- analysis bullet points (2026-08-13, to-do item 2 — "points are
+// just easy to understand"): lines starting with "- " render as a real
+// <ul class="point-list"> list; prose lines stay outside; inline markdown
+// still applies inside a point ----------
+const bulletDoc = createDocument("B", "b1");
+bulletDoc.blocks = [
+  setBlockContent(createBlock("title"), { text: "Bullets" }),
+  setBlockContent(createBlock("qa"), {
+    question: "Où vas-tu ?",
+    analysis: "La phrase est au présent.\n- **« où »** = where\n- « tu vas » = you go",
+    modelAnswer: "Je vais au marché.",
+  }),
+];
+const bulletHtml = generateTemplateHTML(bulletDoc, tokens, { printMode: true });
+check("bullets: '- ' lines render as <ul class=\"point-list\"><li>",
+  bulletHtml.includes('<ul class="point-list">') && bulletHtml.includes("<li><strong>« où »</strong> = where</li>"));
+check("bullets: consecutive '- ' lines group into ONE list; prose stays outside",
+  (bulletHtml.match(/<ul class="point-list">/g) ?? []).length === 1 &&
+  bulletHtml.includes("La phrase est au présent.") && !bulletHtml.includes("<li>La phrase est au présent.</li>"));
+check("bullets: hidden-analyses toggle still removes the bulleted analysis",
+  !generateTemplateHTML(bulletDoc, tokens, { printMode: true, hidden: { analyses: true } }).includes("<ul class=\"point-list\">"));
 
 const hidden = generateTemplateHTML(doc, tokens, {
   printMode: true,

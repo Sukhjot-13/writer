@@ -87,6 +87,20 @@ export function lengthToPt(value: string | number): number {
 }
 
 /** Visibility mirror of the HTML template (FR-34/35/36): hidden → omitted entirely. */
+/**
+ * 2026-08-13 (to-do item 2 — "points are just easy to understand"): render
+ * `- ` lines as bullet points in PDF text. react-pdf has no list element, so
+ * each bullet line gets a "•  " prefix and keeps its own line. Applied to the
+ * analysis texts (qa + paragraph + essay) — mirrors the HTML template's
+ * `<ul class="point-list">` for the same content.
+ */
+function bulletText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => (/^\s*-\s+/.test(line) ? `•  ${line.replace(/^\s*-\s+/, "")}` : line))
+    .join("\n");
+}
+
 function qaVisible(doc: Document, content: QaContent, kind: "translation" | "modelAnswer"): boolean {
   if (kind === "translation") {
     return !(content.hideTranslation || doc.practice?.hideTranslations);
@@ -316,7 +330,7 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
       {showExtras && !hidden?.analyses && content.analysis ? (
         <Text style={styles.analysis}>
           <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
-          {content.analysis}
+          {bulletText(content.analysis)}
         </Text>
       ) : null}
 
@@ -435,7 +449,7 @@ function BlockToPDF({
           {variant === "full" && !hidden?.analyses && c.analysis ? (
             <Text style={styles.pAnalysis}>
               <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
-              {c.analysis}
+              {bulletText(c.analysis)}
             </Text>
           ) : null}
           {variant === "full" && !hidden?.vocab ? (
@@ -479,7 +493,7 @@ function BlockToPDF({
           {variant === "full" && !hidden?.analyses && c.analysis ? (
             <Text style={styles.pAnalysis}>
               <Text style={{ fontWeight: "bold" }}>Analyse : </Text>
-              {c.analysis}
+              {bulletText(c.analysis)}
             </Text>
           ) : null}
           {variant === "full" && !hidden?.vocab ? (
