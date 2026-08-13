@@ -21,6 +21,8 @@
     "./smoke-m6.ts",
     "./smoke-m7.ts",
     "./smoke-m8.ts",
+    "./smoke-m9.ts",
+    "./run-all.ts",
     "../lib/**/*.ts",
     "../components/CopyDialog.tsx",
     "../app/api/documents/import-html/route.ts"

@@ -128,6 +128,45 @@ async function run() {
   check("resolve: snapshot keeps the rules the doc was made with",
     snapAfter !== null && resolvedOld === snapAfter.content && snapAfter.version !== hashVersion(resolvedLatest));
 
+  // ---------- auto-sync "newer writer wins" (to-do item 10) ----------
+  // The sync compares mtimes against the REAL repo file, so these checks shift
+  // its mtime around and restore the original in `finally` — the suite never
+  // leaves the repo file touched.
+  const repoMtime = (await fs.stat(REPO_INSTRUCTIONS_PATH)).mtimeMs;
+  const historyBeforeSync = await storage.listInstructionsHistory();
+  try {
+    // (a) repo copy newer than the active copy → next read returns REPO content
+    const future = new Date(Date.now() + 120_000);
+    await fs.utimes(REPO_INSTRUCTIONS_PATH, future, future);
+    const stateSynced = await getInstructionsState(storage);
+    check("auto-sync: repo newer → active becomes repo content",
+      stateSynced.content === repo && stateSynced.version === hashVersion(repo));
+    check("auto-sync: machine sync leaves history untouched (no phantom snapshot)",
+      (await storage.listInstructionsHistory()).length === historyBeforeSync.length);
+
+    // (b) user edit AFTER a repo change wins — the user is the newer writer
+    const past = new Date(Date.now() - 120_000);
+    await fs.utimes(REPO_INSTRUCTIONS_PATH, past, past);
+    const userContent = repo + "\n\n<!-- user edit after repo change (must win) -->\n";
+    await saveInstructions(storage, userContent);
+    const stateUser = await getInstructionsState(storage);
+    check("auto-sync: user edit after repo change wins",
+      stateUser.content === userContent && stateUser.version === hashVersion(userContent));
+    check("auto-sync: editedAt reflects the user save",
+      (await storage.getInstructionsEditedAt()) > past.getTime());
+  } finally {
+    const restore = new Date(repoMtime);
+    await fs.utimes(REPO_INSTRUCTIONS_PATH, restore, restore);
+  }
+
+  // (d) missing active copy → editedAt 0 and the first read still seeds (FR-21 intact)
+  const freshStorage = createFSStorage(path.join(SCRATCH, "data-fresh"));
+  check("auto-sync: missing active copy → editedAt 0",
+    (await freshStorage.getInstructionsEditedAt()) === 0);
+  const freshState = await getInstructionsState(freshStorage);
+  check("auto-sync: first-run read seeds repo content (FR-21 intact)",
+    freshState.content === repo && freshState.version === hashVersion(repo));
+
   await cleanScratch();
   console.log(`\nM4 smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);

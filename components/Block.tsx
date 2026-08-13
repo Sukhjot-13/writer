@@ -31,10 +31,14 @@ import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow ever
 function PracticeParagraphCard({
   content,
   checked,
+  blockId,
   onUpdate,
 }: {
   content: ParagraphContent;
   checked: boolean;
+  // 2026-08-13 (to-do item 4): data-focus-id prefix — same convention as the
+  // normal-mode editors, so toggleDetailed can refocus the practice answer.
+  blockId: string;
   onUpdate: (content: ParagraphContent) => void;
 }) {
   return (
@@ -44,6 +48,7 @@ function PracticeParagraphCard({
       </div>
 
       <AutoGrowTextarea
+        data-focus-id={`${blockId}:userAnswer`}
         rows={2}
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write in French if you can…"
@@ -73,10 +78,14 @@ function PracticeParagraphCard({
 function PracticeEssayCard({
   content,
   checked,
+  blockId,
   onUpdate,
 }: {
   content: EssayContent;
   checked: boolean;
+  // 2026-08-13 (to-do item 4): data-focus-id prefix — same convention as the
+  // normal-mode editors, so toggleDetailed can refocus the practice answer.
+  blockId: string;
   onUpdate: (content: EssayContent) => void;
 }) {
   return (
@@ -88,6 +97,7 @@ function PracticeEssayCard({
       </div>
 
       <AutoGrowTextarea
+        data-focus-id={`${blockId}:userAnswer`}
         rows={4}
         value={content.userAnswer ?? ""}
         placeholder="Your answer — write the whole essay in French if you can…"
@@ -364,15 +374,16 @@ export default function Block({
               mode={practiceMode ? "practice" : "normal"}
               checked={checked}
               detailed={detailed}
+              blockId={block.id}
               onUpdate={onUpdate}
             />
           ) : practiceMode && block.type === "paragraph" ? (
             // M6: practice gives paragraphs the same answer flow as questions.
-            <PracticeParagraphCard content={block.content} checked={checked} onUpdate={onUpdate} />
+            <PracticeParagraphCard content={block.content} checked={checked} blockId={block.id} onUpdate={onUpdate} />
           ) : practiceMode && block.type === "essay" ? (
             // Essay (2026-08-10): the whole passage reads as one continuous
             // text with exactly ONE answer field — never per-paragraph boxes.
-            <PracticeEssayCard content={block.content} checked={checked} onUpdate={onUpdate} />
+            <PracticeEssayCard content={block.content} checked={checked} blockId={block.id} onUpdate={onUpdate} />
           ) : practiceMode ? (
             // Title / heading — read-only context in practice.
             <div className={`py-1.5 leading-relaxed ${textAreaCls}`}>{text}</div>
@@ -384,6 +395,7 @@ export default function Block({
             // and the shared enrichment fields below.
             <div>
               <AutoGrowTextarea
+                data-focus-id={`${block.id}:heading`}
                 value={block.content.heading ?? ""}
                 onChange={(e) => onUpdate({ ...block.content, heading: e.target.value })}
                 rows={1}
@@ -393,6 +405,7 @@ export default function Block({
               {block.content.paragraphs.map((p, i) => (
                 <AutoGrowTextarea
                   key={i}
+                  data-focus-id={`${block.id}:p${i}`}
                   value={p}
                   onChange={(e) => {
                     const next = [...block.content.paragraphs];
@@ -411,12 +424,13 @@ export default function Block({
               >
                 + Add paragraph
               </button>
-              {detailed && <ParagraphFields content={block.content} onUpdate={onUpdate} />}
+              {detailed && <ParagraphFields content={block.content} blockId={block.id} onUpdate={onUpdate} />}
             </div>
           ) : (
             <div className="relative">
               <textarea
                 ref={textareaRef}
+                data-focus-id={`${block.id}:text`}
                 value={text}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
@@ -434,7 +448,7 @@ export default function Block({
                   hidden in practice AND focus mode (2026-08-10: focus shows the
                   main content only). */}
               {block.type === "paragraph" && !practiceMode && detailed && (
-                <ParagraphFields content={block.content} onUpdate={onUpdate} />
+                <ParagraphFields content={block.content} blockId={block.id} onUpdate={onUpdate} />
               )}
               {slashOpen && (
                 <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">

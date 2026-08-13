@@ -208,14 +208,23 @@ function parseQa(inner: string): QaContent {
   // question in its own <p class="qa-question-translation"> (user: "it is
   // showing in same line as question it should be below it") — recover it
   // there; the <em>-in-question fallback above still reads older exports.
+  // 2026-08-13 (to-do item 8): the generator prepends a bold "Traduction :"
+  // label — strip it (same pattern as the "Analyse :" label below).
   const qt = byClass(inner, "qa-question-translation");
   if (qt) {
-    const translation = innerToMarkdown(qt.inner);
+    const translation = innerToMarkdown(qt.inner.replace(/<strong[^>]*>Traduction\s*:<\/strong>/i, ""))
+      .replace(/^\*\*Traduction\s*:\s*\*\*/, "")
+      .trim();
     if (translation) content.questionTranslation = translation;
   }
 
   const grammar = byClass(inner, "qa-grammar-note");
-  if (grammar) content.grammarNote = innerToMarkdown(grammar.inner);
+  if (grammar) {
+    const note = innerToMarkdown(grammar.inner.replace(/<strong[^>]*>Grammaire\s*:<\/strong>/i, ""))
+      .replace(/^\*\*Grammaire\s*:\s*\*\*/, "")
+      .trim();
+    if (note) content.grammarNote = note;
+  }
 
   const label = byClass(inner, "qa-response-label");
   if (label) {

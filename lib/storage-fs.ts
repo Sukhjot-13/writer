@@ -18,7 +18,7 @@ import path from "node:path";
 
 import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
-import { seedInstructionsIfMissing } from "./instructions";
+import { seedInstructionsIfMissing, syncActiveFromRepo } from "./instructions";
 
 /** Filenames the storage layer is allowed to touch inside a document folder (path-traversal guard). */
 const SAFE_FILENAMES = new Set([
@@ -59,9 +59,15 @@ export function createFSStorage(dataDir: string): StorageBackend {
     }
   }
 
-  /** Active instructions: data/instructions/active.md, seeded from the repo copy on first run (FR-21). */
+  /**
+   * Active instructions: data/instructions/active.md — seeded from the repo
+   * copy on first run (FR-21), then auto-synced whenever the repo copy is the
+   * newer writer (to-do item 10 — the repo file is the source; no manual
+   * "Reset to repo file" anymore).
+   */
   async function readInstructions(): Promise<string> {
     await seedInstructionsIfMissing(path.join(instructionsDir, "active.md"));
+    await syncActiveFromRepo(backend);
     return fs.readFile(path.join(instructionsDir, "active.md"), "utf8");
   }
 
@@ -92,7 +98,7 @@ export function createFSStorage(dataDir: string): StorageBackend {
     }
   }
 
-  return {
+  const backend: StorageBackend = {
     async listDocuments(ownerId) {
       await ensureDirs();
       const entries = await fs.readdir(docsDir, { withFileTypes: true });
@@ -218,5 +224,14 @@ export function createFSStorage(dataDir: string): StorageBackend {
         return null;
       }
     },
+
+    async getInstructionsEditedAt() {
+      try {
+        return (await fs.stat(path.join(instructionsDir, "active.md"))).mtimeMs;
+      } catch {
+        return 0; // no active copy yet — the first read seeds (and syncs)
+      }
+    },
   };
+  return backend;
 }

@@ -43,14 +43,41 @@ export const DEFAULT_SELECTION: CopySelection = {
   vocab: true,
 };
 
+// 2026-08-13 (to-do item 9): one-click copy presets — pure constants so the
+// smoke tests can pin what each preset actually copies.
+// "Worksheet (no answers)": everything EXCEPT the two answer fields.
+export const PRESET_WORKSHEET_NO_ANSWERS: CopySelection = {
+  paragraphs: true,
+  headings: true,
+  questions: true,
+  userAnswers: false,
+  modelAnswers: false,
+  translations: true,
+  grammarNotes: true,
+  analysis: true,
+  vocab: true,
+};
+// "Questions only": nothing but the numbered questions.
+export const PRESET_QUESTIONS_ONLY: CopySelection = {
+  paragraphs: false,
+  headings: false,
+  questions: true,
+  userAnswers: false,
+  modelAnswers: false,
+  translations: false,
+  grammarNotes: false,
+  analysis: false,
+  vocab: false,
+};
+
 const STORAGE_KEY = "writer-app:copy-selection";
 
-const SELECTION_ORDER: { key: keyof CopySelection; label: string }[] = [
+const SELECTION_ORDER: { key: keyof CopySelection; label: string; helper?: string }[] = [
   { key: "paragraphs", label: "Paragraphs" },
   { key: "headings", label: "Title & headings" },
   { key: "questions", label: "Questions" },
-  { key: "userAnswers", label: "User answers" },
-  { key: "modelAnswers", label: "Model answers" },
+  { key: "userAnswers", label: "My practice answers", helper: "what I wrote in practice" },
+  { key: "modelAnswers", label: "Answers", helper: "the correct answer — the Answer field" },
   { key: "translations", label: "Translations" },
   { key: "grammarNotes", label: "Grammar notes" },
   { key: "analysis", label: "Analysis" },
@@ -123,15 +150,15 @@ export function buildCopyText(doc: Document, sel: CopySelection): string {
         const blockLines: string[] = [];
         if (sel.questions && c.question.trim()) blockLines.push(c.question.trim());
         if (sel.translations && c.questionTranslation?.trim()) {
-          blockLines.push(`  ${c.questionTranslation.trim()}`);
+          blockLines.push(`  Traduction de la question : ${c.questionTranslation.trim()}`);
         }
-        if (sel.grammarNotes && c.grammarNote?.trim()) blockLines.push(`  ${c.grammarNote.trim()}`);
+        if (sel.grammarNotes && c.grammarNote?.trim()) blockLines.push(`  Grammaire : ${c.grammarNote.trim()}`);
         if (sel.userAnswers && c.userAnswer?.trim()) {
-          blockLines.push(`  ${c.responseLabel || "Réponse"} : ${c.userAnswer.trim()}`);
+          blockLines.push(`  Ma réponse : ${c.userAnswer.trim()}`);
         }
-        if (sel.modelAnswers && c.modelAnswer?.trim()) blockLines.push(`  Modèle : ${c.modelAnswer.trim()}`);
+        if (sel.modelAnswers && c.modelAnswer?.trim()) blockLines.push(`  Réponse : ${c.modelAnswer.trim()}`);
         if (sel.translations && c.answerTranslation?.trim()) {
-          blockLines.push(`  Traduction : ${c.answerTranslation.trim()}`);
+          blockLines.push(`  Traduction de la réponse : ${c.answerTranslation.trim()}`);
         }
         if (sel.analysis && c.analysis?.trim()) blockLines.push(`  Analyse : ${c.analysis.trim()}`);
         if (sel.vocab) {
@@ -217,18 +244,35 @@ export default function CopyDialog({ doc, useSnapshot, onClose }: CopyDialogProp
     setSelection((s) => ({ ...s, [key]: !s[key] }));
   }
 
-  async function copy() {
+  /** Write to the clipboard with a non-secure-context fallback (shared by the
+   *  Copy button and the presets). */
+  async function writeClipboard(payload: string) {
     try {
-      await navigator.clipboard.writeText(tab === "share" ? text : aiText);
+      await navigator.clipboard.writeText(payload);
     } catch {
       // fallback for non-secure contexts
       const ta = document.createElement("textarea");
-      ta.value = tab === "share" ? text : aiText;
+      ta.value = payload;
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
     }
+  }
+
+  async function copy() {
+    await writeClipboard(tab === "share" ? text : aiText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  // 2026-08-13 (to-do item 9): one-click presets — set the selection AND copy
+  // its text in the same click (the preview updates so the user sees exactly
+  // what went to the clipboard).
+  function applyPreset(preset: CopySelection) {
+    setSelection(preset);
+    const payload = buildCopyText(doc, preset);
+    void writeClipboard(payload);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -291,20 +335,46 @@ export default function CopyDialog({ doc, useSnapshot, onClose }: CopyDialogProp
                 Clean plain text — no HTML, no type markers. Translations and model answers are off
                 by default.
               </p>
+              {/* 2026-08-13 (to-do item 9): one-click presets — apply a ready
+                  selection AND copy it immediately. */}
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Presets:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => applyPreset(PRESET_WORKSHEET_NO_ANSWERS)}
+                  title="Select everything except the answers and copy it"
+                  className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-blue-300 hover:text-blue-700"
+                >
+                  Worksheet (no answers)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset(PRESET_QUESTIONS_ONLY)}
+                  title="Only the numbered questions, and copy them"
+                  className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600 transition-colors hover:border-blue-300 hover:text-blue-700"
+                >
+                  Questions only
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                {SELECTION_ORDER.map(({ key, label }) => (
+                {SELECTION_ORDER.map(({ key, label, helper }) => (
                   <label
                     key={key}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 hover:text-zinc-900"
+                    className="flex cursor-pointer items-start gap-2 text-sm text-zinc-700 hover:text-zinc-900"
                   >
                     <input
                       type="checkbox"
                       checked={selection[key]}
                       onChange={() => toggle(key)}
                       disabled={key === "questions" || key === "headings" || key === "paragraphs"}
-                      className="h-3.5 w-3.5 accent-blue-600"
+                      className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
                     />
-                    {label}
+                    <span>
+                      <span>{label}</span>
+                      {helper && <span className="block text-[11px] leading-tight text-zinc-400">{helper}</span>}
+                    </span>
                   </label>
                 ))}
               </div>

@@ -52,6 +52,9 @@ const doc: Document = {
         modelAnswer: "Réponse cachée.",
         hideModelAnswer: true,
         userAnswer: "Ma réponse.",
+        // Every qa block in this fixture carries the label; the checks verify
+        // the GATING (item 8): it renders only where something is below it.
+        responseLabel: "RÉPONSE",
       },
     },
     {
@@ -59,6 +62,16 @@ const doc: Document = {
       content: {
         question: "Troisième question — no user answer yet?",
         modelAnswer: "Réponse du modèle.",
+        responseLabel: "RÉPONSE",
+      },
+    },
+    {
+      // 2026-08-13 (to-do item 8): a question with NO answer and no empty
+      // lines must not render a lonely "RÉPONSE" label.
+      id: "b5", type: "qa", tags: [],
+      content: {
+        question: "Question sans réponse ?",
+        responseLabel: "RÉPONSE",
       },
     },
   ],
@@ -74,7 +87,23 @@ async function main() {
   check("numbering is sequential (1 then 2)", html.includes('class="qa-num">1</span>') && html.includes('class="qa-num">2</span>'));
   check("question translation rendered", html.includes("What did you do yesterday?"));
   check("grammar note rendered", html.includes("passé composé"));
+  // 2026-08-13 (to-do item 8): quiet French headings lead the translation and
+  // the grammar note (same style as "Analyse :").
+  check("Traduction : label above question translation",
+    html.includes("<strong>Traduction :</strong> What did you do yesterday?"));
+  check("Grammaire : label above grammar note",
+    html.includes("<strong>Grammaire :</strong> passé composé"));
+  // 2026-08-13 (to-do item 8): the RÉPONSE label renders ONLY when there is
+  // something to label — b2 + b4 have visible answers (2 labels); b3's answer
+  // is hidden and b5 has no answer at all → no lonely labels.
   check("response label rendered", html.includes("RÉPONSE"));
+  check("RÉPONSE only where an answer exists (no lonely label)",
+    (html.match(/RÉPONSE/g) ?? []).length === 2);
+  // Empty lines on → the blank ruled area is something to label too: b3's
+  // hidden answer and b5's missing answer both get writing lines → 4 labels.
+  const htmlBlank = generateTemplateHTML(doc, tokens, { hidden: {}, emptyLines: true });
+  check("RÉPONSE shows with Empty lines on (labels the writing lines)",
+    (htmlBlank.match(/RÉPONSE/g) ?? []).length === 4);
   check("user answer box with dashed class", html.includes("qa-user-answer"));
   check("model answer rendered", html.includes("Je suis allé au cinéma."));
   check("answer translation rendered", html.includes("I went to the cinema."));

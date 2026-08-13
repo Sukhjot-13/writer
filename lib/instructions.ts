@@ -51,6 +51,27 @@ export async function seedInstructionsIfMissing(activePath: string): Promise<voi
   invalidateDesignTokensCache();
 }
 
+/**
+ * "The newer writer wins" auto-sync (to-do item 10, 2026-08-13): when the repo
+ * copy `docs/html_instructions.md` is newer than the last write of the active
+ * copy, the repo content overwrites the active copy — so every instructions
+ * change in the repo reaches storage automatically, no more manual "Reset to
+ * repo file" on /instructions. A user edit made AFTER a repo change is the
+ * newer writer and wins; the next repo change re-syncs. A missing active copy
+ * counts as editedAt 0, so the first read always seeds (same path as FR-21).
+ * Machine syncs NEVER snapshot history — history is reserved for user saves.
+ * The design-token cache is invalidated so the new tokens apply immediately
+ * (FR-47).
+ */
+export async function syncActiveFromRepo(storage: StorageBackend): Promise<void> {
+  const repoMtime = (await fs.stat(REPO_INSTRUCTIONS_PATH)).mtimeMs;
+  const activeEditedAt = await storage.getInstructionsEditedAt();
+  if (repoMtime <= activeEditedAt) return; // the active copy is the newer writer — keep it
+  const repo = await fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
+  await storage.writeInstructions(repo);
+  invalidateDesignTokensCache();
+}
+
 /** Full state for the instructions editor: content + version + history. */
 export async function getInstructionsState(storage: StorageBackend): Promise<{
   content: string;

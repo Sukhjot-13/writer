@@ -57,6 +57,10 @@ interface ToolbarProps {
   onPasteQuestions: () => void;
   onPasteBlocks: () => void; // M6: paste the JSON block array from Copy for AI
   onPasteHtml: () => void;
+  // 2026-08-13 (to-do item 9): Smart paste — ONE box that sniffs the content
+  // ([ → blocks, < → HTML, otherwise questions). The three dedicated paste
+  // buttons stay as shortcuts.
+  onPasteSmart: () => void;
   snapshotInfo: { version: string; differs: boolean } | null; // FR-23
   useSnapshot: boolean;
   onToggleSnapshot: () => void;
@@ -199,6 +203,7 @@ export default function Toolbar({
   onPasteQuestions,
   onPasteBlocks,
   onPasteHtml,
+  onPasteSmart,
   snapshotInfo,
   useSnapshot,
   onToggleSnapshot,
@@ -415,6 +420,9 @@ export default function Toolbar({
             disabled={busy !== null}
             title="Paste blocks, questions, or HTML from any external AI"
             items={[
+              // 2026-08-13 (to-do item 9): Smart paste first — one box that
+              // sniffs [ → blocks, < → HTML, otherwise questions.
+              { label: "Smart paste…", onClick: onPasteSmart, hint: "One box — detects questions, blocks, or HTML" },
               { label: "Paste blocks (AI)…", onClick: onPasteBlocks, hint: "JSON block array copied via Copy for AI" },
               { label: "Paste questions…", onClick: onPasteQuestions, hint: "Structure with AI or parse locally" },
               { label: "Paste HTML…", onClick: onPasteHtml, hint: "Import HTML from any external AI" },

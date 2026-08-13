@@ -16,6 +16,7 @@ import { generateTemplateHTML } from "../lib/html-template";
 import { parseHtmlToBlocks } from "../lib/html-to-blocks";
 import { createZip } from "../lib/zip";
 import { parseTags } from "../lib/tags";
+import { sanitizeBackupFolder, shortCode } from "../lib/backup"; // to-do item 7
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean) => {
@@ -130,13 +131,23 @@ async function run() {
   check("tags: whitespace → dash", JSON.stringify(parseTags("a b, c")) === JSON.stringify(["a-b", "c"]));
   check("tags: empty input", parseTags("  , , #")?.length === 0);
 
-  // ---------- ZIP writer (backup, M5) ----------
+  // ---------- ZIP writer (backup, M5) + folder naming (to-do item 7) ----------
+  // 2026-08-13 (to-do item 7): backup folders are "sanitized title + short
+  // random code" (replaces the old doc.id/ folders) — the fixtures below use
+  // the real helper so the writer is exercised on the production naming.
+  check("backup: sanitize forbidden chars", sanitizeBackupFolder('Ma/ journée: d"été?') === "Ma_ journée_ d_été_");
+  check("backup: collapse whitespace + trim", sanitizeBackupFolder("  Ma   journée  ") === "Ma journée");
+  check("backup: trailing dots/spaces stripped", sanitizeBackupFolder("Document. ") === "Document");
+  check("backup: empty title → document", sanitizeBackupFolder("   ") === "document");
+  check("backup: short code is 4 chars", /^[a-z0-9]{4}$/.test(shortCode()));
+  const folder1 = `${sanitizeBackupFolder("Ma journée")}_${shortCode()}`;
+  const folder2 = `${sanitizeBackupFolder("B")}_${shortCode()}`;
   const zip = createZip([
-    { name: "doc1/", data: Buffer.alloc(0) },
-    { name: "doc1/document.json", data: Buffer.from('{"title":"hello"}', "utf8") },
-    { name: "doc1/document.html", data: Buffer.from("<p>hi</p>", "utf8") },
-    { name: "doc1/document.pdf", data: Buffer.from("%PDF-1.7 fake", "utf8") },
-    { name: "doc2/document.json", data: Buffer.from("{}", "utf8") },
+    { name: `${folder1}/`, data: Buffer.alloc(0) },
+    { name: `${folder1}/document.json`, data: Buffer.from('{"title":"hello"}', "utf8") },
+    { name: `${folder1}/document.html`, data: Buffer.from("<p>hi</p>", "utf8") },
+    { name: `${folder1}/document.pdf`, data: Buffer.from("%PDF-1.7 fake", "utf8") },
+    { name: `${folder2}/document.json`, data: Buffer.from("{}", "utf8") },
   ]);
   check("zip: local header magic (PK\\x03\\x04)", zip.readUInt32LE(0) === 0x04034b50);
   check("zip: EOCD magic at end (PK\\x05\\x06)", zip.readUInt32LE(zip.length - 22) === 0x06054b50);
@@ -144,11 +155,11 @@ async function run() {
   check("zip: deflate method in first local header", zip.readUInt16LE(8) === 8);
   // Round-trip: deflate each entry's stored data back and compare with the source.
   const entries = [
-    { name: "doc1/", data: Buffer.alloc(0) },
-    { name: "doc1/document.json", data: Buffer.from('{"title":"hello"}', "utf8") },
-    { name: "doc1/document.html", data: Buffer.from("<p>hi</p>", "utf8") },
-    { name: "doc1/document.pdf", data: Buffer.from("%PDF-1.7 fake", "utf8") },
-    { name: "doc2/document.json", data: Buffer.from("{}", "utf8") },
+    { name: `${folder1}/`, data: Buffer.alloc(0) },
+    { name: `${folder1}/document.json`, data: Buffer.from('{"title":"hello"}', "utf8") },
+    { name: `${folder1}/document.html`, data: Buffer.from("<p>hi</p>", "utf8") },
+    { name: `${folder1}/document.pdf`, data: Buffer.from("%PDF-1.7 fake", "utf8") },
+    { name: `${folder2}/document.json`, data: Buffer.from("{}", "utf8") },
   ];
   let zipOk = true;
   let cursor = 0;

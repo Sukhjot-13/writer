@@ -12,6 +12,7 @@ import { getStorage } from "@/lib/storage";
 import NewDocumentButton from "@/components/NewDocumentButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import LibraryList from "@/components/LibraryList";
+import TestDialog from "@/components/TestDialog"; // 2026-08-13 (to-do item 5)
 
 export const metadata: Metadata = {
   title: "Home — Writer App",
@@ -63,6 +64,9 @@ export default async function HomePage() {
           </Link>
           {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
           <ThemeToggle />
+          {/* 2026-08-13 (to-do item 5): the Test generator — pick documents and
+              build a practice test (random or AI). */}
+          <TestDialog documents={documents} />
           <NewDocumentButton className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-[#fff] shadow-sm transition-colors hover:bg-blue-700" />
         </div>
       </header>

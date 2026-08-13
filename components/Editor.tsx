@@ -36,6 +36,7 @@ import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
 import PasteBlocksModal from "./PasteBlocksModal";
 import PasteHtmlModal from "./PasteHtmlModal";
+import PasteSmartModal from "./PasteSmartModal"; // 2026-08-13 (to-do item 9)
 import CopyDialog from "./CopyDialog";
 import { parseHtmlToBlocks } from "@/lib/html-to-blocks"; // FR-41 (M5)
 
@@ -124,11 +125,45 @@ export default function Editor({ docId }: { docId: string | null }) {
       .elementFromPoint(window.innerWidth / 2, 100)
       ?.closest("[data-block-id]") as HTMLElement | null;
     const anchorTopBefore = anchor?.getBoundingClientRect().top ?? null;
+    // 2026-08-13 (to-do item 4): keep focus + caret across the flip. The
+    // toggle's checkbox may own focus by now (Chrome moves focus to the
+    // clicked element on mousedown) — so prefer the field the pointerdown
+    // snapshot captured (the field the user was actually editing), falling
+    // back to whatever has data-focus-id right now (Safari never moves
+    // focus, and keyboard-triggered toggles keep it on the field).
+    const active = document.activeElement;
+    const activeSnap =
+      active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+        ? { id: active.getAttribute("data-focus-id"), start: active.selectionStart ?? 0, end: active.selectionEnd ?? 0 }
+        : null;
+    const snap = activeSnap?.id ? activeSnap : focusSnapshotRef.current;
+    const focusId = snap?.id ?? null;
+
     setDetailed((v) => !v);
     requestAnimationFrame(() => {
       if (anchor && anchor.isConnected && anchorTopBefore !== null) {
         const delta = anchor.getBoundingClientRect().top - anchorTopBefore;
         if (delta !== 0) window.scrollTo(0, window.scrollY + delta);
+      }
+      // Refocus the SAME field when it still exists in the other mode;
+      // fields that only exist in one mode fall back to the same block's
+      // Answer field (qa) or its main text/heading (paragraph/essay).
+      if (!focusId) return;
+      let target = document.querySelector<HTMLElement>(`[data-focus-id="${focusId}"]`);
+      if (!target) {
+        const blockId = focusId.split(":")[0];
+        for (const f of ["answer", "text", "heading", "p0"]) {
+          target = document.querySelector<HTMLElement>(`[data-focus-id="${blockId}:${f}"]`);
+          if (target) break;
+        }
+      }
+      if (target && (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) && snap) {
+        target.focus();
+        try {
+          target.setSelectionRange(snap.start, snap.end);
+        } catch {
+          // some input types throw on setSelectionRange — focus alone is fine
+        }
       }
     });
   };
@@ -149,6 +184,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [showPasteQuestions, setShowPasteQuestions] = useState(false); // FR-38
   const [showPasteBlocks, setShowPasteBlocks] = useState(false); // M6: JSON block paste
   const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
+  const [showPasteSmart, setShowPasteSmart] = useState(false); // 2026-08-13 (to-do item 9)
   const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
 
   const docRef = useRef(doc);
@@ -166,6 +202,37 @@ export default function Editor({ docId }: { docId: string | null }) {
   const lastConvertRef = useRef<string | null>(null);
   const busyRef = useRef<string | null>(null);
   const savingRef = useRef(false); // M6: quiet autosave in flight — no busy state
+  // 2026-08-13 (to-do item 6): refs for the page-leave flush — the listener
+  // registers once and must see the CURRENT loading/dirty/autosave state.
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const dirtyRef = useRef(isDirty);
+  dirtyRef.current = isDirty;
+  const autosaveRef = useRef(autosave);
+  autosaveRef.current = autosave;
+  // 2026-08-13 (to-do item 4): the editor field (data-focus-id) + caret that
+  // had focus when the last pointerdown started — captured in the capture
+  // phase, BEFORE the browser's mousedown default moves focus to the clicked
+  // toggle/checkbox. toggleDetailed restores it after the mode flip. null =
+  // nothing was focused (rule: no restore then — current behavior is fine).
+  const focusSnapshotRef = useRef<{ id: string; start: number; end: number } | null>(null);
+  useEffect(() => {
+    const onPointerDown = () => {
+      const el = document.activeElement;
+      const id = el instanceof HTMLElement ? el.getAttribute("data-focus-id") : null;
+      if (!id || !(el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)) {
+        focusSnapshotRef.current = null;
+        return;
+      }
+      focusSnapshotRef.current = {
+        id,
+        start: el.selectionStart ?? 0,
+        end: el.selectionEnd ?? 0,
+      };
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
   const convertRef = useRef<(goal: string | null) => Promise<void>>(async () => {});
   const saveRef = useRef<() => Promise<boolean>>(async () => false);
 
@@ -579,7 +646,7 @@ function essayAnswerFromParagraphs(
   // ---- save (FR-17, M6): blocks + the instructions version that structured them ----
   // The server round-trip lives in `persist()` (shared by the Save button /
   // Cmd+S and the quiet autosave); `save()` wraps it with the busy state.
-  async function persist(): Promise<boolean> {
+  async function persist(keepalive = false): Promise<boolean> {
     const current = docRef.current;
     if (!current) return false;
     try {
@@ -595,6 +662,9 @@ function essayAnswerFromParagraphs(
         method: isNew ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        // 2026-08-13 (to-do item 6): keepalive lets the page-leave flush survive
+        // the unload (best effort — debounced autosaves cover normal edits).
+        keepalive,
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -645,6 +715,30 @@ function essayAnswerFromParagraphs(
     return () => clearTimeout(timer);
   }, [doc, loading, isDirty, autosave]);
 
+  // ---- page-leave flush (to-do item 6, 2026-08-13): hiding the tab or
+  // closing the page flushes the pending debounce immediately — no lost edits
+  // between the last keystroke and the 1.2s timer. keepalive keeps the request
+  // alive through the unload (best effort — the debounce covers normal edits).
+  useEffect(() => {
+    const flush = () => {
+      if (loadingRef.current || !dirtyRef.current || !autosaveRef.current) return;
+      if (busyRef.current || savingRef.current) return;
+      savingRef.current = true;
+      void persist(true).finally(() => {
+        savingRef.current = false;
+      });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
   // ---- downloads (2026-08-10 #6, moved into the preview sheet): the buttons
   // in Preview download EXACTLY what is currently displayed — the same
   // hidden/emptyLines options that produced the preview HTML. No save, no
@@ -678,6 +772,18 @@ function essayAnswerFromParagraphs(
   function downloadHtmlDisplay() {
     if (!previewHtml) return;
     downloadBlob(new Blob([previewHtml], { type: "text/html;charset=utf-8" }), safeFilename(docRef.current?.title ?? "", "html"));
+  }
+
+  // 2026-08-13 (to-do item 7): the preview's "Download JSON" — the ONLY
+  // artifact with every field (all blocks incl. translations/analyses/vocab/
+  // expressions/practice answers/suggestions + practice settings).
+  function downloadJsonDisplay() {
+    const current = docRef.current;
+    if (!current) return;
+    downloadBlob(
+      new Blob([JSON.stringify(current, null, 2)], { type: "application/json" }),
+      safeFilename(current.title, "json"),
+    );
   }
 
   // ---- practice (M6): clear every "My answer" (qa + paragraph + essay) so the
@@ -737,6 +843,7 @@ function essayAnswerFromParagraphs(
         onPasteQuestions={() => setShowPasteQuestions(true)}
         onPasteBlocks={() => setShowPasteBlocks(true)}
         onPasteHtml={() => setShowPasteHtml(true)}
+        onPasteSmart={() => setShowPasteSmart(true)}
         snapshotInfo={snapshotInfo}
         useSnapshot={useSnapshot}
         onToggleSnapshot={() => setUseSnapshot((v) => !v)}
@@ -803,6 +910,13 @@ function essayAnswerFromParagraphs(
       {showPasteHtml && (
         <PasteHtmlModal onClose={() => setShowPasteHtml(false)} onImported={applyImportedHtml} />
       )}
+      {showPasteSmart && (
+        <PasteSmartModal
+          onClose={() => setShowPasteSmart(false)}
+          onResult={applyImportedBlocks}
+          onImported={applyImportedHtml}
+        />
+      )}
       {showCopyDialog && (
         <CopyDialog doc={doc} useSnapshot={useSnapshot} onClose={() => setShowCopyDialog(false)} />
       )}
@@ -864,6 +978,7 @@ function essayAnswerFromParagraphs(
           }}
           onDownloadPdf={() => void downloadPdfDisplay()}
           onDownloadHtml={() => downloadHtmlDisplay()}
+          onDownloadJson={() => downloadJsonDisplay()}
           onClose={() => setPreviewOpen(false)}
         />
       )}

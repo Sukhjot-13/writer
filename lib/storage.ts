@@ -39,6 +39,10 @@ export interface StorageBackend {
   snapshotInstructions(version: string): Promise<void>; // → history/<version>.md
   listInstructionsHistory(): Promise<{ version: string; savedAt: string }[]>; // newest first
   readInstructionsVersion(version: string): Promise<string | null>; // history/<version>.md
+  // When the active instructions were last written, as ms epoch — 0 when no
+  // active copy exists yet (so the first read seeds). Feeds the "newer writer
+  // wins" auto-sync in lib/instructions.ts (to-do item 10, 2026-08-13).
+  getInstructionsEditedAt(): Promise<number>;
 }
 
 let storageSingleton: StorageBackend | null = null;

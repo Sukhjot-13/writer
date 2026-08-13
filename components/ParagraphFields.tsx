@@ -37,10 +37,13 @@ function usedFields(c: ParagraphContent | EssayContent): Set<ParagraphField> {
 
 interface ParagraphFieldsProps {
   content: ParagraphContent | EssayContent;
+  // 2026-08-13 (to-do item 4): data-focus-id prefix — same convention as
+  // QaBlockForm, so toggleDetailed can refocus across layout flips.
+  blockId: string;
   onUpdate: (content: ParagraphContent | EssayContent) => void;
 }
 
-export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsProps) {
+export default function ParagraphFields({ content, blockId, onUpdate }: ParagraphFieldsProps) {
   const [revealed, setRevealed] = useState<Set<ParagraphField>>(() => usedFields(content));
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
             </button>
           </div>
           <input
+            data-focus-id={`${blockId}:translation`}
             className={inputCls}
             value={content.translation ?? ""}
             placeholder="English translation of this paragraph…"
@@ -126,6 +130,7 @@ export default function ParagraphFields({ content, onUpdate }: ParagraphFieldsPr
             </button>
           </div>
           <AutoGrowTextarea
+            data-focus-id={`${blockId}:analysis`}
             className={inputCls}
             rows={2}
             value={content.analysis ?? ""}

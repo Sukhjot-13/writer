@@ -21,6 +21,7 @@ import { promises as fs } from "node:fs";
 import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
 import { REPO_INSTRUCTIONS_PATH } from "./tokens";
+import { syncActiveFromRepo } from "./instructions";
 
 const DOCS = "documents";
 const FILES = "files";
@@ -67,7 +68,7 @@ async function blobUrl(db: Db, key: string): Promise<string | null> {
 }
 
 export function createMongoBlobStorage(): StorageBackend {
-  return {
+  const backend: StorageBackend = {
     async listDocuments(ownerId) {
       const db = await getDb();
       const filter = ownerId ? { ownerId } : {};
@@ -166,8 +167,13 @@ export function createMongoBlobStorage(): StorageBackend {
       await db.collection<FileRow>(FILES).deleteOne({ _id: key });
     },
 
-    /** Active instructions: upsert the repo copy on first run (idempotent — mirrors FS seeding, FR-21). */
+    /**
+     * Active instructions: upsert the repo copy on first run (idempotent —
+     * mirrors FS seeding, FR-21) and auto-sync whenever the repo copy is the
+     * newer writer (to-do item 10 — no manual "Reset to repo file").
+     */
     async readInstructions() {
+      await syncActiveFromRepo(backend);
       const db = await getDb();
       const active = await db.collection<InstrRow>(INSTR).findOne({ _id: ACTIVE_KEY });
       if (active) return active.content;
@@ -212,5 +218,15 @@ export function createMongoBlobStorage(): StorageBackend {
       const entry = await db.collection<InstrRow>(INSTR).findOne({ _id: `history:${version}` });
       return entry?.content ?? null;
     },
+
+    async getInstructionsEditedAt() {
+      const db = await getDb();
+      const active = await db.collection<InstrRow>(INSTR).findOne({ _id: ACTIVE_KEY });
+      if (!active) return 0; // no active row yet — the first read seeds (and syncs)
+      return typeof active.savedAt === "string"
+        ? Date.parse(active.savedAt)
+        : active.savedAt.getTime();
+    },
   };
+  return backend;
 }

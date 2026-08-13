@@ -238,6 +238,13 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
   const showTranslation = !hideAnswers && !hidden?.translations && qaVisible(doc, content, "translation");
   const showModelAnswer = !hideAnswers && !hidden?.modelAnswers && qaVisible(doc, content, "modelAnswer");
   const showExtras = variant === "full";
+  // 2026-08-13 (to-do item 8): the response label renders ONLY when there is
+  // something to label below it — a visible answer or the blank ruled area.
+  // No answer + no empty lines → no label (never a lonely "RÉPONSE").
+  const hasAnswerArea =
+    (showModelAnswer && content.modelAnswer) ||
+    ((hideAnswers || (emptyLines && !showModelAnswer)) && !(showUser && content.userAnswer)) ||
+    (showUser && Boolean(content.userAnswer));
 
   const styles = StyleSheet.create({
     card: {
@@ -316,8 +323,13 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
             below it") — mirrors the HTML template's .qa-question-translation. */}
         <View style={styles.questionBody}>
           <Text style={styles.questionText}>{content.question}</Text>
+          {/* 2026-08-13 (to-do item 8): a bold "Traduction :" label leads the
+              translation — same style as "Analyse :" (mirrors the HTML template). */}
           {showTranslation && content.questionTranslation ? (
-            <Text style={styles.questionTranslation}>{content.questionTranslation}</Text>
+            <Text style={styles.questionTranslation}>
+              <Text style={{ fontWeight: "bold" }}>Traduction : </Text>
+              {content.questionTranslation}
+            </Text>
           ) : null}
         </View>
       </View>
@@ -334,7 +346,7 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
         </Text>
       ) : null}
 
-      {variant !== "my-answers" && content.responseLabel ? (
+      {variant !== "my-answers" && content.responseLabel && hasAnswerArea ? (
         <Text style={styles.responseLabel}>{content.responseLabel}</Text>
       ) : null}
 
@@ -361,7 +373,11 @@ function QABlockPDF({ block, doc, tokens, number, variant, hidden, emptyLines }:
       ) : null}
 
       {variant !== "my-answers" && content.grammarNote ? (
-        <Text style={styles.grammarNote}>{content.grammarNote}</Text>
+        /* 2026-08-13 (to-do item 8): bold "Grammaire :" label — mirrors the HTML template. */
+        <Text style={styles.grammarNote}>
+          <Text style={{ fontWeight: "bold" }}>Grammaire : </Text>
+          {content.grammarNote}
+        </Text>
       ) : null}
 
       {showExtras && !hidden?.vocab ? (

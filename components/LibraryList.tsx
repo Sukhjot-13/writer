@@ -167,23 +167,17 @@ export default function LibraryList({
     router.refresh();
   }
 
-  /** M7 round 6b: ⬇ on the card — download the document with ALL its fields
-   *  (title, tags, folder, every block with translations/analyses/vocab/
-   *  expressions/practice answers/suggestions, practice settings) as JSON.
-   *  The editor's "Download PDF" still covers the printable rendering. */
+  /** 2026-08-13 (to-do item 7): ⬇ on the card downloads the FULL PDF
+   *  (everything — variant=full). The full-JSON download (all fields incl.
+   *  practice answers) moved into the preview sheet's "Download JSON". */
   async function downloadDoc(doc: Document) {
     setError(null);
-    const res = await fetch(`/api/documents/${doc.id}`);
+    const res = await fetch(`/api/documents/${doc.id}/pdf?variant=full`);
     if (!res.ok) {
-      setError("Could not download the document — see server logs.");
+      setError("Could not download the PDF — see server logs.");
       return;
     }
-    const body = (await res.json()) as { doc?: Document };
-    if (!body.doc) {
-      setError("Could not download the document — unexpected response.");
-      return;
-    }
-    const blob = new Blob([JSON.stringify(body.doc, null, 2)], { type: "application/json" });
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -191,7 +185,7 @@ export default function LibraryList({
       .trim()
       .replace(/[^a-zA-Z0-9._-]+/g, "-")
       .replace(/^-+|-+$/g, "");
-    a.download = `${clean || "document"}.json`;
+    a.download = `${clean || "document"}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();

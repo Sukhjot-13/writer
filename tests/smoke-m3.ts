@@ -11,8 +11,14 @@ import {
 import { buildAIPrompt, serializeBlocksForAI, serializePlainText } from "../lib/prompt";
 import { createDocument, setBlockContent, createBlock } from "../lib/types";
 import type { QaContent } from "../lib/types";
-import { buildCopyText, DEFAULT_SELECTION } from "../components/CopyDialog";
+import {
+  buildCopyText,
+  DEFAULT_SELECTION,
+  PRESET_QUESTIONS_ONLY,
+  PRESET_WORKSHEET_NO_ANSWERS,
+} from "../components/CopyDialog";
 import { titleFromHtml } from "../app/api/documents/import-html/route";
+import { sniffPasteKind } from "../lib/paste-sniff"; // to-do item 9
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean) => {
@@ -104,18 +110,45 @@ check("serializePlainText: question + user + model answer",
 // ---------- components/CopyDialog.tsx — buildCopyText (FR-50) ----------
 const share = buildCopyText(doc, DEFAULT_SELECTION);
 check("buildCopyText: numbering preserved (1.)", share.includes("1. Qu'est-ce que tu as fait hier ?"));
-check("buildCopyText: defaults exclude translations", !share.includes("What did you do yesterday?") && !share.includes("Traduction :"));
-check("buildCopyText: defaults exclude model answers", !share.includes("Modèle :"));
-check("buildCopyText: includes user answer with RÉPONSE label", share.includes("RÉPONSE : Je suis allé au cinéma."));
+check("buildCopyText: defaults exclude translations", !share.includes("What did you do yesterday?") &&
+  !share.includes("Traduction de la question :") && !share.includes("Traduction de la réponse :"));
+check("buildCopyText: defaults exclude model answers", !share.includes("Réponse :"));
+check("buildCopyText: includes practice answer with 'Ma réponse :' label",
+  share.includes("Ma réponse : Je suis allé au cinéma."));
+check("buildCopyText: grammar note has French heading", share.includes("Grammaire : Passé composé."));
 check("buildCopyText: includes analysis + vocab + expressions",
   share.includes("Analyse :") && share.includes("Vocabulaire : hier : yesterday") && share.includes("Expressions :"));
 const shareAll = buildCopyText(doc, { ...DEFAULT_SELECTION, modelAnswers: true, translations: true });
 check("buildCopyText: all-on includes translation + model answer",
-  shareAll.includes("What did you do yesterday?") && shareAll.includes("Modèle : Hier, je suis allé au cinéma.") &&
-  shareAll.includes("Traduction : Yesterday I went to the cinema."));
+  shareAll.includes("Traduction de la question : What did you do yesterday?") &&
+  shareAll.includes("Réponse : Hier, je suis allé au cinéma.") &&
+  shareAll.includes("Traduction de la réponse : Yesterday I went to the cinema."));
 const shareNoQa = buildCopyText(doc, { ...DEFAULT_SELECTION, questions: false, userAnswers: true, analysis: false, vocab: false, grammarNotes: false });
 check("buildCopyText: numbering survives a partial selection",
-  shareNoQa.includes("1. RÉPONSE : Je suis allé au cinéma.") && !shareNoQa.includes("1. Qu'est-ce que tu as fait hier ?"));
+  shareNoQa.includes("1. Ma réponse : Je suis allé au cinéma.") && !shareNoQa.includes("1. Qu'est-ce que tu as fait hier ?"));
+
+// ---------- to-do item 9: copy presets (pure constants → buildCopyText) ----------
+const worksheet = buildCopyText(doc, PRESET_WORKSHEET_NO_ANSWERS);
+check("preset worksheet: question + translation + grammar + analysis + vocab",
+  worksheet.includes("1. Qu'est-ce que tu as fait hier ?") &&
+  worksheet.includes("Traduction de la question : What did you do yesterday?") &&
+  worksheet.includes("Grammaire : Passé composé.") &&
+  worksheet.includes("Analyse :") &&
+  worksheet.includes("Vocabulaire :"));
+check("preset worksheet: NO model answer", !worksheet.includes("Réponse :"));
+check("preset worksheet: NO practice answer", !worksheet.includes("Ma réponse :"));
+const questionsOnly = buildCopyText(doc, PRESET_QUESTIONS_ONLY);
+check("preset questions-only: the numbered question only",
+  questionsOnly === "1. Qu'est-ce que tu as fait hier ?");
+check("preset questions-only: no translations/answers/vocab",
+  !questionsOnly.includes("Traduction") && !questionsOnly.includes("Réponse :") && !questionsOnly.includes("Vocabulaire"));
+
+// ---------- to-do item 9: smart paste kind sniffing (lib/paste-sniff.ts) ----------
+check("sniffPasteKind: '[' → blocks", sniffPasteKind('[\n  {"type": "qa"}') === "blocks");
+check("sniffPasteKind: '<' → html", sniffPasteKind("<html><body>") === "html");
+check("sniffPasteKind: plain list → questions", sniffPasteKind("1. Qu'est-ce que tu as fait hier ?") === "questions");
+check("sniffPasteKind: leading whitespace ignored", sniffPasteKind("  <p>hi</p>") === "html");
+check("sniffPasteKind: empty → questions", sniffPasteKind("") === "questions");
 
 // ---------- app/api/documents/import-html — titleFromHtml (FR-40) ----------
 check("titleFromHtml: <title> tag wins",

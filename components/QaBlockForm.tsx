@@ -139,10 +139,14 @@ interface QaBlockFormProps {
   // 2026-08-10 M7 round 4: "detailed" — false = focus mode (question + answer
   // only, nothing else, the default); true = enrichment revealed.
   detailed?: boolean;
+  // 2026-08-13 (to-do item 4): every editor field carries
+  // data-focus-id="${blockId}:${field}" so toggleDetailed can refocus the
+  // exact field (and restore the caret) when the layout flips modes.
+  blockId: string;
   onUpdate: (content: QaContent) => void;
 }
 
-export default function QaBlockForm({ content, autoFocus, mode, checked, detailed, onUpdate }: QaBlockFormProps) {
+export default function QaBlockForm({ content, autoFocus, mode, checked, detailed, blockId, onUpdate }: QaBlockFormProps) {
   const [revealed, setRevealed] = useState<Set<QaField>>(() => usedFields(content));
 
   useEffect(() => {
@@ -197,6 +201,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             )}
           </label>
           <AutoGrowTextarea
+            data-focus-id={`${blockId}:userAnswer`}
             // 2026-08-10 M7 round 9 fix: Tailwind v4 sorts same-property
             // utilities ALPHABETICALLY (amber < zinc, amber < white), so the
             // inputCls zinc-200 border + white bg ALWAYS beat the state colors
@@ -245,6 +250,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
           <label className={labelCls}>Question</label>
           <input
             autoFocus={autoFocus}
+            data-focus-id={`${blockId}:question`}
             className={`${inputCls} font-medium text-zinc-900`}
             value={content.question}
             placeholder="Type the question in the primary language…"
@@ -265,6 +271,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             {!content.modelAnswer && <span className="text-amber-600">Unanswered</span>}
           </label>
           <AutoGrowTextarea
+            data-focus-id={`${blockId}:answer`}
             className={`${inputCls} ${content.modelAnswer ? "" : "border-dashed border-amber-300! bg-amber-50/40!"}`}
             rows={2}
             value={content.modelAnswer ?? ""}
@@ -282,6 +289,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
         <label className={labelCls}>Question</label>
         <input
           autoFocus={autoFocus}
+          data-focus-id={`${blockId}:question`}
           className={`${inputCls} font-medium text-zinc-900`}
           value={content.question}
           placeholder="Type the question in the primary language…"
@@ -307,6 +315,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             </button>
           </div>
           <input
+            data-focus-id={`${blockId}:questionTranslation`}
             className={inputCls}
             value={content.questionTranslation ?? ""}
             placeholder="English translation of the question…"
@@ -329,6 +338,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             </button>
           </div>
           <AutoGrowTextarea
+            data-focus-id={`${blockId}:analysis`}
             className={inputCls}
             rows={2}
             value={content.analysis ?? ""}
@@ -349,6 +359,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
           {!content.modelAnswer && <span className="text-amber-600">Unanswered</span>}
         </div>
         <AutoGrowTextarea
+          data-focus-id={`${blockId}:answer`}
           className={`${inputCls} ${content.modelAnswer ? "" : "border-dashed border-amber-300! bg-amber-50/40!"}`}
           rows={2}
           value={content.modelAnswer ?? ""}
@@ -377,6 +388,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             </button>
           </div>
           <input
+            data-focus-id={`${blockId}:answerTranslation`}
             className={inputCls}
             value={content.answerTranslation ?? ""}
             placeholder="English translation of the answer…"
@@ -418,6 +430,7 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
             </button>
           </div>
           <input
+            data-focus-id={`${blockId}:grammarNote`}
             className={inputCls}
             value={content.grammarNote ?? ""}
             placeholder="e.g. passé composé"

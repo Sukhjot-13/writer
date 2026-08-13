@@ -216,12 +216,13 @@ function qaBlockHtml(
   // should be below it"): the question translation renders BELOW the question,
   // in its own <p class="qa-question-translation"> (italic, muted) — the old
   // inline <em> inside .qa-question-text put it on the same line.
+  // 2026-08-13 (to-do item 8): a quiet bold "Traduction :" label leads it
+  // (same style as "Analyse :"); parse-back strips it (lib/html-to-blocks.ts).
   const translation = !hidden.translations && qaVisible(doc, content, "translation") && content.questionTranslation
-    ? `<p class="qa-question-translation">${md(content.questionTranslation)}</p>`
+    ? `<p class="qa-question-translation"><strong>Traduction :</strong> ${md(content.questionTranslation)}</p>`
     : "";
-  const grammarNote = content.grammarNote ? `<p class="qa-grammar-note">${md(content.grammarNote)}</p>` : "";
-  const responseLabel = content.responseLabel
-    ? `<p class="qa-response-label">${escapeHtml(content.responseLabel)}</p>`
+  const grammarNote = content.grammarNote
+    ? `<p class="qa-grammar-note"><strong>Grammaire :</strong> ${md(content.grammarNote)}</p>`
     : "";
   // 2026-08-10 M7 round 4: practice answers NEVER render in the preview by
   // default (user request) — only the future practice-review option (or the
@@ -236,6 +237,12 @@ function qaBlockHtml(
   // toggle/flag or simply absent) and no practice answer is displayed, the
   // answer slot becomes blank ruled writing lines — like the "questions" sheet.
   const blank = !modelAnswer && opts.emptyLines && !(opts.showUserAnswers && content.userAnswer) ? blankAnswerHtml() : "";
+  // 2026-08-13 (to-do item 8): the response label renders ONLY when there is
+  // something to label below it — a visible answer or the blank ruled lines.
+  // No answer + no empty lines → no label (never a lonely "RÉPONSE").
+  const responseLabel = content.responseLabel && (modelAnswer || blank || userAnswer)
+    ? `<p class="qa-response-label">${escapeHtml(content.responseLabel)}</p>`
+    : "";
   const answerTranslation = !hidden.translations && qaVisible(doc, content, "translation") && content.answerTranslation
     ? `<div class="qa-translation">${md(content.answerTranslation)}</div>`
     : "";

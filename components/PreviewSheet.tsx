@@ -33,6 +33,7 @@ interface PreviewSheetProps {
   onOptionsChange: (next: PreviewOptions) => void;
   onDownloadPdf: () => void;
   onDownloadHtml: () => void;
+  onDownloadJson: () => void; // 2026-08-13 (to-do item 7): full-JSON download
   onClose: () => void;
 }
 
@@ -50,6 +51,7 @@ export default function PreviewSheet({
   onOptionsChange,
   onDownloadPdf,
   onDownloadHtml,
+  onDownloadJson,
   onClose,
 }: PreviewSheetProps) {
   const hidden = options.hidden;
@@ -153,6 +155,17 @@ export default function PreviewSheet({
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-40"
           >
             Download HTML
+          </button>
+          {/* 2026-08-13 (to-do item 7): the ONLY artifact with every field —
+              incl. practice answers — the full-JSON backup of this document. */}
+          <button
+            type="button"
+            onClick={onDownloadJson}
+            disabled={busy}
+            title="Download this document with ALL its fields (incl. practice answers) as JSON"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:bg-zinc-50 disabled:opacity-40"
+          >
+            Download JSON
           </button>
           <button
             type="button"
