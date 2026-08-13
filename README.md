@@ -41,7 +41,7 @@ Built against `docs/writer_app_requirements.md` (v1.4, FR-1…FR-50) and `docs/P
 
 ```bash
 npm install
-cp .env.local.example .env.local   # optional — template mode works with no keys
+cp .env.local.example .env.local   # add your MONGODB_URI — required since 2026-08-13 (storage is MongoDB-only)
 npm run dev
 ```
 
@@ -58,22 +58,11 @@ npm run build && npm start   # production
 | `DEEPSEEK_API_KEY` | AI mode | DeepSeek API key (missing → actionable 400 in AI mode; template mode unaffected) |
 | `DEEPSEEK_BASE_URL` | no | API base (default `https://api.deepseek.com`) |
 | `DEEPSEEK_MODEL` | no | Model id (default `deepseek-chat`), shown in the editor status bar |
-| `DATA_DIR` | no | Filesystem storage root (default `./data`) |
-| `MONGODB_URI` | Vercel deploy | Switches storage to MongoDB + Vercel Blob (pluggable storage, FR-44) |
-| `BLOB_READ_WRITE_TOKEN` | Vercel deploy | Vercel Blob token for html/pdf file storage |
+| `MONGODB_URI` | yes | MongoDB connection string — the ONLY storage config since 2026-08-13 (documents, folders, instructions) |
 
 ## Storage
 
-Pluggable (FR-44): locally the app uses the filesystem (`data/`); when `MONGODB_URI` + `BLOB_READ_WRITE_TOKEN` are set it uses MongoDB (documents, files index, instructions) + Vercel Blob (html/pdf files). No auth in v1 — `ownerId` seams are kept on every operation (FR-45).
-
-```
-data/                          # local filesystem layout (FR-17)
-  documents/<id>/document.json # source blocks (editable truth)
-  documents/<id>/document.html # generated HTML
-  documents/<id>/document.pdf  # generated PDF
-  instructions/active.md       # editable instructions
-  instructions/history/*.md    # version history
-```
+MongoDB-only (FR-44, since 2026-08-13): local dev and Vercel both use the MongoDB backend via `MONGODB_URI` (documents, folders, instructions). The filesystem backend was removed from production — serverless filesystems are read-only, so the old FS fallback crashed deploys with `ENOENT: mkdir '/var/task/data'`. No auth in v1 — `ownerId` seams are kept on every operation (FR-45). The instructions seed/sync reads the bundled repo copy `docs/html_instructions.md` (read-only) and writes through the backend.
 
 ## Project structure
 

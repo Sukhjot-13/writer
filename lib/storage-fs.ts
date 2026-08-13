@@ -1,5 +1,14 @@
 // lib/storage-fs.ts — filesystem storage implementation (FR-44, v1).
 //
+// TEST-ONLY since 2026-08-13: production uses MongoDB exclusively
+// (lib/storage-mongo.ts via getStorage()) because serverless filesystems are
+// read-only — the FS fallback crashed Vercel deploys with "ENOENT: mkdir
+// '/var/task/data'". This file survives as the local fixture backend for the
+// smoke suites (smoke-m4 instructions lifecycle, smoke-m8 folder CRUD), which
+// exercise the StorageBackend contract against a scratch dir. It is NOT
+// imported by any production code — nothing in app/ or lib/ (other than this
+// file's own tests) references it.
+//
 // Layout per FR-17 (folders.json added 2026-08-10 M7 round 6):
 //   data/
 //     folders.json                     # library folders [{id,name,createdAt,updatedAt}]
@@ -11,9 +20,6 @@
 // html/pdf render on demand and the snapshot rides on the document — the app
 // never writes those files anymore, but readFile() fallbacks still read them
 // for older documents (and writeFile stays on the interface for tests/compat).
-//
-// The repo copy docs/html_instructions.md is the read-only fallback for
-// readInstructions() until the M4 seed step creates data/instructions/active.md.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";

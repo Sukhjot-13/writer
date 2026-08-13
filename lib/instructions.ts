@@ -11,7 +11,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
-import { ACTIVE_INSTRUCTIONS_PATH, REPO_INSTRUCTIONS_PATH } from "./tokens";
+import { REPO_INSTRUCTIONS_PATH } from "./tokens";
 import { invalidateDesignTokensCache } from "./design-tokens";
 import type { StorageBackend } from "./storage";
 

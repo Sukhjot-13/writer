@@ -1,7 +1,10 @@
 // lib/tokens.ts — runtime parser for the instructions file TOKENS block (FR-47, Plan §7/§20).
-// The instructions file (data/instructions/active.md, falling back to the repo
-// docs/html_instructions.md) is the ONE place the design system lives. This parser
-// reads it at runtime and never rewrites any source file.
+// The instructions (the storage-backed active copy, seeded/synced from the repo
+// docs/html_instructions.md) are the ONE place the design system lives. This parser
+// reads them at runtime and never rewrites any source file. Since 2026-08-13 the
+// active copy is read through the storage backend (MongoDB) — the old filesystem
+// seed (data/instructions/active.md) was removed because serverless filesystems
+// are read-only (Vercel: "ENOENT: mkdir '/var/task/data'").
 //
 // Parser is whitespace-lenient: sections are `name:` lines, entries are
 // `key: value` lines (values may be quoted). Missing keys fall back to defaults
@@ -11,21 +14,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { DesignTokens } from "./design-tokens";
-import { seedInstructionsIfMissing } from "./instructions";
 
-/** Repo copy of the style instructions (fallback until M4 seeds data/instructions/active.md). */
+/** Repo copy of the style instructions — the read-only source the storage backends seed from. */
 export const REPO_INSTRUCTIONS_PATH = path.join(
   process.cwd(),
   "docs",
   "html_instructions.md",
-);
-
-/** Runtime copy used for AI prompts (seeded in M4; absent in M1). */
-export const ACTIVE_INSTRUCTIONS_PATH = path.join(
-  process.cwd(),
-  "data",
-  "instructions",
-  "active.md",
 );
 
 /** Extract and parse the `<!-- TOKENS --> … <!-- /TOKENS -->` block of a markdown file. */
@@ -101,11 +95,16 @@ export function parseTokensBlock(markdown: string, defaults: DesignTokens): Desi
 }
 
 /**
- * Read the active instructions: data/instructions/active.md, seeded from the
- * repo docs/html_instructions.md on first run (FR-21). Throws if the repo
- * copy is missing.
+ * Read the active instructions through the storage backend (MongoDB — the
+ * user's edited copy, auto-synced from the repo file by lib/instructions.ts).
+ * When no MONGODB_URI is configured (local smoke tests, M1-era fallback) the
+ * repo copy `docs/html_instructions.md` is read directly — read-only, no
+ * filesystem writes (the data/instructions seed was removed 2026-08-13).
  */
 export async function readActiveInstructions(): Promise<string> {
-  await seedInstructionsIfMissing(ACTIVE_INSTRUCTIONS_PATH);
-  return fs.readFile(ACTIVE_INSTRUCTIONS_PATH, "utf8");
+  if (process.env.MONGODB_URI) {
+    const { getStorage } = await import("./storage");
+    return getStorage().readInstructions();
+  }
+  return fs.readFile(REPO_INSTRUCTIONS_PATH, "utf8");
 }

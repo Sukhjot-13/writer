@@ -1,16 +1,18 @@
 // lib/storage.ts — pluggable storage interface (FR-44) + factory.
 //
 // App code NEVER talks to a storage backend directly — only through this
-// interface. v1 ships a local filesystem implementation (lib/storage-fs.ts,
-// DATA_DIR default ./data); a MongoDB + Vercel Blob implementation
-// (lib/storage-mongo.ts) is added at Vercel deploy time (ResumeBuilder pattern).
+// interface. MongoDB (lib/storage-mongo.ts) is THE backend — local dev AND
+// Vercel both require MONGODB_URI (2026-08-13: the filesystem backend was
+// removed from production — serverless filesystems are read-only, so the
+// old FS fallback crashed deploys with "ENOENT: mkdir '/var/task/data'").
+// lib/storage-fs.ts survives ONLY as a test fixture for the smoke suites;
+// production code never imports it.
 //
 // Auth-ready (FR-45): every operation accepts an optional ownerId which v1
 // ignores (always null). Adding auth later = middleware + setting ownerId —
 // never a restructuring.
 
 import type { Document, Folder } from "./types";
-import { createFSStorage } from "./storage-fs";
 import { createMongoBlobStorage } from "./storage-mongo";
 
 export interface StorageBackend {
@@ -47,14 +49,20 @@ export interface StorageBackend {
 
 let storageSingleton: StorageBackend | null = null;
 
-/** Factory based on environment: MongoDB+Blob when MONGODB_URI is set, else filesystem. */
+/** Factory: MongoDB, always. Throws a clear error when MONGODB_URI is absent. */
 export function getStorage(): StorageBackend {
   if (!storageSingleton) {
-    storageSingleton = process.env.MONGODB_URI
-      ? createMongoBlobStorage()
-      : createFSStorage(process.env.DATA_DIR || "./data");
+    if (!process.env.MONGODB_URI) {
+      throw new Error(
+        "MONGODB_URI is required — add it to .env.local for local dev and to the " +
+          "Vercel project's environment variables for deploy. The filesystem " +
+          "backend was removed (2026-08-13): serverless filesystems are read-only " +
+          "(ENOENT mkdir /var/task/data).",
+      );
+    }
+    storageSingleton = createMongoBlobStorage();
   }
   return storageSingleton;
 }
 
-// MongoDB + Blob (ResumeBuilder stack) — implemented in M5 (see lib/storage-mongo.ts).
+// MongoDB (ResumeBuilder stack) — implemented in M5 (see lib/storage-mongo.ts).
