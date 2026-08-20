@@ -1038,10 +1038,13 @@ function essayAnswerFromParagraphs(
       <FloatingThemeToggle containerRef={scrollRef} />
 
       {/* 2026-08-20 (user: "add a floating button to go to first unanswered
-          question or para which ever comes first"): practice-mode-only pill,
-          stacked above the Detailed pill — jumps to the first unanswered item
-          and counts what's left. */}
-      {practiceMode && <FloatingNextUnanswered blocks={doc.blocks} />}
+          question or para which ever comes first"): stacked above the Detailed
+          pill — jumps to the first unanswered item and counts what's left.
+          2026-08-20 follow-up (user: "i cant see the floating button...only
+          detailed"): was gated to practiceMode, so it never appeared while
+          editing — now ALWAYS rendered (the count is still meaningful in
+          normal mode and jumping is harmless anywhere). */}
+      <FloatingNextUnanswered blocks={doc?.blocks ?? []} />
 
       {previewOpen && (
         <PreviewSheet

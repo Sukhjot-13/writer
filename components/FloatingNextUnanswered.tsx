@@ -3,15 +3,17 @@
 // or para which ever comes first as now i have to scroll a lot to go to bottom
 // where i have to continue answering").
 //
-// Practice-mode-only fixed pill, bottom-right STACKED ABOVE the Detailed pill
-// (bottom-16 right-5 vs its bottom-5 right-5). Shows the live unanswered
-// count (qa + paragraph + essay blocks with an empty userAnswer, in document
-// order); clicking smooth-scrolls to the FIRST unanswered block and flashes
-// it (the .unanswered-flash keyframe in globals.css). When nothing is left it
-// becomes a quiet "All answered ✓" — no interaction, just confirmation.
-// The pill renders whenever practice mode is on (it is useful at the top of
-// the document too — "where do I continue?"), so unlike the Detailed/theme
-// pills it has no scroll listener of its own.
+// Fixed pill, bottom-right STACKED ABOVE the Detailed pill (bottom-16 right-5
+// vs its bottom-5 right-5). Shows the live unanswered count (qa + paragraph +
+// essay blocks with an empty userAnswer, in document order); clicking
+// smooth-scrolls to the FIRST unanswered block and flashes it (the
+// .unanswered-flash keyframe in globals.css). When nothing is left it becomes
+// a quiet "All answered ✓" — no interaction, just confirmation.
+// 2026-08-20 follow-up (user: "i cant see the floating button...only
+// detailed"): it was practice-mode-only and therefore invisible while editing;
+// the Editor now renders it ALWAYS. The pill has no scroll listener of its own
+// — unlike the Detailed/theme pills it is useful at the very top too
+// ("where do I continue?").
 
 "use client";
 
