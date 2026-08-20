@@ -31,6 +31,7 @@ import {
 import Toolbar from "./Toolbar";
 import FloatingDetailedToggle from "./FloatingDetailedToggle";
 import FloatingThemeToggle from "./FloatingThemeToggle"; // 2026-08-10: floating 🌙/☀️ top-right
+import FloatingNextUnanswered from "./FloatingNextUnanswered"; // 2026-08-20: jump to the next unanswered
 import BlockList from "./BlockList";
 import PreviewSheet from "./PreviewSheet";
 import PasteQuestionsModal from "./PasteQuestionsModal";
@@ -92,6 +93,17 @@ export default function Editor({ docId }: { docId: string | null }) {
   // quiet debounced save stops; only Save (button / Cmd+S) persists. Preference
   // remembered in localStorage (`writer-app:autosave`) like add-type/copy-selection.
   const [autosave, setAutosave] = useState(true);
+  // 2026-08-20 (user: "when we go down and [the toolbar] goes out of view it
+  // should stay out of view but if we go little bit up it comes back...it
+  // should [not] be too sensitive that i scroll little and it pops up"):
+  // hide-on-scroll-down / show-on-scroll-up toolbar. Direction-based with a
+  // small hysteresis (hide after ~10px of downward scroll, show after ~6px
+  // upward) so tiny jitters never flip it. The document scrolls at the window
+  // level (M7 round 7), so the window listener does the work; the container
+  // listener is the defensive fallback (its scrollTop stays 0 here).
+  // (The effect lives AFTER scrollRef's declaration — the dep array reads it
+  // at call time.)
+  const [toolbarHidden, setToolbarHidden] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem("writer-app:autosave") === "off") setAutosave(false);
@@ -195,6 +207,28 @@ export default function Editor({ docId }: { docId: string | null }) {
   // M7 round 7: the editor's scroll container — the floating Detailed pill
   // listens to it to appear only when the toolbar is scrolled out of view.
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 2026-08-20: the hidey-toolbar effect (state above, near autosave) — here
+  // so the dep array can read scrollRef at call time.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let lastElTop = 0;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const elTop = scrollRef.current?.scrollTop ?? 0;
+      const delta = y - lastY;
+      const elDelta = elTop - lastElTop;
+      if ((delta > 10 || elDelta > 10) && y > 0) setToolbarHidden(true);
+      else if (delta < -6 || elDelta < -6) setToolbarHidden(false);
+      lastY = y;
+      lastElTop = elTop;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    scrollRef.current?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      scrollRef.current?.removeEventListener("scroll", onScroll);
+    };
+  }, [scrollRef]);
   const persistedRef = useRef(persisted);
   persistedRef.current = persisted;
   const useSnapshotRef = useRef(useSnapshot);
@@ -430,6 +464,18 @@ export default function Editor({ docId }: { docId: string | null }) {
   // (2026-08-10 M7 round 4: the FR-35 "global visibility" bulk-flag actions
   // and the View dropdown were REMOVED — the preview sheet's field toggles
   // cover hide/show at render time without mutating block data.)
+
+  // ---- 2026-08-20: sequential question numbers for the editor badges ----
+  // qa blocks ONLY (a paragraph or essay never consumes a number) — identical
+  // to the preview/PDF/copy numbering, so the editor always agrees with the
+  // output.
+  const qaNumbers = new Map<string, number>();
+  {
+    let n = 0;
+    for (const b of doc?.blocks ?? []) {
+      if (b.type === "qa") qaNumbers.set(b.id, ++n);
+    }
+  }
 
   // ---- visibility counts for the status bar (FR-37) ----
   const qaBlocks = doc ? doc.blocks.filter((b) => b.type === "qa") : [];
@@ -832,6 +878,12 @@ function essayAnswerFromParagraphs(
 
   return (
     <div className="flex h-full flex-col">
+      {/* 2026-08-20 (hidey toolbar): sticky top-0 keeps the toolbar pinned
+          while the document scrolls under it; -translate-y-full (applied when
+          scrolling down) slides it out of view entirely and the content uses
+          the full height. No transform class when visible, so the toolbar's
+          own fixed-position dropdown backdrops keep working. */}
+      <div className={`sticky top-0 z-30 transition-transform duration-300 ${toolbarHidden ? "-translate-y-full" : ""}`}>
       <Toolbar
         title={doc.title}
         onTitleChange={setTitle}
@@ -864,6 +916,7 @@ function essayAnswerFromParagraphs(
         useSnapshot={useSnapshot}
         onToggleSnapshot={() => setUseSnapshot((v) => !v)}
       />
+      </div>
 
       {/* FR-41 (M5): imported HTML is editable only after a best-effort parse */}
       {doc.source === "external-html" && (
@@ -962,6 +1015,7 @@ function essayAnswerFromParagraphs(
               practiceMode={practiceMode}
               checked={checked}
               detailed={detailed}
+              qaNumbers={qaNumbers}
             />
           </div>
         </div>
@@ -982,6 +1036,12 @@ function essayAnswerFromParagraphs(
           toolbar — this fixed top-right copy appears once it is out of view
           and stays in sync with the navbar toggle (shared .dark class). */}
       <FloatingThemeToggle containerRef={scrollRef} />
+
+      {/* 2026-08-20 (user: "add a floating button to go to first unanswered
+          question or para which ever comes first"): practice-mode-only pill,
+          stacked above the Detailed pill — jumps to the first unanswered item
+          and counts what's left. */}
+      {practiceMode && <FloatingNextUnanswered blocks={doc.blocks} />}
 
       {previewOpen && (
         <PreviewSheet

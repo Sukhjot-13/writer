@@ -159,6 +159,10 @@ interface BlockProps {
   // it reveals translations/analysis/vocab. Inverted from the old "Focus"
   // checkbox (which was checked by default and confused the layout).
   detailed: boolean;
+  // 2026-08-20: sequential question number (qa blocks only, 1-based) — shown
+  // as a badge on the Q&A card so the editor matches the preview/PDF/copy
+  // numbering (see Editor's qaNumbers memo).
+  qaNumber?: number;
 }
 
 export default function Block({
@@ -178,6 +182,7 @@ export default function Block({
   practiceMode,
   checked,
   detailed,
+  qaNumber,
 }: BlockProps) {
   const [tagsDraft, setTagsDraft] = useState(block.tags.join(", "));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -375,6 +380,7 @@ export default function Block({
               checked={checked}
               detailed={detailed}
               blockId={block.id}
+              qaNumber={qaNumber}
               onUpdate={onUpdate}
             />
           ) : practiceMode && block.type === "paragraph" ? (

@@ -34,6 +34,9 @@ interface BlockListProps {
   // 2026-08-10 M7 round 4: "Detailed" — pass-through to blocks (false = focus
   // mode, the default: main content only).
   detailed: boolean;
+  // 2026-08-20: blockId → sequential question number (qa blocks only) — the
+  // badge on Q&A cards so the editor matches the preview/PDF/copy numbering.
+  qaNumbers: Map<string, number>;
 }
 
 export default function BlockList({
@@ -52,6 +55,7 @@ export default function BlockList({
   practiceMode,
   checked,
   detailed,
+  qaNumbers,
 }: BlockListProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -136,6 +140,7 @@ export default function BlockList({
             practiceMode={practiceMode}
             checked={checked}
             detailed={detailed}
+            qaNumber={qaNumbers.get(block.id)}
           />
         </div>
       ))}

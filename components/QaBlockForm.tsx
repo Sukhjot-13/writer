@@ -156,10 +156,15 @@ interface QaBlockFormProps {
   // data-focus-id="${blockId}:${field}" so toggleDetailed can refocus the
   // exact field (and restore the caret) when the layout flips modes.
   blockId: string;
+  // 2026-08-20 (user: "it gets hard sometime to keep track on which queston
+  // we are on"): the question's sequential number — counted over qa blocks
+  // ONLY (paragraphs/essays don't consume a number), 1-based in document
+  // order, identical to the preview/PDF/copy numbering.
+  qaNumber?: number;
   onUpdate: (content: QaContent) => void;
 }
 
-export default function QaBlockForm({ content, autoFocus, mode, checked, detailed, blockId, onUpdate }: QaBlockFormProps) {
+export default function QaBlockForm({ content, autoFocus, mode, checked, detailed, blockId, qaNumber, onUpdate }: QaBlockFormProps) {
   const [revealed, setRevealed] = useState<Set<QaField>>(() => usedFields(content));
 
   useEffect(() => {
@@ -193,7 +198,16 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
     return (
       <div className="mt-1 space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
         <div>
-          <label className={labelCls}>Question</label>
+          <label className={labelCls}>
+            {/* 2026-08-20: the question number badge — same navy circle as the
+                preview sheet's .qa-num, so the editor and the output agree. */}
+            {qaNumber != null && (
+              <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-[#fff]">
+                {qaNumber}
+              </span>
+            )}
+            Question
+          </label>
           {/* 2026-08-20: textarea, not input — long questions wrap instead of
               scrolling out of view (readOnly keeps it a display field). */}
           <AutoGrowTextarea
@@ -263,7 +277,16 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
     return (
       <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
         <div>
-          <label className={labelCls}>Question</label>
+          <label className={labelCls}>
+            {/* 2026-08-20: the question number badge — same navy circle as the
+                preview sheet's .qa-num, so the editor and the output agree. */}
+            {qaNumber != null && (
+              <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-[#fff]">
+                {qaNumber}
+              </span>
+            )}
+            Question
+          </label>
           {/* 2026-08-20: textarea, not input — long questions wrap instead
               of scrolling out of view (auto-grow keeps it single-line when
               short; Enter does nothing, same as the old input). */}

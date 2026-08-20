@@ -159,3 +159,12 @@ body {
   --emerald-700: #4aa055;
   --emerald-800: #6ec479;
 }
+
+/* 2026-08-20: brief ring flash on the block the "next unanswered" floating
+   button jumped to — confirms where the scroll landed (smooth scroll can end
+   a little off on long jumps). */
+@keyframes unanswered-flash {
+  from { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.55); }
+  to { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0); }
+}
+.unanswered-flash { animation: unanswered-flash 1.5s ease-out; }
