@@ -19,6 +19,11 @@
 // (responseLabel) field is GONE too — it is always "RÉPONSE", so there is no
 // reason to edit it; the renderers keep using the stored value (default
 // "RÉPONSE").
+// 2026-08-20 (user: "if the question is long it shows part and other not"):
+// the question field is an auto-grow TEXTAREA in all three modes (normal
+// focus/detailed + practice read-only) — an <input> never wraps, so a long
+// question scrolled out of view; Enter is swallowed (questionKeyDown) to keep
+// the old single-line input behavior.
 
 "use client";
 
@@ -54,6 +59,14 @@ const OPTIONAL_FIELDS: { key: QaField; label: string }[] = [
   { key: "expressions", label: "Expressions" },
   { key: "synonyms", label: "Synonyms" }, // 2026-08-10: richer words for the same meaning
 ];
+
+// 2026-08-20 (user: "if the question is long it shows part and other not"):
+// the question is now an auto-grow TEXTAREA — an <input> can never wrap, so a
+// long question scrolled out of view on narrow screens. Enter keeps the
+// old input behavior (no newline in a question).
+function questionKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  if (e.key === "Enter") e.preventDefault();
+}
 
 /** Which optional fields currently have content (auto-reveal on load). */
 function usedFields(c: QaContent): Set<QaField> {
@@ -181,9 +194,12 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
       <div className="mt-1 space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3.5">
         <div>
           <label className={labelCls}>Question</label>
-          <input
+          {/* 2026-08-20: textarea, not input — long questions wrap instead of
+              scrolling out of view (readOnly keeps it a display field). */}
+          <AutoGrowTextarea
             readOnly
             tabIndex={-1}
+            rows={1}
             className={`${inputCls} cursor-default font-medium text-zinc-900`}
             value={content.question}
           />
@@ -248,13 +264,18 @@ export default function QaBlockForm({ content, autoFocus, mode, checked, detaile
       <div className="mt-1 space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
         <div>
           <label className={labelCls}>Question</label>
-          <input
+          {/* 2026-08-20: textarea, not input — long questions wrap instead
+              of scrolling out of view (auto-grow keeps it single-line when
+              short; Enter does nothing, same as the old input). */}
+          <AutoGrowTextarea
             autoFocus={autoFocus}
             data-focus-id={`${blockId}:question`}
+            rows={1}
             className={`${inputCls} font-medium text-zinc-900`}
             value={content.question}
             placeholder="Type the question in the primary language…"
             onChange={(e) => set("question", e.target.value)}
+            onKeyDown={questionKeyDown}
           />
         </div>
         <div>
