@@ -1040,11 +1040,15 @@ function essayAnswerFromParagraphs(
       {/* 2026-08-20 (user: "add a floating button to go to first unanswered
           question or para which ever comes first"): stacked above the Detailed
           pill — jumps to the first unanswered item and counts what's left.
-          2026-08-20 follow-up (user: "i cant see the floating button...only
-          detailed"): was gated to practiceMode, so it never appeared while
-          editing — now ALWAYS rendered (the count is still meaningful in
-          normal mode and jumping is harmless anywhere). */}
-      <FloatingNextUnanswered blocks={doc?.blocks ?? []} />
+          2026-08-20 follow-ups: (1) was gated to practiceMode, so it never
+          appeared while editing — now ALWAYS rendered (user: "i cant see the
+          floating button...only detailed"); (2) practiceMode is passed down
+          so "unanswered" means mode-appropriate things: writing mode = qa
+          blocks with an EMPTY ANSWER FIELD (paragraphs/essays have no answer
+          field and never count), practice mode = empty "My answer" boxes
+          (user: "it is taking me to first question even though it is
+          answered and showing worng number of unanswed questions"). */}
+      <FloatingNextUnanswered blocks={doc?.blocks ?? []} practiceMode={practiceMode} />
 
       {previewOpen && (
         <PreviewSheet
