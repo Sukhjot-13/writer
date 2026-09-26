@@ -2,6 +2,7 @@
 // smoke tests can require app modules with their real import statements.
 // "@/" maps to the compiled mirror under tests/build/ (outDir + rootDir "..").
 // Used via: node --require tests/alias-hook.js <compiled test>
+/* eslint-disable @typescript-eslint/no-require-imports -- Node CJS loader hook (loaded via `node --require`); require/Module patching is the entire purpose of this file. */
 "use strict";
 const Module = require("module");
 const path = require("path");

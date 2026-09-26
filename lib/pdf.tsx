@@ -521,6 +521,7 @@ function BlockToPDF({
     case "separator":
       return <View style={styles.separator} />;
     case "qa": {
+      // eslint-disable-next-line react-hooks/immutability -- qaNumber is a fresh per-render counter ({ n: 0 } created by the caller each render); incrementing numbers QA blocks in render order. No cross-render state is read or shared.
       qaNumber.n += 1;
       return (
         // 2026-08-13 (BUG FIX): hidden/emptyLines MUST be forwarded — they were

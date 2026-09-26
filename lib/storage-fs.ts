@@ -122,7 +122,7 @@ export function createFSStorage(dataDir: string): StorageBackend {
       return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 
-    async getDocument(id, _ownerId) {
+    async getDocument(id) {
       await ensureDirs();
       return readJson<Document>(path.join(docDir(id), "document.json"));
     },

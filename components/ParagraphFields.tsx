@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { EssayContent, ParagraphContent } from "@/lib/types";
 import { inputCls, labelCls, RowEditor } from "./RowEditor";
 import AutoGrowTextarea from "./AutoGrowTextarea"; // 2026-08-10: auto-grow
@@ -46,10 +46,13 @@ interface ParagraphFieldsProps {
 export default function ParagraphFields({ content, blockId, onUpdate }: ParagraphFieldsProps) {
   const [revealed, setRevealed] = useState<Set<ParagraphField>>(() => usedFields(content));
 
-  useEffect(() => {
-    // A field that gained content externally (AI import) reveals itself.
+  // A field that gained content externally (AI import) reveals itself. Done
+  // during render (previous-value comparison) instead of in an effect.
+  const [prevContent, setPrevContent] = useState(content);
+  if (prevContent !== content) {
+    setPrevContent(content);
     setRevealed((prev) => new Set([...prev, ...usedFields(content)]));
-  }, [content]);
+  }
 
   const reveal = (key: ParagraphField) => setRevealed((prev) => new Set([...prev, key]));
 

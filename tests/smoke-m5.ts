@@ -164,7 +164,6 @@ async function run() {
   let zipOk = true;
   let cursor = 0;
   for (const e of entries) {
-    const nameBuf = Buffer.from(e.name, "utf8");
     const nameLen = zip.readUInt16LE(cursor + 26);
     const csize = zip.readUInt32LE(cursor + 18);
     const dataStart = cursor + 30 + nameLen;

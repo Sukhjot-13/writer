@@ -190,12 +190,13 @@ export default function Block({
   const [slashCursor, setSlashCursor] = useState(0);
 
   // Auto-grow the primary textarea (title/heading/paragraph).
+  const blockText = block.type === "separator" ? "" : (block.content as { text?: string }).text;
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [block.type === "separator" ? "" : (block.content as { text?: string }).text]);
+  }, [blockText]);
 
   // Focus a freshly created block.
   useEffect(() => {
@@ -205,9 +206,12 @@ export default function Block({
   }, [autoFocus]);
 
   // Keep the tags draft in sync when tags change outside this input.
-  useEffect(() => {
+  // Done during render (previous-value comparison) instead of in an effect.
+  const [prevBlockTags, setPrevBlockTags] = useState(block.tags);
+  if (prevBlockTags !== block.tags) {
+    setPrevBlockTags(block.tags);
     setTagsDraft(block.tags.join(", "));
-  }, [block.tags]);
+  }
 
   const text = block.type === "separator" ? "" : (block.content as { text?: string }).text ?? "";
 

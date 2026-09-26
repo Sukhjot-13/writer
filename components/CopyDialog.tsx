@@ -16,7 +16,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Block, Document } from "@/lib/types";
+import type { Document } from "@/lib/types";
 import { buildAICopyText } from "@/lib/prompt"; // 2026-08-10: "For AI" tab
 
 export interface CopySelection {

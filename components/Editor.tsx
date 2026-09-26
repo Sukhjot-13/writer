@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Block as BlockModel, BlockType, Document, PreviewHidden, PreviewOptions } from "@/lib/types";
+import type { Block as BlockModel, BlockType, Document, PreviewOptions } from "@/lib/types";
 import {
   createBlock,
   createDocument,
@@ -92,7 +92,15 @@ export default function Editor({ docId }: { docId: string | null }) {
   // M7 round 7: autosave toggle — ON by default (M6 behavior). Turned off, the
   // quiet debounced save stops; only Save (button / Cmd+S) persists. Preference
   // remembered in localStorage (`writer-app:autosave`) like add-type/copy-selection.
-  const [autosave, setAutosave] = useState(true);
+  // Lazy initializer (SSR-safe: storage access is guarded) instead of a
+  // mount effect, so no setState-in-effect is needed.
+  const [autosave, setAutosave] = useState(() => {
+    try {
+      return localStorage.getItem("writer-app:autosave") !== "off";
+    } catch {
+      return true;
+    }
+  });
   // 2026-08-20 (user: "when we go down and [the toolbar] goes out of view it
   // should stay out of view but if we go little bit up it comes back...it
   // should [not] be too sensitive that i scroll little and it pops up"):
@@ -104,13 +112,6 @@ export default function Editor({ docId }: { docId: string | null }) {
   // (The effect lives AFTER scrollRef's declaration — the dep array reads it
   // at call time.)
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  useEffect(() => {
-    try {
-      if (localStorage.getItem("writer-app:autosave") === "off") setAutosave(false);
-    } catch {
-      /* storage unavailable — keep default */
-    }
-  }, []);
   const toggleAutosave = () => {
     setAutosave((v) => {
       const next = !v;
@@ -192,7 +193,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [instructionsVersion, setInstructionsVersion] = useState<string | null>(null); // FR-28
   const [snapshotInfo, setSnapshotInfo] = useState<{ version: string; differs: boolean } | null>(null); // FR-23
   const [useSnapshot, setUseSnapshot] = useState(false); // FR-23: convert with the doc's own rules
-  const [lastConvertInstructionsVersion, setLastConvertInstructionsVersion] = useState<string | null>(null); // FR-23: sent on save
+  const [, setLastConvertInstructionsVersion] = useState<string | null>(null); // FR-23: sent on save
   const [showPasteQuestions, setShowPasteQuestions] = useState(false); // FR-38
   const [showPasteBlocks, setShowPasteBlocks] = useState(false); // M6: JSON block paste
   const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
@@ -200,9 +201,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
 
   const docRef = useRef(doc);
-  docRef.current = doc;
   const previewOptionsRef = useRef(previewOptions);
-  previewOptionsRef.current = previewOptions;
   const previewSeqRef = useRef(0); // 2026-08-10 #6: latest toggle wins the render
   // M7 round 7: the editor's scroll container — the floating Detailed pill
   // listens to it to appear only when the toolbar is scrolled out of view.
@@ -223,27 +222,37 @@ export default function Editor({ docId }: { docId: string | null }) {
       lastElTop = elTop;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    scrollRef.current?.addEventListener("scroll", onScroll, { passive: true });
+    const scroller = scrollRef.current;
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      scrollRef.current?.removeEventListener("scroll", onScroll);
+      scroller?.removeEventListener("scroll", onScroll);
     };
   }, [scrollRef]);
   const persistedRef = useRef(persisted);
-  persistedRef.current = persisted;
   const useSnapshotRef = useRef(useSnapshot);
-  useSnapshotRef.current = useSnapshot;
   const lastConvertRef = useRef<string | null>(null);
   const busyRef = useRef<string | null>(null);
   const savingRef = useRef(false); // M6: quiet autosave in flight — no busy state
   // 2026-08-13 (to-do item 6): refs for the page-leave flush — the listener
   // registers once and must see the CURRENT loading/dirty/autosave state.
   const loadingRef = useRef(loading);
-  loadingRef.current = loading;
   const dirtyRef = useRef(isDirty);
-  dirtyRef.current = isDirty;
   const autosaveRef = useRef(autosave);
-  autosaveRef.current = autosave;
+  // Latest-value mirror: refs must not be written during render, so sync
+  // them in a post-render effect (no dep array = every render). Readers are
+  // event handlers / timers, which always run after paint.
+  useEffect(() => {
+    docRef.current = doc;
+    previewOptionsRef.current = previewOptions;
+    persistedRef.current = persisted;
+    useSnapshotRef.current = useSnapshot;
+    loadingRef.current = loading;
+    dirtyRef.current = isDirty;
+    autosaveRef.current = autosave;
+    convertRef.current = convert;
+    saveRef.current = save;
+  });
   // 2026-08-13 (to-do item 4): the editor field (data-focus-id) + caret that
   // had focus when the last pointerdown started — captured in the capture
   // phase, BEFORE the browser's mousedown default moves focus to the clicked
@@ -656,7 +665,7 @@ function essayAnswerFromParagraphs(
   }
 
   // ---- paste HTML back (FR-40): imported as an opaque document ----
-  function applyImportedHtml(doc: Document, html: string) {
+  function applyImportedHtml(doc: Document) {
     setDoc(doc);
     setPersisted(true);
     setIsDirty(false);
@@ -865,8 +874,7 @@ function essayAnswerFromParagraphs(
     setStatus("Practice answers cleared");
   }
 
-  convertRef.current = convert;
-  saveRef.current = save;
+  // NOTE: convertRef / saveRef are synced in the latest-value mirror effect above.
 
   if (loading) {
     return <div className="p-8 text-sm text-zinc-500">Loading document…</div>;

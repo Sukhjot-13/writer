@@ -38,7 +38,7 @@ async function run() {
   // ---------- create + name sorting ----------
   const b = await storage.createFolder("Baguette");
   const a = await storage.createFolder("Accents");
-  const z = await storage.createFolder("zoo");
+  await storage.createFolder("zoo");
   check("folders: create returns id + timestamps",
     typeof b.id === "string" && b.id.length > 0 && b.name === "Baguette" &&
     !!b.createdAt && !!b.updatedAt && b.createdAt === b.updatedAt);

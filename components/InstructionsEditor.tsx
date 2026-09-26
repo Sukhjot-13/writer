@@ -57,8 +57,13 @@ export default function InstructionsEditor() {
     }
   }, []);
 
+  // Mount fetch deferred past paint (no synchronous setState in the effect
+  // body): load() flips loading/error state synchronously on entry.
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const text = draft ?? state?.content ?? "";

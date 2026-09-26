@@ -78,7 +78,7 @@ export type Block =
   | { id: string; type: "paragraph"; tags: string[]; content: ParagraphContent }
   | { id: string; type: "essay"; tags: string[]; content: EssayContent }
   | { id: string; type: "qa"; tags: string[]; content: QaContent }
-  | { id: string; type: "separator"; tags: string[]; content: {} };
+  | { id: string; type: "separator"; tags: string[]; content: object };
 
 /** A library folder (2026-08-10 M7 round 6, user: "make a library page…
  *  option for making folder too"). Folders organize documents; deleting a

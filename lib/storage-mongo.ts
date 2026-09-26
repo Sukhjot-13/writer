@@ -80,7 +80,7 @@ export function createMongoBlobStorage(): StorageBackend {
       return docs.map(stripId);
     },
 
-    async getDocument(id, _ownerId) {
+    async getDocument(id) {
       const db = await getDb();
       const doc = await db.collection<DocRow>(DOCS).findOne({ _id: id });
       return doc ? stripId(doc) : null;

@@ -11,7 +11,7 @@
 // The user's practice answers (USER_ANSWER) are never serialized: they are
 // private to the user and are never sent to the AI.
 
-import type { Block, Document, QaContent } from "./types";
+import type { Document, QaContent } from "./types";
 
 /** Serialize one QA block in the <QA>…</QA> marker format (FR-12/39). */
 function serializeQa(c: QaContent): string {

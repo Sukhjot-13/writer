@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Block as BlockModel, BlockType } from "@/lib/types";
 import Block from "./Block";
 import AddBlockMenu from "./AddBlockMenu";
@@ -60,17 +60,19 @@ export default function BlockList({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   // 2026-08-10: default type for the "+" add control (persisted per session).
-  const [lastType, setLastType] = useState<BlockType>("paragraph");
-  useEffect(() => {
+  // Lazy initializer (SSR-safe: storage access is guarded) instead of a
+  // mount effect, so no setState-in-effect is needed.
+  const [lastType, setLastType] = useState<BlockType>(() => {
     try {
       const saved = localStorage.getItem(LAST_TYPE_KEY);
       if (saved && ["paragraph", "essay", "heading", "qa", "title", "separator"].includes(saved)) {
-        setLastType(saved as BlockType);
+        return saved as BlockType;
       }
     } catch {
       /* storage unavailable — keep default */
     }
-  }, []);
+    return "paragraph";
+  });
   const pickType = (type: BlockType) => {
     setLastType(type);
     try {

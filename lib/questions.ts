@@ -25,14 +25,12 @@ export function splitQuestions(text: string): string[] {
   const lines = text.split(/\r?\n/);
   const items: string[] = [];
   let current: string[] | null = null;
-  let currentNumber: number | null = null;
 
   const push = () => {
     if (current) {
       const q = current.join(" ").replace(/\s+/g, " ").trim();
       if (q) items.push(q);
       current = null;
-      currentNumber = null;
     }
   };
 
@@ -47,7 +45,6 @@ export function splitQuestions(text: string): string[] {
     if (numbered) {
       push(); // a numbered line always starts a new item
       current = [numbered[2]];
-      currentNumber = Number(numbered[1]);
     } else if (bulleted) {
       push(); // a bulleted line always starts a new item
       current = [bulleted[1]];

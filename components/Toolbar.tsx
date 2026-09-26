@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 import { parseTags } from "@/lib/tags";
@@ -211,7 +211,13 @@ export default function Toolbar({
   const [convertOpen, setConvertOpen] = useState(false);
   const [goal, setGoal] = useState("");
   const [tagsDraft, setTagsDraft] = useState(docTags.join(", "));
-  useEffect(() => setTagsDraft(docTags.join(", ")), [docTags]);
+  // Keep the draft in sync when tags change outside this input. Done during
+  // render (previous-value comparison) instead of in an effect.
+  const [prevDocTags, setPrevDocTags] = useState(docTags);
+  if (prevDocTags !== docTags) {
+    setPrevDocTags(docTags);
+    setTagsDraft(docTags.join(", "));
+  }
 
   return (
     <div className="border-b border-zinc-200 bg-white">
