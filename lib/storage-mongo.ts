@@ -31,7 +31,10 @@ const DOCS = "documents";
 const FILES = "files";
 const INSTR = "instructions";
 const FOLDERS = "folders";
+const DOCVERSIONS = "docversions";
 const ACTIVE_KEY = "active";
+// Cap pre-save document snapshots (oldest pruned).
+const MAX_DOC_VERSIONS = 20;
 
 let cachedDb: Promise<Db> | null = null;
 
@@ -52,6 +55,13 @@ interface FileRow {
   _id: string;
   url: string;
   contentType?: string;
+}
+interface DocVersionRow {
+  _id: string;
+  docId: string;
+  version: string;
+  savedAt: string;
+  doc: unknown;
 }
 interface InstrRow {
   _id: string;
@@ -88,7 +98,61 @@ export function createMongoBlobStorage(): StorageBackend {
 
     async saveDocument(doc) {
       const db = await getDb();
+      // Snapshot the pre-save content first so every save stays undoable.
+      const current = await db.collection<DocRow>(DOCS).findOne({ _id: doc.id });
+      if (current) {
+        const stamp = new Date().toISOString();
+        await db.collection<DocVersionRow>(DOCVERSIONS).insertOne({
+          _id: `${doc.id}:${stamp}`,
+          docId: doc.id,
+          version: stamp,
+          savedAt: stamp,
+          doc: stripId(current),
+        });
+        // Prune oldest beyond the cap.
+        const excess = await db
+          .collection<DocVersionRow>(DOCVERSIONS)
+          .find({ docId: doc.id })
+          .sort({ savedAt: -1 })
+          .skip(MAX_DOC_VERSIONS)
+          .project({ _id: 1 })
+          .toArray();
+        if (excess.length > 0) {
+          await db.collection<DocVersionRow>(DOCVERSIONS).deleteMany({ _id: { $in: excess.map((e) => e._id) } });
+        }
+      }
       await db.collection<DocRow>(DOCS).replaceOne({ _id: doc.id }, { ...doc }, { upsert: true });
+    },
+
+    async snapshotDocument(id) {
+      const db = await getDb();
+      const current = await db.collection<DocRow>(DOCS).findOne({ _id: id });
+      if (!current) return;
+      const stamp = new Date().toISOString();
+      await db.collection<DocVersionRow>(DOCVERSIONS).insertOne({
+        _id: `${id}:${stamp}`,
+        docId: id,
+        version: stamp,
+        savedAt: stamp,
+        doc: stripId(current),
+      });
+    },
+
+    async listDocumentVersions(id) {
+      const db = await getDb();
+      const rows = await db
+        .collection<DocVersionRow>(DOCVERSIONS)
+        .find({ docId: id })
+        .sort({ savedAt: -1 })
+        .toArray();
+      return rows.map((r) => ({ version: String(r.version), savedAt: String(r.savedAt) }));
+    },
+
+    async readDocumentVersion(id, version) {
+      const db = await getDb();
+      const row = await db.collection<DocVersionRow>(DOCVERSIONS).findOne({ _id: `${id}:${version}` });
+      if (!row || typeof row.doc !== "object" || row.doc === null) return null;
+      return row.doc as Document;
     },
 
     async deleteDocument(id) {
@@ -104,6 +168,7 @@ export function createMongoBlobStorage(): StorageBackend {
       }
       await db.collection<FileRow>(FILES).deleteMany({ _id: { $regex: `^${id}/` } });
       await db.collection<DocRow>(DOCS).deleteOne({ _id: id });
+      await db.collection<DocVersionRow>(DOCVERSIONS).deleteMany({ docId: id });
     },
 
     // ---- library folders (2026-08-10 M7 round 6) — mirror of the FS backend.

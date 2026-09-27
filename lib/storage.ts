@@ -22,6 +22,13 @@ export interface StorageBackend {
   saveDocument(doc: Document): Promise<void>;
   deleteDocument(id: string): Promise<void>;
 
+  // Per-document version history (2026-09-26). Every saveDocument snapshots
+  // the PRE-save content, capped at MAX_DOC_VERSIONS (oldest pruned), so any
+  // save can be undone from the editor. Newest first from listDocumentVersions.
+  snapshotDocument(id: string): Promise<void>;
+  listDocumentVersions(id: string): Promise<{ version: string; savedAt: string }[]>;
+  readDocumentVersion(id: string, version: string): Promise<Document | null>;
+
   // Library folders (2026-08-10 M7 round 6, user: "option for making folder
   // too"). Deleting a folder UNFILES its documents (clears their folderId) —
   // it never deletes them. Folders are sorted by name in listFolders.

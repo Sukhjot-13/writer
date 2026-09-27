@@ -176,7 +176,11 @@ function elementsByClass(inner: string, cls: string): Element[] {
     const el = stack.pop()!;
     if (classList(el.attrs).includes(cls)) found.push(el);
     if (el.tag === "#text") continue;
-    stack.push(...collectTopLevel(el.inner));
+    // Push children reversed so pop() visits them in document order
+    // (DFS pre-order). A plain push+pop returned every sibling group
+    // reversed — e.g. vocab rows parsed back-to-front (M5 deferred check).
+    const kids = collectTopLevel(el.inner);
+    for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
   }
   return found;
 }

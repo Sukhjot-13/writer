@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Compiled smoke-test output (tsc -p tests/tsconfig.json) — not source.
+    "tests/build/**",
   ]),
 ]);
 

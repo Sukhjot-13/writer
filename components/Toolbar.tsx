@@ -39,8 +39,13 @@ interface ToolbarProps {
   onConvert: (goal: string | null) => void;
   onSave: () => void;
   onPreview: () => void; // M6: open the full-screen preview sheet
+  onOpenHistory: () => void; // 2026-09-26: per-document version history
   practiceMode: boolean;
   onTogglePractice: () => void;
+  // 2026-09-26 (test-doc UX): a generated test carries opensInPractice —
+  // the toggle reads "Test" and a badge + un-test action appear.
+  isTestDoc: boolean;
+  onMakeNormalDocument: () => void;
   // 2026-08-10 M7 round 4: "Detailed" — unchecked = focus mode (the default):
   // only the main content (question+answer, paragraph text, essay paragraphs);
   // checked = translations/analysis/vocab revealed.
@@ -190,8 +195,11 @@ export default function Toolbar({
   onConvert,
   onSave,
   onPreview,
+  onOpenHistory,
   practiceMode,
   onTogglePractice,
+  isTestDoc,
+  onMakeNormalDocument,
   detailed,
   onToggleDetailed,
   autosave,
@@ -256,6 +264,24 @@ export default function Toolbar({
           placeholder="Untitled document"
           className="min-w-40 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-lg font-semibold text-zinc-900 outline-none placeholder:font-normal placeholder:text-zinc-300 focus:border-zinc-200 focus:bg-white"
         />
+        {isTestDoc && (
+          <>
+            <span
+              title="Generated test — opens in practice mode with answers hidden"
+              className="shrink-0 rounded-md bg-blue-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#fff]"
+            >
+              Test
+            </span>
+            <button
+              type="button"
+              onClick={onMakeNormalDocument}
+              title="Clear the test flag so this opens as a normal document"
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
+            >
+              Make normal
+            </button>
+          </>
+        )}
         <input
           value={tagsDraft}
           onChange={(e) => setTagsDraft(e.target.value)}
@@ -348,6 +374,10 @@ export default function Toolbar({
           {busy === "preview" ? "Rendering…" : "Preview"}
         </ActionButton>
 
+        <ActionButton onClick={onOpenHistory} disabled={busy !== null} title="Version history — restore any earlier save">
+          History
+        </ActionButton>
+
         {/* M7 round 7: Autosave toggle — checked = the quiet debounced save
             (default, M6 behavior); unchecked = only Save / Cmd+S persists. */}
         <TogglePill
@@ -362,10 +392,14 @@ export default function Toolbar({
           {/* Practice master key: every question + paragraph gets a "My answer"
               box. Check reveals the model answers for qa. */}
           <TogglePill
-            label="Practice"
+            label={isTestDoc ? "Test" : "Practice"}
             checked={practiceMode}
             onChange={onTogglePractice}
-            title="Practice mode: write 'My answer' under every question and paragraph"
+            title={
+              isTestDoc
+                ? "Test mode: write 'My answer' under every question; Check reveals the answer key"
+                : "Practice mode: write 'My answer' under every question and paragraph"
+            }
             activeCls="border-emerald-400 bg-emerald-50 text-emerald-800"
           />
 

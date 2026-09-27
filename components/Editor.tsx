@@ -39,6 +39,7 @@ import PasteBlocksModal from "./PasteBlocksModal";
 import PasteHtmlModal from "./PasteHtmlModal";
 import PasteSmartModal from "./PasteSmartModal"; // 2026-08-13 (to-do item 9)
 import CopyDialog from "./CopyDialog";
+import DocHistory from "./DocHistory";
 import { parseHtmlToBlocks } from "@/lib/html-to-blocks"; // FR-41 (M5)
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -199,6 +200,7 @@ export default function Editor({ docId }: { docId: string | null }) {
   const [showPasteHtml, setShowPasteHtml] = useState(false); // FR-40
   const [showPasteSmart, setShowPasteSmart] = useState(false); // 2026-08-13 (to-do item 9)
   const [showCopyDialog, setShowCopyDialog] = useState(false); // FR-50
+  const [showHistory, setShowHistory] = useState(false); // 2026-09-26: version history modal
 
   const docRef = useRef(doc);
   const previewOptionsRef = useRef(previewOptions);
@@ -373,6 +375,13 @@ export default function Editor({ docId }: { docId: string | null }) {
       return next;
     });
     setIsDirty(true);
+  }
+
+  // 2026-09-26 (test-doc UX): clear the generator-set flag so a reused
+  // test opens as a normal document. Persists through the normal save path.
+  function makeNormalDocument() {
+    mutateDoc((d) => ({ ...d, opensInPractice: false }));
+    setStatus("Test flag cleared — save to keep it a normal document");
   }
 
   // ---- block operations ----
@@ -810,6 +819,19 @@ function essayAnswerFromParagraphs(
     };
   }, []);
 
+  // ---- unsaved-changes alert (suggestion 2026-08-13, implemented 2026-09-26):
+  // last-resort net for when a save fails or the tab dies mid-edit — the
+  // page-leave flush above already covers the normal case. Prompt only when
+  // edits are still dirty at unload time, so saved sessions never nag.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   // ---- downloads (2026-08-10 #6, moved into the preview sheet): the buttons
   // in Preview download EXACTLY what is currently displayed — the same
   // hidden/emptyLines options that produced the preview HTML. No save, no
@@ -902,12 +924,15 @@ function essayAnswerFromParagraphs(
         onConvert={(goal) => void convert(goal)}
         onSave={() => void save()}
         onPreview={() => void openPreview()}
+        onOpenHistory={() => setShowHistory(true)}
         practiceMode={practiceMode}
         onTogglePractice={() => {
           setPracticeMode((v) => !v);
           setChecked(false);
           setConfirmingReset(false);
         }}
+        isTestDoc={doc.opensInPractice === true}
+        onMakeNormalDocument={makeNormalDocument}
         checked={checked}
         onToggleChecked={() => setChecked((v) => !v)}
         onResetPractice={() => setConfirmingReset(true)}
@@ -996,6 +1021,18 @@ function essayAnswerFromParagraphs(
       )}
       {showCopyDialog && (
         <CopyDialog doc={doc} useSnapshot={useSnapshot} onClose={() => setShowCopyDialog(false)} />
+      )}
+      {showHistory && (
+        <DocHistory
+          docId={doc.id}
+          onClose={() => setShowHistory(false)}
+          onRestored={(restored) => {
+            setDoc(restored as Document);
+            setPersisted(true);
+            setIsDirty(false);
+            setStatus("Restored an earlier version");
+          }}
+        />
       )}
 
       <div className="flex flex-1 overflow-hidden">

@@ -102,6 +102,20 @@ async function run() {
   check("schemas: moveDocumentPayloadSchema accepts a folder id", moveDocumentPayloadSchema.safeParse({ folderId: "f1" }).success);
   check("schemas: moveDocumentPayloadSchema rejects missing folderId", !moveDocumentPayloadSchema.safeParse({}).success);
 
+  // ---------- document version history (2026-09-26) ----------
+  const vdoc = createDocument("Versioned", "doc-versions");
+  await storage.saveDocument(vdoc);
+  check("versions: first save snapshots nothing",
+    (await storage.listDocumentVersions("doc-versions")).length === 0);
+  const v2 = { ...vdoc, title: "Versioned v2" };
+  await storage.saveDocument(v2);
+  const history = await storage.listDocumentVersions("doc-versions");
+  check("versions: second save snapshots the first", history.length === 1);
+  const restored = await storage.readDocumentVersion("doc-versions", history[0].version);
+  check("versions: snapshot reads back pre-save content", restored?.title === "Versioned");
+  check("versions: unknown version reads null",
+    (await storage.readDocumentVersion("doc-versions", "nope")) === null);
+
   console.log(`\nM8 smoke: ${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }

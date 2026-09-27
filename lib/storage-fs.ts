@@ -58,6 +58,28 @@ export function createFSStorage(dataDir: string): StorageBackend {
     return path.join(docsDir, id);
   }
 
+  /** Keep the last MAX_DOC_VERSIONS pre-save snapshots of a document. */
+  const MAX_DOC_VERSIONS = 20;
+  async function snapshotDocVersion(id: string): Promise<void> {
+    const current = await readJson<Document>(path.join(docDir(id), "document.json"));
+    if (!current) return; // first save — nothing to snapshot
+    const dir = path.join(docDir(id), "versions");
+    await fs.mkdir(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    await fs.writeFile(path.join(dir, `${stamp}.json`), JSON.stringify(current, null, 2), "utf8");
+    // Prune oldest beyond the cap.
+    try {
+      const entries = (await fs.readdir(dir))
+        .filter((n) => n.endsWith(".json"))
+        .sort();
+      for (const old of entries.slice(0, Math.max(0, entries.length - MAX_DOC_VERSIONS))) {
+        await fs.rm(path.join(dir, old), { force: true });
+      }
+    } catch {
+      // pruning is best-effort
+    }
+  }
+
   async function readJson<T>(file: string): Promise<T | null> {
     try {
       const raw = await fs.readFile(file, "utf8");
@@ -129,9 +151,38 @@ export function createFSStorage(dataDir: string): StorageBackend {
 
     async saveDocument(doc) {
       await ensureDirs();
+      // Snapshot the pre-save content first so every save stays undoable.
+      await snapshotDocVersion(doc.id);
       await fs.mkdir(docDir(doc.id), { recursive: true });
       const file = path.join(docDir(doc.id), "document.json");
       await fs.writeFile(file, JSON.stringify(doc, null, 2), "utf8");
+    },
+
+    async snapshotDocument(id) {
+      await ensureDirs();
+      await snapshotDocVersion(id);
+    },
+
+    async listDocumentVersions(id) {
+      const dir = path.join(docDir(id), "versions");
+      let entries;
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        return []; // no history yet
+      }
+      const history = [];
+      for (const entry of entries) {
+        if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+        const stat = await fs.stat(path.join(dir, entry.name));
+        history.push({ version: entry.name.slice(0, -5), savedAt: stat.mtime.toISOString() });
+      }
+      return history.sort((a, b) => b.savedAt.localeCompare(a.savedAt)); // newest first
+    },
+
+    async readDocumentVersion(id, version) {
+      const safe = version.replace(/[^\w.-]/g, "_");
+      return readJson<Document>(path.join(docDir(id), "versions", `${safe}.json`));
     },
 
     async deleteDocument(id) {
