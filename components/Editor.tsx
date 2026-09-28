@@ -18,6 +18,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import type { Block as BlockModel, BlockType, Document, PreviewOptions } from "@/lib/types";
 import {
@@ -74,6 +75,7 @@ function blockHasContent(b: BlockModel): boolean {
 }
 
 export default function Editor({ docId }: { docId: string | null }) {
+  const router = useRouter();
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(docId !== null);
   const [persisted, setPersisted] = useState(false);
@@ -749,6 +751,19 @@ function essayAnswerFromParagraphs(
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Save failed (${res.status})`);
+      }
+      // 2026-09-28: POST /api/documents is a CREATE and the SERVER owns the id
+      // (crypto.randomUUID), because a client-chosen id let anyone POST over an
+      // existing document. The editor starts on a client-side uuid, so adopt the
+      // real one and move the URL — otherwise the next save would PUT to a route
+      // that no longer exists and a reload would show an empty document.
+      if (isNew) {
+        const created = (await res.json().catch(() => null)) as { doc?: Document } | null;
+        if (created?.doc?.id && created.doc.id !== current.id) {
+          setDoc(created.doc);
+          docRef.current = created.doc;
+          router.replace(`/doc/${created.doc.id}`);
+        }
       }
       setPersisted(true);
       // Only clear the dirty flag when no edits landed while the request was

@@ -4,7 +4,19 @@
 
 import { z } from "zod";
 
-const tagSchema = z.array(z.string());
+// 2026-09-28 (unbounded payloads): every string that reaches storage, the AI
+// prompt or a renderer now has a ceiling. Before this, a single PUT could write
+// a multi-megabyte title/paragraph/instructions blob, and middleware had no body
+// limit either. The numbers are generous enough for real content (a 50k-char
+// paragraph, a 2 MB HTML import) and small enough to keep a render bounded.
+export const MAX_TITLE_CHARS = 300;
+export const MAX_BLOCK_TEXT_CHARS = 50_000;
+export const MAX_BLOCKS = 2_000;
+export const MAX_HTML_CHARS = 2_000_000;
+export const MAX_INSTRUCTIONS_CHARS = 200_000;
+export const MAX_GOAL_CHARS = 2_000;
+
+const tagSchema = z.array(z.string().max(200)).max(100);
 
 /**
  * AI-reported correction for a qa block (2026-08-10) — see lib/types.ts.
@@ -26,18 +38,23 @@ export const suggestionSchema = z
   })
   .transform((s) => ({ ...s, id: s.id ?? crypto.randomUUID() }));
 
+/** Shared vocabulary row shape (vocab / expressions / synonyms). */
+const vocabSchema = z
+  .array(z.object({ term: z.string().max(500), def: z.string().max(2_000) }))
+  .max(500);
+
 const qaContentSchema = z
   .object({
-    question: z.string(),
-    questionTranslation: z.string().optional(),
-    grammarNote: z.string().optional(),
-    responseLabel: z.string().optional(),
-    userAnswer: z.string().optional(),
-    modelAnswer: z.string().optional(),
-    answerTranslation: z.string().optional(),
-    analysis: z.string().optional(),
-    vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
-    expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
+    question: z.string().max(MAX_BLOCK_TEXT_CHARS),
+    questionTranslation: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    grammarNote: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    responseLabel: z.string().max(200).optional(),
+    userAnswer: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    modelAnswer: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    answerTranslation: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    analysis: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+    vocab: vocabSchema.optional(),
+    expressions: vocabSchema.optional(),
     hideTranslation: z.boolean().optional(),
     hideModelAnswer: z.boolean().optional(),
     suggestions: z.array(suggestionSchema).optional(), // AI corrections (2026-08-10)
@@ -49,14 +66,17 @@ export const blockSchema = z.discriminatedUnion("type", [
     id: z.string(),
     type: z.literal("title"),
     tags: tagSchema,
-    content: z.object({ text: z.string() }).loose(),
+    content: z.object({ text: z.string().max(MAX_BLOCK_TEXT_CHARS) }).loose(),
   }),
   z.object({
     id: z.string(),
     type: z.literal("heading"),
     tags: tagSchema,
     content: z
-      .object({ text: z.string(), level: z.union([z.literal(2), z.literal(3)]).optional() })
+      .object({
+        text: z.string().max(MAX_BLOCK_TEXT_CHARS),
+        level: z.union([z.literal(2), z.literal(3)]).optional(),
+      })
       .loose(),
   }),
   z.object({
@@ -65,13 +85,13 @@ export const blockSchema = z.discriminatedUnion("type", [
     tags: tagSchema,
     content: z
       .object({
-        text: z.string(),
+        text: z.string().max(MAX_BLOCK_TEXT_CHARS),
         format: z.enum(["plain", "markdown"]).optional(),
-        translation: z.string().optional(),
-        analysis: z.string().optional(),
-        vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
-        expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
-        userAnswer: z.string().optional(), // practice answer (M6, FR-33 parity with qa)
+        translation: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+        analysis: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+        vocab: vocabSchema.optional(),
+        expressions: vocabSchema.optional(),
+        userAnswer: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(), // practice answer (M6, FR-33 parity with qa)
       })
       .loose(),
   }),
@@ -84,13 +104,13 @@ export const blockSchema = z.discriminatedUnion("type", [
     tags: tagSchema,
     content: z
       .object({
-        heading: z.string().optional(), // 2026-08-10 #5: optional essay title
-        paragraphs: z.array(z.string()),
-        translation: z.string().optional(),
-        analysis: z.string().optional(),
-        vocab: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
-        expressions: z.array(z.object({ term: z.string(), def: z.string() })).optional(),
-        userAnswer: z.string().optional(), // practice answer (single, whole essay)
+        heading: z.string().max(MAX_TITLE_CHARS).optional(), // 2026-08-10 #5: optional essay title
+        paragraphs: z.array(z.string().max(MAX_BLOCK_TEXT_CHARS)).min(1).max(500),
+        translation: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+        analysis: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(),
+        vocab: vocabSchema.optional(),
+        expressions: vocabSchema.optional(),
+        userAnswer: z.string().max(MAX_BLOCK_TEXT_CHARS).optional(), // practice answer (single, whole essay)
       })
       .loose(),
   }),
@@ -104,16 +124,18 @@ export const blockSchema = z.discriminatedUnion("type", [
 ]);
 
 export const documentSchema = z.object({
-  id: z.string(),
-  title: z.string(),
+  id: z.string().max(64),
+  title: z.string().max(MAX_TITLE_CHARS),
+  // 2026-09-28: accepted on the wire for round-tripping a loaded document, but it
+  // is IGNORED on write — the route overwrites it with the session's owner id.
   ownerId: z.string().nullable().optional(),
   source: z.enum(["editor", "external-html"]),
   createdAt: z.string(),
   updatedAt: z.string(),
-  tags: z.array(z.string()),
+  tags: tagSchema,
   /** Library folder (2026-08-10 M7 round 6) — optional so older documents
    *  validate unchanged; undefined = unfiled. */
-  folderId: z.string().optional(),
+  folderId: z.string().max(64).optional(),
   /** Test document (2026-08-13): the editor auto-opens it in practice mode
    *  (answers hidden until Check). Optional so older documents validate
    *  unchanged; `.loose()` would keep it anyway, but explicit is better. */
@@ -121,11 +143,11 @@ export const documentSchema = z.object({
   /** Per-document instructions snapshot (FR-23, 2026-08-13: moved from a file
    *  onto the document — plain data, works without Blob). Optional so older
    *  documents validate unchanged. */
-  instructionsSnapshot: z.string().optional(),
+  instructionsSnapshot: z.string().max(MAX_INSTRUCTIONS_CHARS).optional(),
   /** Raw HTML source for external-html imports (FR-40, 2026-08-13: moved from
    *  a `document.html` file onto the document — no Blob needed). */
-  sourceHtml: z.string().optional(),
-  blocks: z.array(blockSchema),
+  sourceHtml: z.string().max(MAX_HTML_CHARS).optional(),
+  blocks: z.array(blockSchema).max(MAX_BLOCKS),
   practice: z
     .object({ hideTranslations: z.boolean(), hideModelAnswers: z.boolean() })
     .optional(),
@@ -146,12 +168,15 @@ export const createFolderPayloadSchema = z.object({ name: z.string().trim().min(
 export const renameFolderPayloadSchema = z.object({ name: z.string().trim().min(1).max(80) });
 
 /** Move-document body (PATCH /api/documents/[id]): folderId null clears it. */
-export const moveDocumentPayloadSchema = z.object({ folderId: z.string().nullable() });
+export const moveDocumentPayloadSchema = z.object({ folderId: z.string().max(64).nullable() });
+
+/** The `goal` a conversion may carry — buildAIPrompt injects it verbatim. */
+export const goalSchema = z.string().max(MAX_GOAL_CHARS);
 
 /** Payload accepted by document create/update routes: { doc, html?, instructionsVersion? }. */
 export const saveDocumentPayloadSchema = z.object({
   doc: documentSchema,
-  html: z.string().optional(),
+  html: z.string().max(MAX_HTML_CHARS).optional(),
   instructionsVersion: z.string().optional(),
 });
 

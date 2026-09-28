@@ -4,14 +4,23 @@
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { createFolderPayloadSchema } from "@/lib/schemas";
 
+// Owner scope (2026-09-28): folders are per-account, so the listing and the
+// create both carry the session's ownerId. Folders used to be a single global
+// list that anybody could rename or delete.
 export async function GET() {
-  const folders = await getStorage().listFolders();
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+  const folders = await getStorage().listFolders(auth.ownerId);
   return NextResponse.json({ folders });
 }
 
 export async function POST(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -27,6 +36,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const folder = await getStorage().createFolder(parsed.data.name.trim());
+  const folder = await getStorage().createFolder(parsed.data.name.trim(), auth.ownerId);
   return NextResponse.json({ folder }, { status: 201 });
 }

@@ -12,6 +12,11 @@ import { stripMarkdownFences } from "./ai";
  * 2. If it looks like a full document (<html or <!doctype), use as-is.
  * 3. Otherwise wrap a fragment in <!DOCTYPE html><html><head><meta
  *    charset><title><body> so it renders standalone.
+ *
+ * 2026-09-28: the wrapper's <title> is built from the first <h1> TEXT, which is
+ * attacker-controlled on an HTML import, so it is HTML-escaped here. (The body
+ * is not escaped — imported HTML is markup by definition; it is scrubbed by
+ * lib/sanitize.ts before it ever reaches this function.)
  */
 export function validateAndWrapHtml(input: string): string {
   const cleaned = stripMarkdownFences(input).trim();
@@ -22,7 +27,7 @@ export function validateAndWrapHtml(input: string): string {
 
   // Fragment — wrap it (title fallback: first heading text if any).
   const titleMatch = cleaned.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-  const title = titleMatch ? titleMatch[1].trim() : "Document";
+  const title = escapeAttribute(titleMatch ? titleMatch[1].trim() : "Document");
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -37,3 +42,14 @@ ${cleaned}
 </html>
 `;
 }
+
+/** Escape a value interpolated into a double-quoted/element-text position. */
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+

@@ -634,5 +634,35 @@ export async function generatePDFBuffer(
       </Page>
     </PDFDocument>
   );
-  return renderToBuffer(element);
+  return withTimeout(renderToBuffer(element));
+}
+
+/**
+ * 2026-09-28: `renderToBuffer` had no deadline. A pathological document (or the
+ * react-pdf 4.6.0 footer-height bug) can wedge the render, and the caller — the
+ * pdf route, or the backup loop that renders one PDF per document — would hang
+ * forever. The race rejects with a clear error the routes surface as 504; the
+ * underlying render is not cancellable, but the request is no longer held open.
+ */
+export const PDF_TIMEOUT_MS = 60_000;
+
+export class PDFTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`PDF rendering timed out after ${timeoutMs / 1000}s.`);
+    this.name = "PDFTimeoutError";
+  }
+}
+
+async function withTimeout(render: Promise<Buffer>): Promise<Buffer> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      render,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new PDFTimeoutError(PDF_TIMEOUT_MS)), PDF_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

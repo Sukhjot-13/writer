@@ -11,6 +11,8 @@
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
+import { isValidDocumentId } from "@/lib/ids";
 import { convertWithAI, hasAIKey, AIError } from "@/lib/ai";
 import { serializeBlocksForAI } from "@/lib/prompt";
 import { parseStructuredBlocksResponse } from "@/lib/structuring";
@@ -18,7 +20,14 @@ import { resolveConversionInstructions } from "@/lib/instructions";
 import { createDocument } from "@/lib/types";
 import { testTitle } from "@/lib/test-generator";
 
+// Session required + owner-scoped source documents (2026-09-28): the route used
+// to read ANY document id handed to it and feed it to the AI, so it was both an
+// exfiltration path (document content in the model prompt) and an ownerId
+// forgery surface — the saved test document took its owner from the request.
 export async function POST(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -31,7 +40,11 @@ export async function POST(request: Request) {
     questions?: unknown;
     essays?: unknown;
   };
-  if (!Array.isArray(docIds) || docIds.length === 0 || !docIds.every((d) => typeof d === "string")) {
+  if (
+    !Array.isArray(docIds) ||
+    docIds.length === 0 ||
+    !docIds.every((d) => typeof d === "string" && isValidDocumentId(d))
+  ) {
     return NextResponse.json({ error: "Select at least one document." }, { status: 400 });
   }
 
@@ -44,7 +57,7 @@ export async function POST(request: Request) {
 
   try {
     const storage = getStorage();
-    const docs = (await Promise.all(docIds.map((id) => storage.getDocument(id)))).filter(
+    const docs = (await Promise.all(docIds.map((id) => storage.getDocument(id, auth.ownerId)))).filter(
       (d): d is NonNullable<typeof d> => d !== null,
     );
     if (docs.length === 0) {
@@ -82,6 +95,7 @@ export async function POST(request: Request) {
     }
 
     const doc = createDocument(testTitle());
+    doc.ownerId = auth.ownerId;
     doc.blocks = blocks;
     // 2026-08-13: a test opens in practice mode — answers hidden until Check.
     doc.opensInPractice = true;

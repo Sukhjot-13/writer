@@ -8,22 +8,30 @@
 // is therefore unnecessary for normal operation. Activated by MONGODB_URI via
 // the factory in lib/storage.ts — app code never talks to either directly.
 //
-// Layout:
-//   collection documents     — { _id: docId, ...Document }
-//   collection files         — { _id: "<docId>/<filename>", url, contentType }  (blob handle map, legacy artifacts)
-//   collection instructions  — { _id: "active" | "history:<version>", content, savedAt }
-//   collection folders       — { _id: folderId, name, createdAt, updatedAt }  (2026-08-10 M7 round 6)
+// Layout (2026-09-28 — every collection is owner-scoped):
+//   collection documents     — { _id: docId, ownerId, ...Document }
+//   collection docversions   — { _id, ownerId, docId, version, savedAt, doc }
+//   collection files         — { _id: "<docId>/<filename>", ownerId, url, contentType }
+//   collection instructions  — { _id: "active" | "history:<version>", content, savedAt }  (app-wide)
+//   collection folders       — { _id: folderId, ownerId, name, createdAt, updatedAt }
 //
-// Lazy Mongo connection keeps the getStorage() factory synchronous — the
-// first storage call pays the connect. Blob read uses the public URL from
-// the files collection; `del` only when deleting a document.
+// Two invariants this file is responsible for:
+//   1. OWNER SCOPE — every document/folder/version/file filter carries the
+//      caller's ownerId, so a stolen id resolves to "not found" (404) rather
+//      than somebody else's data.
+//   2. NO REGEX FROM USER INPUT — the file index is keyed "<docId>/<filename>",
+//      so a prefix scan uses a RANGE query ($gte "<id>/" … $lt "<id>0"), never
+//      `$regex` built from the id. The old `$regex: "^${id}/"` meant
+//      `DELETE /api/documents/%2A` matched every row in the store.
+//
+// The connection + index bootstrap live in lib/db.ts (shared with lib/auth.ts).
 
-import { MongoClient, type Db } from "mongodb";
 import { put, del } from "@vercel/blob";
 import { promises as fs } from "node:fs";
 
 import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
+import { getDb } from "./db";
 import { REPO_INSTRUCTIONS_PATH } from "./tokens";
 import { syncActiveFromRepo } from "./instructions";
 
@@ -36,28 +44,19 @@ const ACTIVE_KEY = "active";
 // Cap pre-save document snapshots (oldest pruned).
 const MAX_DOC_VERSIONS = 20;
 
-let cachedDb: Promise<Db> | null = null;
-
-function getDb(): Promise<Db> {
-  if (!cachedDb) {
-    const uri = process.env.MONGODB_URI;
-    if (!uri) throw new Error("MONGODB_URI is not set — filesystem storage should be used (remove MONGODB_URI).");
-    cachedDb = new MongoClient(uri).connect().then((client) => client.db("writer-app"));
-  }
-  return cachedDb;
-}
-
 interface DocRow {
   _id: string;
   [key: string]: unknown;
 }
 interface FileRow {
   _id: string;
+  ownerId?: string;
   url: string;
   contentType?: string;
 }
 interface DocVersionRow {
   _id: string;
+  ownerId?: string;
   docId: string;
   version: string;
   savedAt: string;
@@ -75,35 +74,47 @@ function stripId(raw: DocRow): Document {
   return rest as unknown as Document;
 }
 
-/** "docId/filename" → blob URL via the files collection. */
-async function blobUrl(db: Db, key: string): Promise<string | null> {
-  const file = await db.collection<FileRow>(FILES).findOne({ _id: key });
-  return file?.url ?? null;
+/**
+ * Exact "everything under this document" prefix range for the file index.
+ * `_id` is "<docId>/<filename>", so every sibling key sits in
+ * ["<docId>/", "<docId>0") — the next character after "/" is 0x30, so "<docId>0"
+ * is a strict upper bound. No regex, so no metacharacter can widen the match.
+ */
+export function filePrefixRange(docId: string): { $gte: string; $lt: string } {
+  return { $gte: `${docId}/`, $lt: `${docId}0` };
 }
 
 export function createMongoBlobStorage(): StorageBackend {
   const backend: StorageBackend = {
     async listDocuments(ownerId) {
       const db = await getDb();
-      const filter = ownerId ? { ownerId } : {};
-      const docs = await db.collection<DocRow>(DOCS).find(filter).sort({ updatedAt: -1 }).toArray();
+      const docs = await db
+        .collection<DocRow>(DOCS)
+        .find({ ownerId })
+        .sort({ updatedAt: -1 })
+        .toArray();
       return docs.map(stripId);
     },
 
-    async getDocument(id) {
+    async getDocument(id, ownerId) {
       const db = await getDb();
-      const doc = await db.collection<DocRow>(DOCS).findOne({ _id: id });
+      const doc = await db.collection<DocRow>(DOCS).findOne({ _id: id, ownerId });
       return doc ? stripId(doc) : null;
     },
 
     async saveDocument(doc) {
       const db = await getDb();
+      const ownerId = String(doc.ownerId ?? "");
+      if (!ownerId) {
+        throw new Error("saveDocument requires doc.ownerId — it is assigned from the session, never from the client.");
+      }
       // Snapshot the pre-save content first so every save stays undoable.
-      const current = await db.collection<DocRow>(DOCS).findOne({ _id: doc.id });
+      const current = await db.collection<DocRow>(DOCS).findOne({ _id: doc.id, ownerId });
       if (current) {
         const stamp = new Date().toISOString();
         await db.collection<DocVersionRow>(DOCVERSIONS).insertOne({
           _id: `${doc.id}:${stamp}`,
+          ownerId,
           docId: doc.id,
           version: stamp,
           savedAt: stamp,
@@ -112,7 +123,7 @@ export function createMongoBlobStorage(): StorageBackend {
         // Prune oldest beyond the cap.
         const excess = await db
           .collection<DocVersionRow>(DOCVERSIONS)
-          .find({ docId: doc.id })
+          .find({ docId: doc.id, ownerId })
           .sort({ savedAt: -1 })
           .skip(MAX_DOC_VERSIONS)
           .project({ _id: 1 })
@@ -121,16 +132,21 @@ export function createMongoBlobStorage(): StorageBackend {
           await db.collection<DocVersionRow>(DOCVERSIONS).deleteMany({ _id: { $in: excess.map((e) => e._id) } });
         }
       }
-      await db.collection<DocRow>(DOCS).replaceOne({ _id: doc.id }, { ...doc }, { upsert: true });
+      // ownerId is written from the (already session-derived) doc, so a client
+      // can never re-point a document at another account.
+      await db
+        .collection<DocRow>(DOCS)
+        .replaceOne({ _id: doc.id, ownerId }, { _id: doc.id, ...doc, ownerId }, { upsert: true });
     },
 
-    async snapshotDocument(id) {
+    async snapshotDocument(id, ownerId) {
       const db = await getDb();
-      const current = await db.collection<DocRow>(DOCS).findOne({ _id: id });
+      const current = await db.collection<DocRow>(DOCS).findOne({ _id: id, ownerId });
       if (!current) return;
       const stamp = new Date().toISOString();
       await db.collection<DocVersionRow>(DOCVERSIONS).insertOne({
         _id: `${id}:${stamp}`,
+        ownerId,
         docId: id,
         version: stamp,
         savedAt: stamp,
@@ -138,27 +154,36 @@ export function createMongoBlobStorage(): StorageBackend {
       });
     },
 
-    async listDocumentVersions(id) {
+    async listDocumentVersions(id, ownerId) {
       const db = await getDb();
       const rows = await db
         .collection<DocVersionRow>(DOCVERSIONS)
-        .find({ docId: id })
+        .find({ docId: id, ownerId })
         .sort({ savedAt: -1 })
         .toArray();
       return rows.map((r) => ({ version: String(r.version), savedAt: String(r.savedAt) }));
     },
 
-    async readDocumentVersion(id, version) {
+    async readDocumentVersion(id, version, ownerId) {
       const db = await getDb();
-      const row = await db.collection<DocVersionRow>(DOCVERSIONS).findOne({ _id: `${id}:${version}` });
+      const row = await db
+        .collection<DocVersionRow>(DOCVERSIONS)
+        .findOne({ _id: `${id}:${version}`, docId: id, ownerId });
       if (!row || typeof row.doc !== "object" || row.doc === null) return null;
       return row.doc as Document;
     },
 
-    async deleteDocument(id) {
+    async deleteDocument(id, ownerId) {
       const db = await getDb();
-      // Remove blob files first (need their URLs), then the Mongo rows.
-      const files = await db.collection<FileRow>(FILES).find({ _id: { $regex: `^${id}/` } }).toArray();
+      const docs = db.collection<DocRow>(DOCS);
+      const result = await docs.deleteOne({ _id: id, ownerId });
+      if (result.deletedCount === 0) return false; // never existed, or not yours
+      // Remove blob files first (need their URLs), then the rows. The prefix is
+      // a RANGE query — see filePrefixRange for why this is not a regex.
+      const files = await db
+        .collection<FileRow>(FILES)
+        .find({ _id: filePrefixRange(id), ownerId })
+        .toArray();
       const urls = files.map((f) => f.url);
       if (urls.length) {
         await del(urls).catch(() => {
@@ -166,51 +191,60 @@ export function createMongoBlobStorage(): StorageBackend {
           // would only linger in the store, never in the app.
         });
       }
-      await db.collection<FileRow>(FILES).deleteMany({ _id: { $regex: `^${id}/` } });
-      await db.collection<DocRow>(DOCS).deleteOne({ _id: id });
-      await db.collection<DocVersionRow>(DOCVERSIONS).deleteMany({ docId: id });
+      await db.collection<FileRow>(FILES).deleteMany({ _id: filePrefixRange(id), ownerId });
+      await db.collection<DocVersionRow>(DOCVERSIONS).deleteMany({ docId: id, ownerId });
+      return true;
     },
 
     // ---- library folders (2026-08-10 M7 round 6) — mirror of the FS backend.
     // Deleting a folder UNFILES its documents (unset folderId) — never deletes them.
-    async listFolders() {
+    async listFolders(ownerId) {
       const db = await getDb();
-      const rows = await db.collection<DocRow>(FOLDERS).find({}).toArray();
+      const rows = await db.collection<DocRow>(FOLDERS).find({ ownerId }).toArray();
       return rows
         .map((r) => stripId(r) as unknown as Folder)
         .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
     },
 
-    async createFolder(name) {
+    async getFolder(id, ownerId) {
+      const db = await getDb();
+      const row = await db.collection<DocRow>(FOLDERS).findOne({ _id: id, ownerId });
+      return row ? (stripId(row) as unknown as Folder) : null;
+    },
+
+    async createFolder(name, ownerId) {
       const db = await getDb();
       const now = new Date().toISOString();
       const folder: Folder = { id: crypto.randomUUID(), name, createdAt: now, updatedAt: now };
-      await db.collection<DocRow>(FOLDERS).insertOne({ _id: folder.id, ...folder });
+      await db.collection<DocRow>(FOLDERS).insertOne({ _id: folder.id, ownerId, ...folder });
       return folder;
     },
 
-    async renameFolder(id, name) {
+    async renameFolder(id, name, ownerId) {
       const db = await getDb();
       const res = await db
         .collection<DocRow>(FOLDERS)
-        .findOneAndUpdate({ _id: id }, { $set: { name, updatedAt: new Date().toISOString() } });
+        .findOneAndUpdate({ _id: id, ownerId }, { $set: { name, updatedAt: new Date().toISOString() } });
       if (!res) return null;
       return stripId(res) as unknown as Folder;
     },
 
-    async deleteFolder(id) {
+    async deleteFolder(id, ownerId) {
       const db = await getDb();
-      await db.collection<DocRow>(FOLDERS).deleteOne({ _id: id });
-      // Unfile the folder's documents — the documents themselves are kept.
-      await db.collection<DocRow>(DOCS).updateMany({ folderId: id }, { $unset: { folderId: "" } });
+      const result = await db.collection<DocRow>(FOLDERS).deleteOne({ _id: id, ownerId });
+      if (result.deletedCount === 0) return false;
+      // Unfile the folder's documents — the documents themselves are kept, and
+      // only the ones owned by this caller are touched.
+      await db.collection<DocRow>(DOCS).updateMany({ folderId: id, ownerId }, { $unset: { folderId: "" } });
+      return true;
     },
 
-    async readFile(docId, filename) {
+    async readFile(docId, filename, ownerId) {
       const db = await getDb();
       const key = `${docId}/${filename}`;
-      const url = await blobUrl(db, key);
-      if (!url) return null;
-      const res = await fetch(url);
+      const file = await db.collection<FileRow>(FILES).findOne({ _id: key, ownerId });
+      if (!file) return null;
+      const res = await fetch(file.url);
       if (!res.ok) return null;
       return Buffer.from(await res.arrayBuffer());
     },
@@ -218,7 +252,7 @@ export function createMongoBlobStorage(): StorageBackend {
     // 2026-08-13: the app never WRITES attachment files anymore (html/pdf on
     // demand, snapshot/source on the document). Kept on the interface for
     // tests/compat — requires BLOB_READ_WRITE_TOKEN if actually called.
-    async writeFile(docId, filename, data) {
+    async writeFile(docId, filename, data, ownerId) {
       const db = await getDb();
       const key = `${docId}/${filename}`;
       const blob = await put(key, data, { access: "public" });
@@ -226,17 +260,17 @@ export function createMongoBlobStorage(): StorageBackend {
         .collection<FileRow>(FILES)
         .updateOne(
           { _id: key },
-          { $set: { url: blob.url, contentType: blob.contentType, updatedAt: new Date().toISOString() } },
+          { $set: { ownerId, url: blob.url, contentType: blob.contentType, updatedAt: new Date().toISOString() } },
           { upsert: true },
         );
     },
 
-    async deleteFile(docId, filename) {
+    async deleteFile(docId, filename, ownerId) {
       const db = await getDb();
       const key = `${docId}/${filename}`;
-      const url = await blobUrl(db, key);
-      if (url) await del([url]).catch(() => undefined);
-      await db.collection<FileRow>(FILES).deleteOne({ _id: key });
+      const file = await db.collection<FileRow>(FILES).findOne({ _id: key, ownerId });
+      if (file?.url) await del([file.url]).catch(() => undefined);
+      await db.collection<FileRow>(FILES).deleteOne({ _id: key, ownerId });
     },
 
     /**
@@ -278,10 +312,19 @@ export function createMongoBlobStorage(): StorageBackend {
 
     async listInstructionsHistory() {
       const db = await getDb();
-      const entries = await db.collection<InstrRow>(INSTR).find({ _id: { $regex: /^history:/ } }).sort({ savedAt: -1 }).toArray();
+      const entries = await db
+        .collection<InstrRow>(INSTR)
+        .find({ _id: { $regex: /^history:/ } })
+        .sort({ savedAt: -1 })
+        .toArray();
+      // 2026-09-28: the CONTENT rides along. The editor's Preview/Restore read
+      // `entry.content` directly; returning {version, savedAt} only made every
+      // row read "0 chars", wiped the textarea on Preview, and sent
+      // `{content: ""}` on Restore, which zod rejected with a 400.
       return entries.map((e) => ({
         version: String(e._id).slice("history:".length),
         savedAt: typeof e.savedAt === "string" ? e.savedAt : new Date(e.savedAt).toISOString(),
+        content: e.content,
       }));
     },
 

@@ -85,6 +85,10 @@ export type Block =
  *  folder UNFILES its documents — it never deletes them. */
 export interface Folder {
   id: string;
+  /** 2026-09-28: the owning account, assigned from the session. Folders were a
+   *  single global list before, so any caller could rename or delete any of
+   *  them. */
+  ownerId?: string;
   name: string;
   createdAt: string;
   updatedAt: string;

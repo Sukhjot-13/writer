@@ -72,8 +72,40 @@ export function renderInlineMarkdown(text: string): string {
   return out.join("\n");
 }
 
+/**
+ * 2026-09-28 (design-token CSS injection): the TOKENS block is editable by the
+ * user through PUT /api/instructions, and every value below is interpolated raw
+ * into the `<style>` block this file serves as `text/html`. Strip the four
+ * characters that can terminate a CSS declaration or a style element, plus
+ * backslashes (CSS escapes can smuggle any of them back in), from every token
+ * on the way in. This is defence in depth behind the allow-list in
+ * `lib/tokens.ts` — neither layer is trusted alone.
+ */
+export function safeTokenValue(value: string): string {
+  return String(value ?? "")
+    .replace(/\\/g, "")
+    .replace(/[<>{}]/g, "")
+    .trim();
+}
+
+/** Apply `safeTokenValue` to every string in the token tree. */
+function safeTokens(tokens: DesignTokens): DesignTokens {
+  const mapGroup = <T extends Record<string, string>>(group: T): T => {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(group)) out[key] = safeTokenValue(value);
+    return out as T;
+  };
+  return {
+    colors: mapGroup(tokens.colors),
+    fonts: mapGroup(tokens.fonts),
+    sizes: mapGroup(tokens.sizes),
+    spacing: mapGroup(tokens.spacing),
+    radius: mapGroup(tokens.radius),
+  };
+}
+
 function buildCss(tokens: DesignTokens, paper = false): string {
-  const t = tokens;
+  const t = safeTokens(tokens);
   // Paper mode (preview, 2026-08-10 #4): the document is shown as an A4 sheet
   // at the SPEC's SCREEN rendering — base font (11.5px) and page margins
   // (18mm), matching "GLOBAL STYLE: A4 (210×297mm), margins 18mm, base 11.5px".

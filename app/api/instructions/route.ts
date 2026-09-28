@@ -10,6 +10,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
+import { isValidDocumentId } from "@/lib/ids";
 import {
   getInstructionsState,
   hashVersion,
@@ -18,19 +20,35 @@ import {
   InstructionsError,
 } from "@/lib/instructions";
 
-const payloadSchema = z.object({ content: z.string().min(1) });
+// 200 KB ceiling (2026-09-28): the content is written verbatim as the global
+// system prompt AND its TOKENS block is interpolated into the CSS served as
+// text/html, so an unbounded body was both a storage and a rendering hazard.
+const MAX_INSTRUCTIONS_CHARS = 200_000;
+const payloadSchema = z.object({ content: z.string().min(1).max(MAX_INSTRUCTIONS_CHARS) });
 
+// Session required (2026-09-28). Instructions stay APP-WIDE (one design system,
+// not per account) but they are no longer world-readable/writable: the tokens
+// they carry reach the HTML renderer, so an anonymous PUT was a CSS-injection
+// and prompt-poisoning vector.
 export async function GET(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
   // 2026-08-10: Copy → "For AI" resolves instructions the SAME way a
   // conversion does (?docId + ?useSnapshot=true, FR-23) so the copied payload
   // and Rethink with AI can never disagree on which rules apply. Without
   // params this is the plain instructions-editor state (content + history).
   const { searchParams } = new URL(request.url);
-  const docId = searchParams.get("docId") || undefined;
+  const docIdParam = searchParams.get("docId") || undefined;
+  // A docId that is not a valid id can never own a document — reject it rather
+  // than passing junk into a query filter.
+  if (docIdParam && !isValidDocumentId(docIdParam)) {
+    return NextResponse.json({ error: "Invalid document id" }, { status: 400 });
+  }
+  const docId = docIdParam;
   const useSnapshot = searchParams.get("useSnapshot") === "true";
   const storage = getStorage();
   if (docId || useSnapshot) {
-    const content = await resolveConversionInstructions(storage, docId, useSnapshot);
+    const content = await resolveConversionInstructions(storage, docId, useSnapshot, auth.ownerId);
     return NextResponse.json({ content, version: hashVersion(content) });
   }
   const state = await getInstructionsState(storage);
@@ -38,6 +56,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -47,7 +68,10 @@ export async function PUT(request: Request) {
 
   const parsed = payloadSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Instructions cannot be empty" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Instructions cannot be empty and must be at most 200000 characters." },
+      { status: 400 },
+    );
   }
 
   try {

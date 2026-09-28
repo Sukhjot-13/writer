@@ -22,6 +22,25 @@ export const REPO_INSTRUCTIONS_PATH = path.join(
   "html_instructions.md",
 );
 
+/**
+ * 2026-09-28 (design-token CSS injection): a token VALUE is interpolated raw
+ * into the `<style>` block that `lib/html-template.ts` serves as text/html, so
+ * an unauthenticated PUT /api/instructions could close the style block with
+ * `#000 } </style><script>fetch('/api/documents')</script>` and get executable
+ * HTML back. The allow-list below admits exactly the shapes the real design
+ * system uses — hex colors, `rgba()`/`hsl()`, px/rem/em/mm/%/fr sizes, font
+ * stacks, radii — and nothing that can leave a CSS declaration.
+ */
+export const TOKEN_VALUE_PATTERN = /^[#a-zA-Z0-9(),.%\-_ ]{1,64}$/;
+
+/** Hard cap on `key: value` lines accepted from the block. */
+export const MAX_TOKENS = 128;
+
+/** True when a parsed token value may be interpolated into CSS. */
+export function isValidTokenValue(value: string): boolean {
+  return TOKEN_VALUE_PATTERN.test(value.trim());
+}
+
 /** Extract and parse the `<!-- TOKENS --> … <!-- /TOKENS -->` block of a markdown file. */
 export function parseTokensBlock(markdown: string, defaults: DesignTokens): DesignTokens | null {
   const match = markdown.match(/<!--\s*TOKENS\s*-->([\s\S]*?)<!--\s*\/TOKENS\s*-->/);
@@ -29,6 +48,7 @@ export function parseTokensBlock(markdown: string, defaults: DesignTokens): Desi
 
   const sections: Record<string, Record<string, string>> = {};
   let current: string | null = null;
+  let accepted = 0;
 
   for (const rawLine of match[1].split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -43,7 +63,13 @@ export function parseTokensBlock(markdown: string, defaults: DesignTokens): Desi
     // Key-value entry: `mainText: "#1a1a1a"`
     const kvMatch = line.match(/^([a-zA-Z][\w-]*)\s*:\s*(.+?)\s*$/);
     if (kvMatch && current) {
-      sections[current][kvMatch[1]] = kvMatch[2].replace(/^["']|["']$/g, "");
+      if (accepted >= MAX_TOKENS) break; // oversized block — keep the defaults
+      const value = kvMatch[2].replace(/^["']|["']$/g, "").trim();
+      // Reject anything outside the allow-list and fall back to the default for
+      // that key (never throw — a bad token must not break the whole render).
+      if (!isValidTokenValue(value)) continue;
+      sections[current][kvMatch[1]] = value;
+      accepted += 1;
     }
   }
 

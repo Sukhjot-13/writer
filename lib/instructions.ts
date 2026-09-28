@@ -26,6 +26,11 @@ export class InstructionsError extends Error {
 export interface InstructionsHistoryEntry {
   version: string;
   savedAt: string;
+  /** 2026-09-28: the FULL content of that version. The editor previews and
+   *  restores straight from the list response; before this the backends returned
+   *  {version, savedAt} only, so every row read "0 chars", Preview wiped the
+   *  textarea and Restore PUT `{content: ""}` → 400. */
+  content: string;
 }
 
 /** Stable short content hash — used as the instructions version identifier. */
@@ -125,11 +130,12 @@ export async function resetInstructions(storage: StorageBackend): Promise<string
 async function readSnapshotContent(
   storage: StorageBackend,
   docId: string | null | undefined,
+  ownerId: string,
 ): Promise<string | null> {
   if (!docId) return null;
-  const doc = await storage.getDocument(docId);
+  const doc = await storage.getDocument(docId, ownerId);
   if (doc?.instructionsSnapshot) return doc.instructionsSnapshot;
-  const file = await storage.readFile(docId, "instructions.snapshot.md");
+  const file = await storage.readFile(docId, "instructions.snapshot.md", ownerId);
   return file ? file.toString("utf8") : null;
 }
 
@@ -137,8 +143,9 @@ async function readSnapshotContent(
 export async function readDocumentSnapshot(
   storage: StorageBackend,
   docId: string,
+  ownerId: string,
 ): Promise<{ content: string; version: string } | null> {
-  const content = await readSnapshotContent(storage, docId);
+  const content = await readSnapshotContent(storage, docId, ownerId);
   if (content === null) return null;
   return { content, version: hashVersion(content) };
 }
@@ -151,9 +158,10 @@ export async function resolveConversionInstructions(
   storage: StorageBackend,
   docId: string | null | undefined,
   useSnapshot: boolean,
+  ownerId = "",
 ): Promise<string> {
   if (useSnapshot && docId) {
-    const content = await readSnapshotContent(storage, docId);
+    const content = await readSnapshotContent(storage, docId, ownerId);
     if (content) return content;
   }
   return storage.readInstructions();

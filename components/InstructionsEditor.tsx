@@ -13,6 +13,14 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
+/**
+ * 2026-09-28: `content` is REQUIRED and comes straight from
+ * `listInstructionsHistory()` (both backends return it now). It used to be typed
+ * as present but arrive undefined, so every row read "0 chars", Preview replaced
+ * the textarea with "" (destroying unsaved edits) and Restore PUT
+ * `{content: ""}`, which zod rejected with a 400. The `?? ""` fallbacks are gone
+ * on purpose — an absent content is a bug we want to see, not paper over.
+ */
 interface HistoryEntry {
   version: string;
   savedAt: string;
@@ -40,6 +48,13 @@ export default function InstructionsEditor() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // 2026-09-28: in-app confirmation banners replace window.confirm() — the app
+  // deliberately moved to this pattern in LibraryList/Editor, and a native
+  // dialog cannot be styled, screenshotted consistently, or read by a screen
+  // reader as part of the page.
+  const [pendingReset, setPendingReset] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState<HistoryEntry | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<HistoryEntry | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +114,11 @@ export default function InstructionsEditor() {
   // The current version is snapshotted to history before the overwrite.
   async function resetToRepo() {
     if (busy) return;
-    if (!confirm("Discard your edits and restore the repo copy (docs/html_instructions.md)? The current version is kept in history.")) return;
+    if (!pendingReset) {
+      setPendingReset(true);
+      return;
+    }
+    setPendingReset(false);
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -117,14 +136,24 @@ export default function InstructionsEditor() {
   }
 
   function previewHistory(entry: HistoryEntry) {
-    setDraft(entry.content ?? "");
+    if (dirty) {
+      // Preview used to overwrite the textarea unconditionally, silently
+      // destroying unsaved edits. Keep them and let the user decide.
+      setPendingPreview(entry);
+      return;
+    }
+    setDraft(entry.content);
     setStatus(`Previewing v${entry.version} from ${formatDate(entry.savedAt)} — Save to make it active.`);
   }
 
   async function restoreVersion(entry: HistoryEntry) {
     if (busy) return;
-    if (!confirm(`Make v${entry.version} (${formatDate(entry.savedAt)}) the active instructions?`)) return;
-    setDraft(entry.content ?? "");
+    if (!pendingRestore) {
+      setPendingRestore(entry);
+      return;
+    }
+    setPendingRestore(null);
+    setDraft(entry.content);
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -132,7 +161,7 @@ export default function InstructionsEditor() {
       const res = await fetch("/api/instructions", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: entry.content ?? "" }),
+        body: JSON.stringify({ content: entry.content }),
       });
       const body = (await res.json().catch(() => ({}))) as { version?: string; error?: string };
       if (!res.ok) throw new Error(body.error ?? "Could not restore version");
@@ -148,8 +177,10 @@ export default function InstructionsEditor() {
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
       <div className="mb-6 flex items-center gap-3">
+        {/* 2026-09-28: "/" is the dashboard, not the editor (the editor moved
+            to /doc/[id] in the M6 redesign) — the label was simply wrong. */}
         <Link href="/" className="rounded-lg px-2.5 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900">
-          ← Editor
+          ← Home
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Instructions</h1>
         {state && (
@@ -197,10 +228,100 @@ export default function InstructionsEditor() {
         {dirty && <span className="text-sm font-medium text-amber-600">Unsaved changes</span>}
       </div>
 
+      {pendingReset && (
+        <div
+          role="alertdialog"
+          aria-label="Confirm restoring the repo copy"
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          <span className="min-w-0 flex-1">
+            Discard your edits and restore the repo copy (docs/html_instructions.md)? The current
+            version is kept in history.
+          </span>
+          <button
+            type="button"
+            onClick={() => void resetToRepo()}
+            disabled={busy}
+            className="shrink-0 rounded-md bg-red-600 px-2.5 py-1 font-semibold text-[#fff] transition-colors hover:bg-red-700 disabled:opacity-40"
+          >
+            Discard edits
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingReset(false)}
+            className="shrink-0 rounded-md border border-red-200 bg-white px-2.5 py-1 font-medium text-red-600 transition-colors hover:bg-red-100"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {pendingRestore && (
+        <div
+          role="alertdialog"
+          aria-label="Confirm restoring this version"
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          <span className="min-w-0 flex-1">
+            Make v{pendingRestore.version} ({formatDate(pendingRestore.savedAt)}) the active
+            instructions?
+          </span>
+          <button
+            type="button"
+            onClick={() => void restoreVersion(pendingRestore)}
+            disabled={busy}
+            className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-[#fff] transition-colors hover:bg-amber-700 disabled:opacity-40"
+          >
+            Restore
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingRestore(null)}
+            className="shrink-0 rounded-md border border-amber-200 bg-white px-2.5 py-1 font-medium text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {pendingPreview && (
+        <div
+          role="alertdialog"
+          aria-label="Confirm replacing the editor contents"
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          <span className="min-w-0 flex-1">
+            You have unsaved changes. Replace the editor with v{pendingPreview.version}? Your
+            current text is lost.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(pendingPreview.content);
+              setStatus(
+                `Previewing v${pendingPreview.version} from ${formatDate(pendingPreview.savedAt)} — Save to make it active.`,
+              );
+              setPendingPreview(null);
+            }}
+            className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 font-semibold text-[#fff] transition-colors hover:bg-amber-700"
+          >
+            Replace
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingPreview(null)}
+            className="shrink-0 rounded-md border border-amber-200 bg-white px-2.5 py-1 font-medium text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            Keep my edits
+          </button>
+        </div>
+      )}
+
       {loading && !state ? (
         <div className="p-8 text-sm text-zinc-500">Loading instructions…</div>
       ) : (
         <textarea
+          aria-label="Instructions markdown, including the TOKENS design block"
           value={text}
           onChange={(e) => setDraft(e.target.value)}
           rows={40}
@@ -220,11 +341,12 @@ export default function InstructionsEditor() {
               >
                 <span className="font-mono text-xs text-zinc-500">v{entry.version}</span>
                 <span className="text-zinc-600">{formatDate(entry.savedAt)}</span>
-                <span className="text-zinc-400">{(entry.content ?? "").length} chars</span>
+                <span className="text-zinc-400">{entry.content.length} chars</span>
                 <div className="ml-auto flex gap-2">
                   <button
                     type="button"
                     onClick={() => previewHistory(entry)}
+                    aria-label={`Preview version ${entry.version}`}
                     disabled={busy}
                     className="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
                   >
@@ -233,6 +355,7 @@ export default function InstructionsEditor() {
                   <button
                     type="button"
                     onClick={() => void restoreVersion(entry)}
+                    aria-label={`Restore version ${entry.version}`}
                     disabled={busy || entry.version === state.version}
                     className="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40"
                   >

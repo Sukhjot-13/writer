@@ -8,14 +8,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { convertWithAI, hasAIKey, AIError } from "@/lib/ai";
 import { buildStructuringUserPrompt, parseStructuredQaResponse } from "@/lib/questions";
 
 const payloadSchema = z.object({
-  questions: z.array(z.string().min(1)).min(1).max(200),
+  questions: z.array(z.string().min(1).max(20_000)).min(1).max(200),
 });
 
+// Session required (2026-09-28) — an unauthenticated caller could otherwise
+// spend the deployment's DeepSeek credits.
 export async function POST(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();

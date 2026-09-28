@@ -5,11 +5,17 @@
 
 import { NextResponse } from "next/server";
 
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { getAIConfig, hasAIKey } from "@/lib/ai";
 import { getStorage } from "@/lib/storage";
 import { hashVersion } from "@/lib/instructions";
 
+// Session required (2026-09-28) — this route reports the AI model name and
+// whether a key is configured, and it reads storage to hash the instructions.
 export async function GET() {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   const { model } = getAIConfig();
   const storage = getStorage();
   const instructions = await storage.readInstructions(); // seeds active.md on first run (FR-21)

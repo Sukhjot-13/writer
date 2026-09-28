@@ -6,9 +6,15 @@
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { resetInstructions } from "@/lib/instructions";
 
+// Session required (2026-09-28): resetting the global instructions rewrote the
+// system prompt for every user, so it was an open POST.
 export async function POST() {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   try {
     const storage = getStorage();
     const version = await resetInstructions(storage);

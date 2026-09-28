@@ -27,6 +27,7 @@ import path from "node:path";
 import type { Document, Folder } from "./types";
 import type { StorageBackend } from "./storage";
 import { seedInstructionsIfMissing, syncActiveFromRepo } from "./instructions";
+import { DOCUMENT_ID_PATTERN } from "./ids";
 
 /** Filenames the storage layer is allowed to touch inside a document folder (path-traversal guard). */
 const SAFE_FILENAMES = new Set([
@@ -54,8 +55,22 @@ export function createFSStorage(dataDir: string): StorageBackend {
     await fs.mkdir(historyDir, { recursive: true });
   }
 
+  /**
+   * 2026-09-28 (path traversal): `path.join(docsDir, id)` with an unvalidated
+   * id let `GET /api/documents/..%2F..%2Fetc` reach anywhere on the filesystem.
+   * The id is rejected unless it matches the same closed character class the
+   * route layer enforces, so no separator can ever appear in it.
+   */
   function docDir(id: string): string {
-    return path.join(docsDir, id);
+    if (!DOCUMENT_ID_PATTERN.test(id)) {
+      throw new Error(`Unsafe document id: ${JSON.stringify(id)}`);
+    }
+    const dir = path.resolve(docsDir, id);
+    const under = path.resolve(docsDir);
+    if (dir !== under && !dir.startsWith(under + path.sep)) {
+      throw new Error(`Document id escapes the documents directory: ${JSON.stringify(id)}`);
+    }
+    return dir;
   }
 
   /** Keep the last MAX_DOC_VERSIONS pre-save snapshots of a document. */
@@ -78,6 +93,14 @@ export function createFSStorage(dataDir: string): StorageBackend {
     } catch {
       // pruning is best-effort
     }
+  }
+
+  /** The document row for `id`, but only when it belongs to `ownerId`. */
+  async function ownedDoc(id: string, ownerId: string): Promise<Document | null> {
+    await ensureDirs();
+    const doc = await readJson<Document>(path.join(docDir(id), "document.json"));
+    if (!doc || doc.ownerId !== ownerId) return null;
+    return doc;
   }
 
   async function readJson<T>(file: string): Promise<T | null> {
@@ -137,20 +160,26 @@ export function createFSStorage(dataDir: string): StorageBackend {
         if (!entry.isDirectory()) continue;
         const doc = await readJson<Document>(path.join(docDir(entry.name), "document.json"));
         if (!doc) continue; // folder without a valid document.json — skip
-        // Owner seam (FR-45): v1 ignores ownerId (null); a future auth middleware passes it.
-        if (ownerId && doc.ownerId !== ownerId) continue;
+        // Owner scope (2026-09-28): the seam is load-bearing now — the FS
+        // fixture mirrors the Mongo filter so the suites exercise the contract.
+        if (doc.ownerId !== ownerId) continue;
         docs.push(doc);
       }
       return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 
-    async getDocument(id) {
+    async getDocument(id, ownerId) {
       await ensureDirs();
-      return readJson<Document>(path.join(docDir(id), "document.json"));
+      const doc = await readJson<Document>(path.join(docDir(id), "document.json"));
+      if (!doc || doc.ownerId !== ownerId) return null;
+      return doc;
     },
 
     async saveDocument(doc) {
       await ensureDirs();
+      if (!doc.ownerId) {
+        throw new Error("saveDocument requires doc.ownerId — it is assigned from the session.");
+      }
       // Snapshot the pre-save content first so every save stays undoable.
       await snapshotDocVersion(doc.id);
       await fs.mkdir(docDir(doc.id), { recursive: true });
@@ -158,12 +187,14 @@ export function createFSStorage(dataDir: string): StorageBackend {
       await fs.writeFile(file, JSON.stringify(doc, null, 2), "utf8");
     },
 
-    async snapshotDocument(id) {
+    async snapshotDocument(id, ownerId) {
       await ensureDirs();
+      if (!(await ownedDoc(id, ownerId))) return;
       await snapshotDocVersion(id);
     },
 
-    async listDocumentVersions(id) {
+    async listDocumentVersions(id, ownerId) {
+      if (!(await ownedDoc(id, ownerId))) return [];
       const dir = path.join(docDir(id), "versions");
       let entries;
       try {
@@ -180,32 +211,48 @@ export function createFSStorage(dataDir: string): StorageBackend {
       return history.sort((a, b) => b.savedAt.localeCompare(a.savedAt)); // newest first
     },
 
-    async readDocumentVersion(id, version) {
+    async readDocumentVersion(id, version, ownerId) {
       const safe = version.replace(/[^\w.-]/g, "_");
-      return readJson<Document>(path.join(docDir(id), "versions", `${safe}.json`));
+      const snapshot = await readJson<Document>(path.join(docDir(id), "versions", `${safe}.json`));
+      if (!snapshot || snapshot.ownerId !== ownerId) return null;
+      return snapshot;
     },
 
-    async deleteDocument(id) {
+    async deleteDocument(id, ownerId) {
+      const doc = await readJson<Document>(path.join(docDir(id), "document.json"));
+      if (!doc || doc.ownerId !== ownerId) return false;
       await fs.rm(docDir(id), { recursive: true, force: true });
+      return true;
     },
 
-    async listFolders() {
-      const folders = await readFolders();
+    async listFolders(ownerId) {
+      const folders = (await readFolders()).filter((f) => f.ownerId === ownerId);
       return folders.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
     },
 
-    async createFolder(name) {
+    async getFolder(id, ownerId) {
+      const folders = await readFolders();
+      return folders.find((f) => f.id === id && f.ownerId === ownerId) ?? null;
+    },
+
+    async createFolder(name, ownerId) {
       const folders = await readFolders();
       const now = new Date().toISOString();
-      const folder: Folder = { id: crypto.randomUUID(), name, createdAt: now, updatedAt: now };
+      const folder: Folder = {
+        id: crypto.randomUUID(),
+        ownerId,
+        name,
+        createdAt: now,
+        updatedAt: now,
+      };
       folders.push(folder);
       await writeFolders(folders);
       return folder;
     },
 
-    async renameFolder(id, name) {
+    async renameFolder(id, name, ownerId) {
       const folders = await readFolders();
-      const folder = folders.find((f) => f.id === id);
+      const folder = folders.find((f) => f.id === id && f.ownerId === ownerId);
       if (!folder) return null;
       folder.name = name;
       folder.updatedAt = new Date().toISOString();
@@ -213,18 +260,19 @@ export function createFSStorage(dataDir: string): StorageBackend {
       return folder;
     },
 
-    async deleteFolder(id) {
+    async deleteFolder(id, ownerId) {
       const folders = await readFolders();
-      const next = folders.filter((f) => f.id !== id);
-      if (next.length !== folders.length) {
-        await writeFolders(next);
-        // Unfile the folder's documents — the documents themselves are kept.
-        await unfileDocuments(id);
-      }
+      const next = folders.filter((f) => f.id !== id || f.ownerId !== ownerId);
+      if (next.length === folders.length) return false;
+      await writeFolders(next);
+      // Unfile the folder's documents — the documents themselves are kept.
+      await unfileDocuments(id);
+      return true;
     },
 
-    async readFile(docId, filename) {
+    async readFile(docId, filename, ownerId) {
       assertSafeFilename(filename);
+      if (!(await ownedDoc(docId, ownerId))) return null;
       try {
         return await fs.readFile(path.join(docDir(docId), filename));
       } catch {
@@ -232,14 +280,16 @@ export function createFSStorage(dataDir: string): StorageBackend {
       }
     },
 
-    async writeFile(docId, filename, data) {
+    async writeFile(docId, filename, data, ownerId) {
       assertSafeFilename(filename);
+      if (!(await ownedDoc(docId, ownerId))) throw new Error("Unknown document.");
       await fs.mkdir(docDir(docId), { recursive: true });
       await fs.writeFile(path.join(docDir(docId), filename), data);
     },
 
-    async deleteFile(docId, filename) {
+    async deleteFile(docId, filename, ownerId) {
       assertSafeFilename(filename);
+      if (!(await ownedDoc(docId, ownerId))) return;
       await fs.rm(path.join(docDir(docId), filename), { force: true });
     },
 
@@ -265,12 +315,15 @@ export function createFSStorage(dataDir: string): StorageBackend {
       } catch {
         return []; // no history yet
       }
-      const history = [];
+      const history: { version: string; savedAt: string; content: string }[] = [];
       for (const entry of entries) {
         if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
         const version = entry.name.slice(0, -3);
-        const stat = await fs.stat(path.join(historyDir, entry.name));
-        history.push({ version, savedAt: stat.mtime.toISOString() });
+        const file = path.join(historyDir, entry.name);
+        const stat = await fs.stat(file);
+        // 2026-09-28: carry the CONTENT so the editor's Preview/Restore works
+        // without a second round-trip (Mongo backend does the same).
+        history.push({ version, savedAt: stat.mtime.toISOString(), content: await fs.readFile(file, "utf8") });
       }
       return history.sort((a, b) => b.savedAt.localeCompare(a.savedAt)); // newest first
     },

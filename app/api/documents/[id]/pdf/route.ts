@@ -16,9 +16,11 @@
 import { NextResponse } from "next/server";
 
 import { getStorage } from "@/lib/storage";
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { getTokens } from "@/lib/design-tokens";
 import { generatePDFBuffer, type PDFVariant } from "@/lib/pdf";
 import { documentSchema, hiddenOptionsSchema } from "@/lib/schemas";
+import { isValidDocumentId } from "@/lib/ids";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -36,10 +38,20 @@ function safeFilename(title: string, variant: PDFVariant): string {
   return `${base}${suffix}.pdf`;
 }
 
+// Owner scope (2026-09-28): the GET renders the SAVED document, so it is
+// owner-filtered (404 for anybody else's) and the route id is shape-validated.
+// POST renders the caller's UNSAVED editor buffer, so it needs no document read —
+// it is a pure function of the body, but the body is still capped by
+// documentSchema and the request is gated by session.
 export async function GET(request: Request, { params }: RouteParams) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
   const { id } = await params;
+  if (!isValidDocumentId(id)) {
+    return NextResponse.json({ error: "Invalid document id" }, { status: 400 });
+  }
   const storage = getStorage();
-  const doc = await storage.getDocument(id);
+  const doc = await storage.getDocument(id, auth.ownerId);
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
   const { searchParams } = new URL(request.url);
@@ -57,7 +69,12 @@ export async function GET(request: Request, { params }: RouteParams) {
 }
 
 export async function POST(request: Request, { params }: RouteParams) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
   const { id } = await params;
+  if (!isValidDocumentId(id)) {
+    return NextResponse.json({ error: "Invalid document id" }, { status: 400 });
+  }
 
   let body: unknown;
   try {

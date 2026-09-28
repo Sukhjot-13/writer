@@ -90,7 +90,17 @@ function ActionButton({
     ? "bg-blue-600 text-[#fff] shadow-sm hover:bg-blue-700"
     : "border border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50";
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title} className={`${base} ${styles}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      // 2026-09-28 (a11y): `title` is not an accessible name — a screen reader
+      // announces nothing for an icon/glyph button. When there is no visible
+      // text, fall back to the tooltip as the aria-label.
+      aria-label={title}
+      className={`${base} ${styles}`}
+    >
       {children}
     </button>
   );
@@ -259,6 +269,7 @@ export default function Toolbar({
         <ThemeToggle />
 
         <input
+          aria-label="Document title"
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder="Untitled document"
@@ -276,6 +287,7 @@ export default function Toolbar({
               type="button"
               onClick={onMakeNormalDocument}
               title="Clear the test flag so this opens as a normal document"
+              aria-label="Clear the test flag so this opens as a normal document"
               className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800"
             >
               Make normal
@@ -283,6 +295,7 @@ export default function Toolbar({
           </>
         )}
         <input
+          aria-label="Document tags, comma-separated"
           value={tagsDraft}
           onChange={(e) => setTagsDraft(e.target.value)}
           onBlur={() => onTagsChange(parseTags(tagsDraft))}
@@ -320,6 +333,8 @@ export default function Toolbar({
               onClick={() => setConvertOpen((o) => !o)}
               disabled={busy !== null}
               title="Optional goal and conversion options"
+              aria-label="Optional goal and conversion options"
+              aria-expanded={convertOpen}
               className="border-l border-blue-700/60 bg-blue-600 px-2 text-xs text-[#fff] transition-colors hover:bg-blue-700 disabled:opacity-40"
             >
               ▾
@@ -422,6 +437,8 @@ export default function Toolbar({
                 onClick={onToggleChecked}
                 disabled={busy !== null}
                 title={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question"}
+                aria-label={checked ? "Hide the reference answers again" : "Reveal the reference answer for every question"}
+                aria-pressed={checked}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                   checked
                     ? "bg-emerald-600 text-[#fff] shadow-sm hover:bg-emerald-700"
@@ -437,6 +454,7 @@ export default function Toolbar({
                 onClick={onResetPractice}
                 disabled={busy !== null}
                 title="Clears every 'My answer' so you can practice again"
+                aria-label="Clears every 'My answer' so you can practice again"
                 className="rounded-lg px-1.5 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-40"
               >
                 Reset practice

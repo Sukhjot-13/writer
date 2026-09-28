@@ -10,6 +10,9 @@
 // Uses plain fetch — no SDK. Logs token usage to the server console for cost
 // visibility (FR-31).
 
+/** Hard ceiling on one provider call (ms). */
+export const AI_TIMEOUT_MS = 60_000;
+
 export interface AIConfig {
   apiKey: string;
   baseUrl: string;
@@ -76,8 +79,15 @@ export async function convertWithAI(system: string, user: string): Promise<strin
           { role: "user", content: user },
         ],
       }),
+      // 2026-09-28: the fetch had no timeout, so a hung provider held the route
+      // handler (and its request body) open indefinitely. 60s is well above a
+      // normal long conversion and well below any platform function limit.
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new AIError("The AI request timed out after 60s — try a smaller document.", 504);
+    }
     throw new AIError("Could not reach the DeepSeek API — check your connection.");
   }
 

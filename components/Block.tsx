@@ -284,6 +284,7 @@ export default function Block({
         onClick={onMoveUp}
         disabled={index === 0}
         title="Move up"
+        aria-label="Move block up"
         className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
       >
         ↑
@@ -293,6 +294,7 @@ export default function Block({
         onClick={onMoveDown}
         disabled={index === total - 1}
         title="Move down"
+        aria-label="Move block down"
         className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
       >
         ↓
@@ -301,6 +303,7 @@ export default function Block({
         type="button"
         onClick={onAddAfter}
         title="Add block below"
+        aria-label="Add block below"
         className="px-1.5 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
       >
         ＋
@@ -309,6 +312,7 @@ export default function Block({
         type="button"
         onClick={onRemove}
         title="Delete block"
+        aria-label="Delete block"
         className="px-1.5 py-1 transition-colors hover:bg-red-50 hover:text-red-600"
       >
         ✕
@@ -344,6 +348,9 @@ export default function Block({
                 value={block.content.level ?? 2}
                 onChange={(e) => onUpdate({ ...block.content, level: Number(e.target.value) as 2 | 3 })}
                 title="Heading level"
+                // 2026-09-28 (a11y): the only label was a `title`, which screen
+                // readers ignore on a select.
+                aria-label="Heading level"
               >
                 <option value={2}>H2</option>
                 <option value={3}>H3</option>
@@ -351,6 +358,7 @@ export default function Block({
             )}
             {!practiceMode && (
               <input
+                aria-label={`Tags for this ${block.type} block, comma-separated`}
                 value={tagsDraft}
                 onChange={(e) => setTagsDraft(e.target.value)}
                 onBlur={() => onUpdateTags(parseTags(tagsDraft))}

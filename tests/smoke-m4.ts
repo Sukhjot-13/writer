@@ -29,6 +29,13 @@ const check = (name: string, cond: boolean) => {
 };
 
 const SCRATCH = path.resolve(__dirname, "..", ".tmp-m4");
+// 2026-09-28: storage is owner-scoped; the suite runs as one explicit user.
+const OWNER = "user-m4";
+
+function owned<T extends { ownerId?: string | null }>(doc: T): T {
+  doc.ownerId = OWNER;
+  return doc;
+}
 
 async function cleanScratch() {
   await fs.rm(SCRATCH, { recursive: true, force: true });
@@ -78,6 +85,13 @@ async function run() {
   check("saveInstructions: previous version snapshotted to history", history.length === 1 && history[0].version === hashVersion(active));
   const restored = await storage.readInstructionsVersion(history[0].version);
   check("readInstructionsVersion: history content readable", restored === active);
+  // 2026-09-28 (broken history restore): the backends used to return only
+  // {version, savedAt}, so the editor showed "0 chars", Preview wiped the
+  // textarea and Restore PUT `{content: ""}` → 400. The list now carries content.
+  check("listInstructionsHistory: entries carry their full content (preview/restore fix)",
+    typeof history[0].content === "string" && history[0].content === active);
+  check("listInstructionsHistory: content matches readInstructionsVersion",
+    history[0].content === (await storage.readInstructionsVersion(history[0].version)));
 
   // ---------- resetInstructions (FR-22) ----------
   const resetVersion = await resetInstructions(storage);
@@ -85,6 +99,8 @@ async function run() {
   check("resetInstructions: version matches repo", resetVersion === hashVersion(repo));
   const history2 = await storage.listInstructionsHistory();
   check("resetInstructions: modified version kept in history", history2.length === 2);
+  check("getInstructionsState: history entries carry content",
+    (await getInstructionsState(storage)).history.every((h) => h.content.length > 0));
 
   // ---------- getTokensFromInstructions (snapshot template conversion, FR-23) ----------
   const tokens = getTokensFromInstructions(repo);
@@ -97,43 +113,43 @@ async function run() {
   // which required Vercel Blob on the Mongo backend) to the `instructionsSnapshot`
   // DOCUMENT FIELD — plain data, every backend, nothing pre-generated. Legacy
   // snapshot files are still read as a fallback for older documents.
-  const doc = createDocument("Snapshot smoke");
+  const doc = owned(createDocument("Snapshot smoke"));
   doc.blocks = [setBlockContent(createBlock("paragraph"), { text: "Bonjour." })];
   // M6: the snapshot is recorded only when the caller reports the instructions
   // version the document was converted with (the editor sends it after a
   // conversion) — plain saves no longer snapshot.
   await persistDocument(storage, doc, hashVersion(repo));
   // version-gated: a save WITHOUT the version must not snapshot
-  const docPlain = createDocument("Plain save");
+  const docPlain = owned(createDocument("Plain save"));
   docPlain.blocks = [setBlockContent(createBlock("paragraph"), { text: "Sans version." })];
   await persistDocument(storage, docPlain);
-  const snapPlain = await readDocumentSnapshot(storage, docPlain.id);
+  const snapPlain = await readDocumentSnapshot(storage, docPlain.id, OWNER);
   check("persistDocument: no version → no snapshot (M6)", snapPlain === null);
-  const snap = await readDocumentSnapshot(storage, doc.id);
+  const snap = await readDocumentSnapshot(storage, doc.id, OWNER);
   check("persistDocument: instructionsSnapshot recorded on the document",
     snap !== null && snap.version === hashVersion(repo) && snap.content === repo);
-  const saved = await storage.getDocument(doc.id);
+  const saved = await storage.getDocument(doc.id, OWNER);
   check("persistDocument: snapshot persisted inside document.json", saved?.instructionsSnapshot === repo);
   check("persistDocument: no snapshot FILE written anymore",
-    (await storage.readFile(doc.id, "instructions.snapshot.md")) === null);
+    (await storage.readFile(doc.id, "instructions.snapshot.md", OWNER)) === null);
   // legacy fallback: no field, but an old snapshot file exists → still read
-  const docLegacy = createDocument("Legacy snapshot");
+  const docLegacy = owned(createDocument("Legacy snapshot"));
   await persistDocument(storage, docLegacy);
-  await storage.writeFile(docLegacy.id, "instructions.snapshot.md", Buffer.from(repo, "utf8"));
-  const snapLegacy = await readDocumentSnapshot(storage, docLegacy.id);
+  await storage.writeFile(docLegacy.id, "instructions.snapshot.md", Buffer.from(repo, "utf8"), OWNER);
+  const snapLegacy = await readDocumentSnapshot(storage, docLegacy.id, OWNER);
   check("readDocumentSnapshot: legacy file read when the field is absent",
     snapLegacy !== null && snapLegacy.content === repo);
 
   // ---------- resolveConversionInstructions (FR-23 toggle) ----------
-  const resolvedActive = await resolveConversionInstructions(storage, doc.id, false);
+  const resolvedActive = await resolveConversionInstructions(storage, doc.id, false, OWNER);
   check("resolve: no toggle → active rules", resolvedActive === repo);
-  const resolvedSnap = await resolveConversionInstructions(storage, doc.id, true);
+  const resolvedSnap = await resolveConversionInstructions(storage, doc.id, true, OWNER);
   check("resolve: toggle → snapshot rules", resolvedSnap === repo);
   // change active, then verify toggle returns the OLD (snapshot) rules
   await saveInstructions(storage, repo + "\n\n<!-- changed later -->\n");
-  const snapAfter = await readDocumentSnapshot(storage, doc.id);
-  const resolvedOld = await resolveConversionInstructions(storage, doc.id, true);
-  const resolvedLatest = await resolveConversionInstructions(storage, doc.id, false);
+  const snapAfter = await readDocumentSnapshot(storage, doc.id, OWNER);
+  const resolvedOld = await resolveConversionInstructions(storage, doc.id, true, OWNER);
+  const resolvedLatest = await resolveConversionInstructions(storage, doc.id, false, OWNER);
   check("resolve: snapshot keeps the rules the doc was made with",
     snapAfter !== null && resolvedOld === snapAfter.content && snapAfter.version !== hashVersion(resolvedLatest));
 

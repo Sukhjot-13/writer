@@ -8,11 +8,18 @@
 
 import { NextResponse } from "next/server";
 
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { documentSchema, hiddenOptionsSchema } from "@/lib/schemas";
 import { getTokens } from "@/lib/design-tokens";
 import { generateTemplateHTML } from "@/lib/html-template";
 
+// Session required (2026-09-28): preview is a stateless render of the caller's
+// own editor buffer, but the endpoint was one of the 18 open routes and there is
+// no reason for it to be anonymous. The payload is bounded by documentSchema.
 export async function POST(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();

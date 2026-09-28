@@ -9,14 +9,21 @@
 
 import { NextResponse } from "next/server";
 
-import { documentSchema } from "@/lib/schemas";
+import { documentSchema, goalSchema } from "@/lib/schemas";
+import { authorize, isAuthorized } from "@/lib/api-auth";
 import { getStorage } from "@/lib/storage";
 import { convertWithAI, hasAIKey, AIError } from "@/lib/ai";
 import { buildAIPrompt } from "@/lib/prompt";
 import { parseStructuredBlocksResponse } from "@/lib/structuring";
 import { resolveConversionInstructions, hashVersion } from "@/lib/instructions";
 
+// Session required (2026-09-28). `goal` is capped (see the 2000-char bound in
+// lib/schemas.ts) because buildAIPrompt injects it verbatim into the user
+// message — unbounded it was a free prompt-injection and token-burn surface.
 export async function POST(request: Request) {
+  const auth = await authorize();
+  if (!isAuthorized(auth)) return auth;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -40,7 +47,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const goal = typeof payload.goal === "string" && payload.goal.trim() ? payload.goal.trim() : undefined;
+  const goalPayload = goalSchema.optional().safeParse(payload.goal);
+  if (!goalPayload.success) {
+    return NextResponse.json({ error: "The conversion goal is too long (2000 characters max)." }, { status: 400 });
+  }
+  const goal = typeof goalPayload.data === "string" && goalPayload.data.trim() ? goalPayload.data.trim() : undefined;
   const useSnapshot = payload.useSnapshot === true;
 
   try {
@@ -48,7 +59,12 @@ export async function POST(request: Request) {
     // FR-23: with the toggle on, convert with the rules this document was made
     // with (its instructionsSnapshot field / legacy snapshot file) instead of
     // the latest active file.
-    const instructions = await resolveConversionInstructions(storage, parsed.data.id, useSnapshot);
+    const instructions = await resolveConversionInstructions(
+      storage,
+      parsed.data.id,
+      useSnapshot,
+      auth.ownerId,
+    );
     const { system, user } = buildAIPrompt(parsed.data, instructions, goal);
     const raw = await convertWithAI(system, user);
     const blocks = parseStructuredBlocksResponse(raw);

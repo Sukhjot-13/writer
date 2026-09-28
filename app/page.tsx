@@ -9,10 +9,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getStorage } from "@/lib/storage";
+import { requireOwner } from "@/lib/auth";
 import NewDocumentButton from "@/components/NewDocumentButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import LibraryList from "@/components/LibraryList";
 import TestDialog from "@/components/TestDialog"; // 2026-08-13 (to-do item 5)
+import SignOutButton from "@/components/SignOutButton"; // 2026-09-28 (passwordless auth)
 
 export const metadata: Metadata = {
   title: "Home — Writer App",
@@ -30,9 +32,12 @@ export default async function HomePage() {
   // listDocuments already sorts by updatedAt desc. LibraryList takes the FULL
   // list plus limit — the card grid shows the first 10, while the folder
   // chips and their counts describe everything (2026-08-10 M7 round 6b).
+  // The owner id comes from the verified session and is the ONLY thing that
+  // scopes the queries — a document belonging to somebody else is invisible.
+  const { ownerId } = await requireOwner();
   const [documents, folders] = await Promise.all([
-    getStorage().listDocuments(null),
-    getStorage().listFolders(), // folder bar + card folder names on home too
+    getStorage().listDocuments(ownerId),
+    getStorage().listFolders(ownerId), // folder bar + card folder names on home too
   ]);
 
   return (
@@ -64,6 +69,8 @@ export default async function HomePage() {
           </Link>
           {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
           <ThemeToggle />
+          {/* 2026-09-28: passwordless auth — end the session (row + cookie). */}
+          <SignOutButton />
           {/* 2026-08-13 (to-do item 5): the Test generator — pick documents and
               build a practice test (random or AI). */}
           <TestDialog documents={documents} />

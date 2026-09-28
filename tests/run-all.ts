@@ -24,12 +24,23 @@ const SUITES = [
   "smoke-m7", // design tokens, suggestions
   "smoke-m8", // library folders
   "smoke-m9", // test generator (random path)
+  "smoke-m10", // 2026-09-28 security suite: sanitizer, token allow-list, id
+  //             validator, OTP/session crypto, rate limiter, payload ceilings
 ];
 
 // The compiled suites live next to this file (tests/build/tests/). The alias
 // hook itself is NOT compiled — it stays at tests/alias-hook.js (two levels up).
 const HERE = __dirname;
 const HOOK = path.resolve(HERE, "..", "..", "alias-hook.js");
+
+// 2026-09-28: the suites must run with the REPO ROOT as cwd. lib/tokens.ts
+// resolves REPO_INSTRUCTIONS_PATH from process.cwd() (the same way the Next
+// server does), so running the compiled suites from tests/ made
+// smoke-m2/m4/m7 abort with ENOENT docs/html_instructions.md — 3 of 8 suites
+// "failing" purely because `npm test` did not exist and nobody ran them. The
+// compiled suites live at tests/build/tests, so the root is three levels up.
+const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
+if (process.cwd() !== REPO_ROOT) process.chdir(REPO_ROOT);
 
 const only = process.argv[2];
 const suites = only ? SUITES.filter((s) => s.includes(only.replace(/^smoke-/, ""))) : SUITES;

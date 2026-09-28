@@ -22,6 +22,7 @@
     "./smoke-m7.ts",
     "./smoke-m8.ts",
     "./smoke-m9.ts",
+    "./smoke-m10.ts",
     "./run-all.ts",
     "../lib/**/*.ts",
     "../components/CopyDialog.tsx",

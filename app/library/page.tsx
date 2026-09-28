@@ -9,10 +9,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getStorage } from "@/lib/storage";
+import { requireOwner } from "@/lib/auth";
 import NewDocumentButton from "@/components/NewDocumentButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import LibraryList from "@/components/LibraryList";
 import TestDialog from "@/components/TestDialog"; // 2026-08-13 (to-do item 5)
+import SignOutButton from "@/components/SignOutButton"; // 2026-09-28 (passwordless auth)
 
 export const metadata: Metadata = {
   title: "Library — Writer App",
@@ -22,9 +24,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function LibraryPage() {
+  // Owner-scoped (2026-09-28): the id is derived from the session, never from
+  // the URL or a client value.
+  const { ownerId } = await requireOwner();
   const [documents, folders] = await Promise.all([
-    getStorage().listDocuments(null),
-    getStorage().listFolders(),
+    getStorage().listDocuments(ownerId),
+    getStorage().listFolders(ownerId),
   ]);
 
   return (
@@ -61,6 +66,8 @@ export default async function LibraryPage() {
           <TestDialog documents={documents} />
           {/* M7 round 7: dark-mode toggle (🌙/☀️) — app-wide preference. */}
           <ThemeToggle />
+          {/* 2026-09-28: passwordless auth — end the session (row + cookie). */}
+          <SignOutButton />
         </div>
       </header>
 

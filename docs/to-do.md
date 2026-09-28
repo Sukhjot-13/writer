@@ -4,7 +4,7 @@
 
 ## 🧭 NEW-SESSION HANDOFF — read this first (2026-08-13)
 
-**Project:** Next.js (App Router, TS, Tailwind v4) French practice worksheet app. This Next version has breaking changes — read the guides in `node_modules/next/dist/docs/` before writing any code. **Note (2026-08-13): the root `AGENTS.md` and `CLAUDE.md` files were deleted by user decision ("useless — nothing there"); `next dev` re-scaffolds both on startup, so they're gitignored — don't restore or commit them.** Architecture + every file's functions: `docs/architecture.md` (updated after every change — keep it that way). User to address as **Sukhjot**.
+**Project:** Next.js 16 (App Router, TS, Tailwind v4) French practice worksheet app. **2026-09-28: the app now REQUIRES a sign-in** (email OTP) — `middleware.ts` gates every page and every `/api/*` except `/api/auth/*`; documents and folders are strictly per-account. This Next version has breaking changes — read the guides in `node_modules/next/dist/docs/` before writing any code. **Note (2026-08-13): the root `AGENTS.md` and `CLAUDE.md` files were deleted by user decision ("useless — nothing there"); `next dev` re-scaffolds both on startup, so they're gitignored — don't restore or commit them.** Architecture + every file's functions: `docs/architecture.md` (updated after every change — keep it that way). User to address as **Sukhjot**.
 
 **Current state:**
 - **EVERYTHING IS DONE (2026-08-13).** All to-do items were built in one pass and verified (item 10 instructions auto-sync → 1 copy wording + French headings → 8 French headings + no lonely RÉPONSE → 6 page-leave flush → 7 card ⬇ PDF / JSON in preview / backup zip naming → 4 focus retention on Detailed → 9 smart paste + copy presets → 5 test generator + `tests/run-all.ts`), plus item 2 (analysis bullet points, previous round) and rounds 12 (reset button relabeled + tests auto-open in practice via `Document.opensInPractice`), 13 (on-demand rework — no pre-generated html/pdf/snapshot files) and 13b (MongoDB-only storage for Vercel). **The full item list with decisions/build plans was REMOVED from this file (user: "remove what is done from there")** — every item was ✅; the decisions are recorded in `architecture.md` (M7 round 11 + 12 + 13 + 13b entries) and in git history.
@@ -14,25 +14,28 @@
 - The visual bullet-test document `data/documents/points-test-8c31f0` ("Test — Rendu des points") exists locally (gitignored) for checking bullet rendering — delete anytime.
 
 **What's left (nothing to build):**
-1. **Verify the app against MongoDB Atlas.** `.env.local` now carries `MONGODB_URI`; the Mongo-only runtime path (round 13b) was NOT fully exercised locally — the round-13b curl checks hit a stale pre-change `next start`. Quick e2e: start the app, save/list a document, folder CRUD, backup ZIP, PDF download.
-2. **The one deferred M5 smoke check** — "parse: vocab grid rows" (term/def attribution in parse-back); pre-existing and documented; M5 = 37 passed + 1 deferred.
+1. **Set the two email env vars before the first sign-in.** `BREVO_API_KEY` and `BREVO_SENDER_EMAIL` (added 2026-09-28 with the passwordless auth) must exist in `.env.local` **and** in the Vercel project — the app THROWS rather than defaulting, so `/api/auth/otp/send` returns a generic 500 until both are present. The sender must be a verified address in the Brevo account.
+2. **Legacy documents/folders are invisible to the new owner model (expected, one-time).** Every document/folder row written before 2026-09-28 has no `ownerId`, so the owner-scoped queries cannot match it and it is no longer listed or openable. This is the fail-closed behaviour we want (there is no safe way to attribute pre-auth data to an account), but it means the old library looks empty after the upgrade. If any of it should be kept, re-import it under an account.
+3. ~~**Verify the app against MongoDB Atlas.**~~ **RESOLVED** — the previous commit settled this: storage is MongoDB-only (round 13b, no filesystem fallback remains), and the Atlas path is the only path in production. The remaining local gap was really "does the suite run at all", which is now fixed (see below).
+4. ~~**The one deferred M5 smoke check** ("parse: vocab grid rows")~~ **RESOLVED 2026-09-26** — it was a real parser bug in `elementsByClass()` (children pushed un-reversed, so sibling groups came back front-to-back); fixed, M5 is 38/38.
 
 **Verification commands (run before declaring anything done):**
 ```
+npm run lint        # 0 errors
 npx tsc --noEmit
-next build
-# smoke suites (M2–M9) — ONE file runs everything (user's token-saving ask):
-cd tests && npx tsc -p tsconfig.json
-node tests/build/tests/run-all.js        # all suites
-node tests/build/tests/run-all.js m7     # only suite m7 (re-run a failure)
+npm test            # compiles the suites and runs ALL of them (9 suites)
+npm run build
+# one suite only (re-run a failure):
+cd tests && npx tsc -p tsconfig.json && node build/tests/run-all.js m10
 ```
-Latest known (2026-08-13, the full final run): M2 26/26, M3 48/48, M4 31/31, M5 37 passed + 1 pre-existing deferred check ("parse: vocab grid rows"), M6 24/24, M7 37/37, M8 23/23, M9 18/18 → **7/8 suites pass** (M5's only failure is the documented deferred check). Type-check + `next build` green (19 routes — `/api/test` added).
+`npm test` exists as of **2026-09-28** (`cd tests && npx tsc -p tsconfig.json && node build/tests/run-all.js`). Before that there was no `test` script at all, and running the harness by hand from `tests/` crashed M2/M4/M7 with `ENOENT docs/html_instructions.md` — `tests/run-all.ts` now `chdir`s to the repo root first, which is the cwd the app itself runs with. Latest run: **9/9 suites pass** — M2 26/26, M3 48/48, M4 34/34, M5 38/38, M6 24/24, M7 37/37, M8 31/31, M9 21/21, **M10 116/116 (the new security suite: HTML sanitizer, token allow-list, document-id validator, OTP/session crypto, rate limiter, payload ceilings)**. `next build` green (26 routes — `/login` + the three `/api/auth/*` routes added).
 
 **File map (everything below in one place):**
 - Renderers (the two that must never drift): `lib/html-template.ts` (HTML/preview) + `lib/pdf.tsx` (PDF, the only PDF engine).
 - Data chain for any new field: `lib/types.ts` (model) → `lib/schemas.ts` (zod) → `lib/structuring.ts` (AI block parser) → `docs/html_instructions.md` (AI rules; also the design system via the `<!-- TOKENS -->` block) → `lib/prompt.ts` (`BLOCK_FORMAT_SPEC`, serialization, Copy-for-AI).
 - Editor: `components/Editor.tsx` (all state: `detailed`, `practiceMode`, `previewOptions`, autosave, `toggleDetailed` with the scroll-anchor), `components/Toolbar.tsx` (+ `TogglePill` export), `components/QaBlockForm.tsx`, `components/Block.tsx`, `components/ParagraphFields.tsx`, `components/RowEditor.tsx` (shared `inputCls`/`labelCls`), `components/PreviewSheet.tsx`, `components/CopyDialog.tsx` (+ pure `buildCopyText`), `components/LibraryList.tsx` (cards, folders, `downloadDoc`), paste modals `PasteQuestionsModal/PasteBlocksModal/PasteHtmlModal`.
-- Storage: `lib/storage.ts` (gateway — MongoDB-only since round 13b; backend `lib/storage-mongo.ts`), `lib/storage-fs.ts` (TEST-ONLY fixture), `lib/instructions.ts`, `lib/save.ts`, `lib/tokens.ts` + `lib/design-tokens.ts`.
+- Storage: `lib/storage.ts` (gateway — MongoDB-only since round 13b, and OWNER-SCOPED since 2026-09-28: every document/folder/version/file call takes the session's ownerId), `lib/storage-mongo.ts`, `lib/storage-fs.ts` (TEST-ONLY fixture), `lib/instructions.ts`, `lib/save.ts`, `lib/tokens.ts` + `lib/design-tokens.ts`, `lib/sanitize.ts` (imported-HTML scrubber), `lib/ids.ts` (route-param shape validation).
 - Routes: `app/api/*` — documents CRUD, folders, preview (POST `/api/preview`), pdf (`POST/GET /api/documents/[id]/pdf` — `variant` full|questions|my-answers still accepted), convert/ai + convert/structure, backup zip, **test (2026-08-13 — POST `/api/test`, the AI test-generator path)**.
-- Tests: `tests/smoke-m2.ts` … `smoke-m9.ts` + `run-all.ts` (the single all-suite runner — pure-seam checks; compile + run as above).
+- Auth (2026-09-28): `lib/auth.ts` (OTP + opaque sessions), `lib/user.ts`, `lib/db.ts` (the one Mongo connection + index bootstrap), `lib/env.ts` (`requireEnv` — throws, never defaults), `lib/rate-limit.ts`, `lib/api-auth.ts` (`authorize()` for routes), `middleware.ts` (the coarse gate, Node runtime), `app/login/page.tsx` + `components/LoginForm.tsx` + `components/SignOutButton.tsx`, `app/api/auth/{otp/send,otp/verify,logout}/route.ts`. `ownerId` comes from `requireOwner()` ONLY — never from a body, query or header.
+- Tests: `tests/smoke-m2.ts` … `smoke-m10.ts` + `run-all.ts` (the single all-suite runner — pure-seam checks; `npm test` compiles + runs everything).
 - Other: `lib/suggestions.ts` (AI corrections), `lib/html-to-blocks.ts` (parse-back), `lib/ai.ts` (ONLY AI file), `lib/auto-grow.ts`, `lib/pdf-labels.ts`, `lib/zip.ts`, `lib/tags.ts`, `lib/questions.ts`, `lib/validate.ts`, **`lib/backup.ts` (backup folder naming), `lib/paste-sniff.ts` (smart paste), `lib/test-generator.ts` (random test path)**.
