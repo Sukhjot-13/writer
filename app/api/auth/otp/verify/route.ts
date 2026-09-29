@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { SESSION_COOKIE, SESSION_TTL_MS, signInWithOtp } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizeEmail, isValidEmail } from "@/lib/user";
+import { logServerError } from "@/lib/manager";
 
 const GENERIC_FAILURE = { error: "That code is not valid. Request a new one and try again." };
 const RATE_KEY = "otp-verify";
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("[auth/otp/verify]", error);
+    logServerError("otp_verify_failed", error);
     return NextResponse.json({ error: "Could not sign you in. Try again shortly." }, { status: 500 });
   }
 }

@@ -19,10 +19,16 @@
 // Defense in depth: routes ALSO call `authorize()` (lib/api-auth.ts) and every
 // storage call is owner-scoped, so bypassing this file alone still grants
 // nothing.
+//
+// 2026-09-28: every denial is also reported to Manager (optional, no-op when
+// unconfigured) through lib/manager/index.js. This middleware is the app's
+// cheapest real error signal: an unauthenticated hit on any page or /api/*
+// route lands in the central log viewer with no credentials needed.
 
 import { NextResponse, type NextRequest } from "next/server";
 
 import { SESSION_COOKIE } from "./lib/auth";
+import { logServerError, managerLog } from "./lib/manager";
 
 // The session lookup needs the MongoDB driver + node:crypto.
 export const runtime = "nodejs";
@@ -55,8 +61,18 @@ function isPublic(pathname: string): boolean {
   return /^\/[^/]+\.[a-zA-Z0-9]{1,8}$/.test(pathname);
 }
 
+// Every denial is a real, credential-free event (a scanner hitting /api/*), so it
+// is reported to Manager next to the existing console.warn. No-op when Manager is
+// not configured.
 function deny(request: NextRequest, reason: string, status: number): NextResponse {
-  if (reason) console.warn(`[middleware] denied ${request.nextUrl.pathname}: ${reason}`);
+  if (reason) {
+    console.warn(`[middleware] denied ${request.nextUrl.pathname}: ${reason}`);
+    managerLog("warn", "middleware_denied", {
+      path: request.nextUrl.pathname,
+      reason,
+      status,
+    });
+  }
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Authentication required" }, { status });
   }
@@ -89,6 +105,9 @@ export async function middleware(request: NextRequest) {
     if (!user) return deny(request, "session not found, expired, or revoked", 401);
   } catch (error) {
     console.error("[middleware] session lookup failed — denying:", error);
+    logServerError("middleware_session_lookup_failed", error, {
+      path: request.nextUrl.pathname,
+    });
     return deny(request, "session lookup failed", 401);
   }
 

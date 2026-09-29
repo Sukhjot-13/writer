@@ -26,6 +26,8 @@ const SUITES = [
   "smoke-m9", // test generator (random path)
   "smoke-m10", // 2026-09-28 security suite: sanitizer, token allow-list, id
   //             validator, OTP/session crypto, rate limiter, payload ceilings
+  "smoke-m11", // 2026-09-28 Manager integration: optional no-op contract, the
+  //             server/client env split, batching + leading-edge flush
 ];
 
 // The compiled suites live next to this file (tests/build/tests/). The alias

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "cd tests && npx tsc -p tsconfig.json && node build/tests/run-all.js"
+    "test": "cd tests && npx tsc -p tsconfig.json && node build/tests/run-all.js",
+    "manager:check": "node scripts/check-manager-integration.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.0",

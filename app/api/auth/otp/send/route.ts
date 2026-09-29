@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { createOtp, OTP_PER_EMAIL, OTP_PER_IP, OTP_WINDOW_MS } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { normalizeEmail, isValidEmail } from "@/lib/user";
+import { logServerError, managerLog } from "@/lib/manager";
 
 const RATE_KEY = "otp";
 
@@ -28,12 +29,16 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
+    managerLog("warn", "otp_send_malformed_body");
     return NextResponse.json({ error: "Enter your email address." }, { status: 400 });
   }
 
   const raw = (body as { email?: unknown } | null)?.email;
   const email = typeof raw === "string" ? normalizeEmail(raw) : "";
   if (!isValidEmail(email)) {
+    // Anti-enumeration: the response stays identical, but the operator still gets
+    // the signal that malformed sign-in attempts are arriving.
+    managerLog("warn", "otp_send_invalid_email");
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
@@ -54,6 +59,7 @@ export async function POST(request: Request) {
     // A Brevo outage, a missing BREVO_API_KEY or an invalid address must not
     // leak through — but the operator needs the reason in the server log.
     console.error("[auth/otp/send]", error);
+    logServerError("otp_send_failed", error);
     return NextResponse.json(GENERIC_FAILURE, { status: 500 });
   }
 }

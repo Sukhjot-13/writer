@@ -78,3 +78,69 @@ MongoDB-only (FR-44, since 2026-08-13): local dev and Vercel both use the MongoD
 - `docs/architecture.md` — always-current file/function inventory + env vars (update on every change)
 - `docs/suggestions.md` — improvement / feature / vulnerability log
 - `docs/to-do.md` — task list / session handoff
+
+## Manager integration (optional)
+
+This app can send its logs and page analytics to **Manager**, your personal project control
+center. With no `MANAGER_*` variables set nothing changes: the integration is a set of
+no-ops, so local development, CI and previews are never affected.
+
+### What gets wired up
+
+- **Server logs** — `lib/manager/index.ts` is the single entry point
+  (`managerLog`, `logServerEvent`, `logServerError`). Route handlers, the OTP flow and
+  the middleware report through it.
+- **Middleware denials** — every unauthenticated hit is reported as `middleware_denied`.
+  This is the app's cheapest real error signal: a scanner probing `/api/*` shows up in the
+  central viewer with no credentials needed.
+- **Browser logs + analytics** — `lib/manager/ManagerProvider.tsx`, mounted in the root
+  layout, starts the browser logger and injects the analytics `<script>` once.
+
+### Configuration
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `MANAGER_ENDPOINT` | server | Manager's base URL (not this app's port) |
+| `MANAGER_APP_ID` | server | project slug in Manager |
+| `MANAGER_LOG_KEY` | server | `mlk_…` server key |
+| `MANAGER_ANALYTICS_KEY` | server + tracker snippet | `mak_…` analytics key |
+| `MANAGER_LOG_SOURCE` | server | optional, `server` by default |
+| `NEXT_PUBLIC_MANAGER_ENDPOINT` | browser | same base URL, inlined at build time |
+| `NEXT_PUBLIC_MANAGER_APP_ID` | browser | same project slug |
+| `NEXT_PUBLIC_MANAGER_CLIENT_KEY` | browser | `mck_…` client key |
+| `NEXT_PUBLIC_MANAGER_ANALYTICS_KEY` | browser | `mak_…` analytics key |
+
+The `NEXT_PUBLIC_` values are read with static member access on purpose: Next.js only
+inlines `process.env.NEXT_PUBLIC_X` when written that way, and a `process.env[name]`
+lookup in client code silently returns nothing.
+
+Set them in `.env.local` and in the Vercel project settings. See `.env.example`.
+
+### Refresh the vendored SDK
+
+`lib/manager/logger.ts` is the whole SDK in one file (zero dependencies):
+
+```bash
+curl -fsSL -H "x-manager-key: $MANAGER_LOG_KEY" \
+  "https://your-manager-host/api/sdk/logger" -o lib/manager/logger.ts
+```
+
+The key travels in the `x-manager-key` header, never in a URL.
+
+### Verify it works
+
+```bash
+npm run manager:check
+```
+
+Posts one log and one event through the real endpoints, asserts the right key kinds are
+accepted and the wrong ones refused, then checks this app's own endpoint. Logs land under
+*Project → Logs*, pageviews under *Project → Analytics*.
+
+### Delivery tuning
+
+Routine levels ride a 250 ms batch window (a burst of N lines is one request, not N);
+`error`/`fatal` use a leading-edge flush so a crash right after logging cannot strand the
+entry, with a 100 ms minimum gap so an error burst is still cheap. If this client ever has
+to drop entries it reports them as `manager_sdk_dropped_entries` rather than losing them
+silently — `getManagerDroppedCount()` exposes the counter.
